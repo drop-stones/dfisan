@@ -40,8 +40,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "break-constgeps"
-
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
@@ -56,6 +54,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <iostream>
 #include <map>
 #include <utility>
+
+#define DEBUG_TYPE "break-constgeps"
 
 using namespace SVF;
 
