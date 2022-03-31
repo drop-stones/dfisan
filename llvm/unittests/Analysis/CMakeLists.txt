@@ -52,7 +52,7 @@ add_llvm_unittest_with_input_files(AnalysisTests
   VectorUtilsTest.cpp
   ${EXTRA_TESTS}
 
-  FieldSensitivePTATest.cpp
+  SparseValueFlowGraphTest.cpp
   )
 
  target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)
