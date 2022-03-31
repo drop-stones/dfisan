@@ -51,6 +51,8 @@ add_llvm_unittest_with_input_files(AnalysisTests
   ValueTrackingTest.cpp
   VectorUtilsTest.cpp
   ${EXTRA_TESTS}
+
+  FieldSensitivePTATest.cpp
   )
 
  target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)
