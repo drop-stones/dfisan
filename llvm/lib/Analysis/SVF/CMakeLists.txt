@@ -16,6 +16,7 @@ file (GLOB SOURCES
         DDA/*.cpp
         FastCluster/*.cpp
         SparseValueFlowGraph.cpp
+        UseDefAnalysis.cpp
 )
 
 add_llvm_component_library(LLVMSvf
