@@ -161,3 +161,5 @@ add_llvm_component_library(LLVMAnalysis
   ProfileData
   Support
   )
+
+add_subdirectory(SVF)
