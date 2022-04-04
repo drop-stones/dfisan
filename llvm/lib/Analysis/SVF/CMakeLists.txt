@@ -15,6 +15,7 @@ file (GLOB SOURCES
         SABER/*.cpp
         DDA/*.cpp
         FastCluster/*.cpp
+        UseDefAnalysis/*.cpp
         SparseValueFlowGraph.cpp
         UseDefAnalysis.cpp
 )
