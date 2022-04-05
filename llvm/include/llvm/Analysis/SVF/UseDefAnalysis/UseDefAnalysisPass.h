@@ -1,3 +1,12 @@
+//===-- UseDefAnalysisPass.h - Use-Def Analysis Pass definition -*- C++ -*-===//
+//
+//===----------------------------------------------------------------------===//
+///
+/// This file contains the declaration of the UseDefAnalysisPass class,
+/// which run Use-Def analysis and save the results to ModuleAnalysisManager.
+///
+//===----------------------------------------------------------------------===//
+
 #ifndef LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFANALYSIS_PASS_H
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFANALYSIS_PASS_H
 

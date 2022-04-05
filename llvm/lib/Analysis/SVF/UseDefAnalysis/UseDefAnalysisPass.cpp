@@ -1,3 +1,12 @@
+//===-- UseDefAnalysisPass.cpp - Use-Def Analysis Pass implementation -----===//
+//
+//===----------------------------------------------------------------------===//
+///
+/// This file contains the implementation of the UseDefAnalysisPass class,
+/// which run Use-Def analysis and save the results to ModuleAnalysisManager.
+///
+//===----------------------------------------------------------------------===//
+
 #include "UseDefAnalysis/UseDefAnalysisPass.h"
 #include "UseDefAnalysis/UseDefAnalysis.h"
 

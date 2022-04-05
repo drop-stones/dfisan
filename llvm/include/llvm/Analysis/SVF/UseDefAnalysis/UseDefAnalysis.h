@@ -1,3 +1,12 @@
+//===-- UseDefAnalysis.h - Use-Def Analysis definition ----------*- C++ -*-===//
+//
+//===----------------------------------------------------------------------===//
+///
+/// This file contains the declaration of the UseDefAnalysis class,
+/// which create a SVFG, analyze it, and save the results to UseDefChain class.
+///
+//===----------------------------------------------------------------------===//
+
 #ifndef LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFANALYSIS_H
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFANALYSIS_H
 

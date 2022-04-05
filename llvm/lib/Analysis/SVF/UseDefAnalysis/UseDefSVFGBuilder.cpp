@@ -1,3 +1,12 @@
+//===-- UseDefChain.cpp - Use-Def Chain implementation --------------------===//
+//
+//===----------------------------------------------------------------------===//
+///
+/// This file contains the implementation of the UseDefSVFGBuilder class,
+/// which creates an SVFG and removes some unrelated edges.
+///
+//===----------------------------------------------------------------------===//
+
 #include "UseDefAnalysis/UseDefSVFGBuilder.h"
 #include "MemoryModel/PointerAnalysisImpl.h"  // BVDataPTAImpl
 
@@ -5,63 +14,63 @@ using namespace SVF;
 using namespace SVFUtil;
 
 void UseDefSVFGBuilder::buildSVFG() {
-  MemSSA *mssa = svfg->getMSSA();
+  MemSSA *Mssa = svfg->getMSSA();
   svfg->buildSVFG();
-  BVDataPTAImpl *pta = mssa->getPTA();
+  BVDataPTAImpl *Pta = Mssa->getPTA();
 
-  rmDerefDirSVFGEdges(pta);
-  rmIncomingEdgeForSUStore(pta);
-  rmDirOutgoingEdgeForLoad(pta);
+  rmDerefDirSVFGEdges(Pta);
+  rmIncomingEdgeForSUStore(Pta);
+  rmDirOutgoingEdgeForLoad(Pta);
 }
 
-void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *pta) {
-  for (const auto it : *svfg) {
-    const SVFGNode *node = it.second;
-    if (const StmtSVFGNode *stmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(node)) {
-      if (SVFUtil::isa<StoreSVFGNode>(stmtNode)) {
-        const SVFGNode *def = svfg->getDefSVFGNode(stmtNode->getPAGDstNode());
-        if (SVFGEdge *edge = svfg->getIntraVFGEdge(def, stmtNode, SVFGEdge::IntraDirectVF))
-          svfg->removeSVFGEdge(edge);
-      } else if (SVFUtil::isa<LoadSVFGNode>(stmtNode)) {
-        const SVFGNode *def = svfg->getDefSVFGNode(stmtNode->getPAGSrcNode());
-        if (SVFGEdge *edge = svfg->getIntraVFGEdge(def, stmtNode, SVFGEdge::IntraDirectVF))
-          svfg->removeSVFGEdge(edge);
+void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {
+  for (const auto Iter : *svfg) {
+    const SVFGNode *Node = Iter.second;
+    if (const StmtSVFGNode *StmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(Node)) {
+      if (SVFUtil::isa<StoreSVFGNode>(StmtNode)) {
+        const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGDstNode());
+        if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF))
+          svfg->removeSVFGEdge(Edge);
+      } else if (SVFUtil::isa<LoadSVFGNode>(StmtNode)) {
+        const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGSrcNode());
+        if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF))
+          svfg->removeSVFGEdge(Edge);
       }
     }
   }
 }
 
-bool UseDefSVFGBuilder::isStrongUpdate(const SVFGNode *node, NodeID &singleton, BVDataPTAImpl *pta) {
-  bool isSU = false;
-  if (const StoreSVFGNode *store = SVFUtil::dyn_cast<StoreSVFGNode>(node)) {
-    const PointsTo &dstCPSet = pta->getPts(store->getPAGDstNodeID());
-    if (dstCPSet.count() == 1) {
+bool UseDefSVFGBuilder::isStrongUpdate(const SVFGNode *Node, NodeID &Singleton, BVDataPTAImpl *Pta) {
+  bool IsSU = false;
+  if (const StoreSVFGNode *Store = SVFUtil::dyn_cast<StoreSVFGNode>(Node)) {
+    const PointsTo &DstCPSet = Pta->getPts(Store->getPAGDstNodeID());
+    if (DstCPSet.count() == 1) {
       // Find the unique element in cpts
-      PointsTo::iterator it = dstCPSet.begin();
-      singleton = *it;
+      PointsTo::iterator Iter = DstCPSet.begin();
+      Singleton = *Iter;
 
       // Strong update can be made if this points-to target is not heap, array or field-insensitive.
-      if (!pta->isHeapMemObj(singleton) && !pta->isArrayMemObj(singleton)
-          && SVFIR::getPAG()->getBaseObj(singleton)->isFieldInsensitive() == false
-          && !pta->isLocalVarInRecursiveFun(singleton)) {
-        isSU = true;
+      if (!Pta->isHeapMemObj(Singleton) && !Pta->isArrayMemObj(Singleton)
+          && SVFIR::getPAG()->getBaseObj(Singleton)->isFieldInsensitive() == false
+          && !Pta->isLocalVarInRecursiveFun(Singleton)) {
+        IsSU = true;
       }
     }
   }
-  return isSU;
+  return IsSU;
 }
 
-void UseDefSVFGBuilder::rmIncomingEdgeForSUStore(BVDataPTAImpl *pta) {
-  SVFGEdgeSet toRemove;
-  for (const auto it : *svfg) {
-    const SVFGNode *node = it.second;
-    if (const StmtSVFGNode *stmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(node)) {
-      if (SVFUtil::isa<StoreSVFGNode>(stmtNode) && SVFUtil::isa<StoreInst>(stmtNode->getValue())) {
-        NodeID singleton;
-        if (isStrongUpdate(node, singleton, pta)) {
-          for (const auto &inEdge : node->getInEdges()) {
-            if (inEdge->isIndirectVFGEdge()) {
-              toRemove.insert(inEdge);
+void UseDefSVFGBuilder::rmIncomingEdgeForSUStore(BVDataPTAImpl *Pta) {
+  SVFGEdgeSet ToRemove;
+  for (const auto Iter : *svfg) {
+    const SVFGNode *Node = Iter.second;
+    if (const StmtSVFGNode *StmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(Node)) {
+      if (SVFUtil::isa<StoreSVFGNode>(StmtNode) && SVFUtil::isa<StoreInst>(StmtNode->getValue())) {
+        NodeID Singleton;
+        if (isStrongUpdate(Node, Singleton, Pta)) {
+          for (const auto &InEdge : Node->getInEdges()) {
+            if (InEdge->isIndirectVFGEdge()) {
+              ToRemove.insert(InEdge);
             }
           }
         }
@@ -69,25 +78,25 @@ void UseDefSVFGBuilder::rmIncomingEdgeForSUStore(BVDataPTAImpl *pta) {
     }
   }
 
-  for (SVFGEdge *edge : toRemove) {
-    svfg->removeSVFGEdge(edge);
+  for (SVFGEdge *Edge : ToRemove) {
+    svfg->removeSVFGEdge(Edge);
   }
 }
 
-void UseDefSVFGBuilder::rmDirOutgoingEdgeForLoad(BVDataPTAImpl *pta) {
-  SVFGEdgeSet toRemove;
-  for (const auto it : *svfg) {
-    const SVFGNode *node = it.second;
-    if (const StmtSVFGNode *stmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(node)) {
-      if (SVFUtil::isa<LoadSVFGNode>(stmtNode) && SVFUtil::isa<LoadInst>(stmtNode->getValue())) {
-        for (const auto &outEdge : stmtNode->getOutEdges()) {
-          toRemove.insert(outEdge);
+void UseDefSVFGBuilder::rmDirOutgoingEdgeForLoad(BVDataPTAImpl *Pta) {
+  SVFGEdgeSet ToRemove;
+  for (const auto Iter : *svfg) {
+    const SVFGNode *Node = Iter.second;
+    if (const StmtSVFGNode *StmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(Node)) {
+      if (SVFUtil::isa<LoadSVFGNode>(StmtNode) && SVFUtil::isa<LoadInst>(StmtNode->getValue())) {
+        for (const auto &OutEdge : StmtNode->getOutEdges()) {
+          ToRemove.insert(OutEdge);
         }
       }
     }
   }
 
-  for (SVFGEdge *edge : toRemove) {
-    svfg->removeSVFGEdge(edge);
+  for (SVFGEdge *Edge : ToRemove) {
+    svfg->removeSVFGEdge(Edge);
   }
 }
