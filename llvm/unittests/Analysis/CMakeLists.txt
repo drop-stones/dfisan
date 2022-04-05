@@ -52,7 +52,6 @@ add_llvm_unittest_with_input_files(AnalysisTests
   VectorUtilsTest.cpp
   ${EXTRA_TESTS}
 
-  SparseValueFlowGraphTest.cpp
   UseDefAnalysisTest.cpp
   )
 

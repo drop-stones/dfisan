@@ -2,8 +2,6 @@
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFSVFGBUILDER_H
 
 #include "MSSA/SVFGBuilder.h"
-//#include "Util/BasicTypes.h"
-//#include "Util/WorkList.h"
 
 namespace SVF {
 

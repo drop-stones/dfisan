@@ -1,5 +1,5 @@
 
-#include "llvm/Analysis/SVF/UseDefAnalysis.h"
+#include "llvm/Analysis/SVF/UseDefAnalysis/UseDefAnalysisPass.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;

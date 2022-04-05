@@ -2,6 +2,7 @@
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFANALYSIS_H
 
 #include "UseDefAnalysis/UseDefSVFGBuilder.h"
+#include "UseDefAnalysis/UseDefChain.h"
 
 namespace SVF {
 
@@ -9,7 +10,7 @@ class UseDefAnalysis {
 protected:
   UseDefSVFGBuilder SvfgBuilder;
   SVFG *Svfg;
-  //UseDefChain UseDef;
+  UseDefChain UseDef;
 
 public:
   /// Constructor
@@ -34,7 +35,9 @@ public:
   }
 
   /// Get Use-Def
-  // inline UseDefChain &getUseDef();
+  inline UseDefChain &getUseDef() {
+    return UseDef;
+  }
 };
 
 } // namespace SVF
