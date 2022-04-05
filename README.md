@@ -1,8 +1,8 @@
-# LLVM-14 skeleton
+# dfisan
 
 ## Description
 
-This project is a llvm-14 skeleton for additional implementation.
+This project implements dfisan sanitizer which enforces Data-Flow Integrity using LLVM-14 and SVF.
 
 ## Compilation
 
@@ -27,9 +27,15 @@ $ ninja clang compiler-rt opt llvm-profdata
 
 ## Run
 
+### Use-Def Analysis
+
 ```
-$ bin/opt -passes=print-field-sensitive-pta -disable-output /path/to/file
+$ bin/opt -passes=print-usedef -disable-output /path/to/file
 ```
+
+### Sanitize with dfisan
+
+TODO
 
 ## Testing
 
