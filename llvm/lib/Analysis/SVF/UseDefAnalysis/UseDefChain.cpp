@@ -25,3 +25,23 @@ void UseDefChain::print(llvm::raw_ostream &OS) const {
     }
   }
 }
+
+UseDefChain::iterator
+UseDefChain::begin() {
+  return UseDef.begin();
+}
+
+UseDefChain::const_iterator
+UseDefChain::begin() const {
+  return UseDef.begin();
+}
+
+UseDefChain::iterator
+UseDefChain::end() {
+  return UseDef.end();
+}
+
+UseDefChain::const_iterator
+UseDefChain::end() const {
+  return UseDef.end();
+}

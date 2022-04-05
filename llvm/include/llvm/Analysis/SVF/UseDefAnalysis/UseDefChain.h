@@ -18,6 +18,8 @@ namespace SVF {
 
 class UseDefChain {
   using UseDefMap = std::unordered_map<const LoadSVFGNode *, std::unordered_set<const StoreSVFGNode *>>;
+  using iterator = UseDefMap::iterator;
+  using const_iterator = UseDefMap::const_iterator;
 
 public:
   /// Constructor
@@ -31,6 +33,14 @@ public:
 
   /// Print Use-Def
   void print(llvm::raw_ostream &OS) const;
+
+  /// Return the begin iterator to enable range-based loop.
+  iterator begin();
+  const_iterator begin() const;
+
+  /// Return the end iterator to enable range-based loop.
+  iterator end();
+  const_iterator end() const;
 
 private:
   UseDefMap UseDef;
