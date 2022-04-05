@@ -15,6 +15,7 @@ file (GLOB SOURCES
         SABER/*.cpp
         DDA/*.cpp
         FastCluster/*.cpp
+        UseDefAnalysis/*.cpp
 )
 
 add_llvm_component_library(LLVMSvf

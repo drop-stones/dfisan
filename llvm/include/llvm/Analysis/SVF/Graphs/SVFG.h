@@ -70,6 +70,7 @@ class SVFG : public VFG
     friend class DDASVFGBuilder;
     friend class MTASVFGBuilder;
     friend class RcSvfgBuilder;
+    friend class UseDefSVFGBuilder;
 
 public:
     typedef VFGNodeIDToNodeMapTy SVFGNodeIDToNodeMapTy;
