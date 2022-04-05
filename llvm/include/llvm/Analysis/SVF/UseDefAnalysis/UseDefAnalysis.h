@@ -10,17 +10,21 @@ class UseDefAnalysis {
 protected:
   UseDefSVFGBuilder SvfgBuilder;
   SVFG *Svfg;
-  UseDefChain UseDef;
+  UseDefChain *UseDef;
 
 public:
   /// Constructor
-  UseDefAnalysis() : Svfg(nullptr) {}
+  UseDefAnalysis() : Svfg(nullptr), UseDef(nullptr) {}
 
   /// Destructor
   ~UseDefAnalysis() {
     if (Svfg != nullptr)
       delete Svfg;
-    Svfg = nullptr;
+    if (UseDef != nullptr)
+      delete UseDef;
+
+    Svfg   = nullptr;
+    UseDef = nullptr;
   }
 
   /// Start Use-Def Analysis
@@ -35,7 +39,7 @@ public:
   }
 
   /// Get Use-Def
-  inline UseDefChain &getUseDef() {
+  inline UseDefChain *getUseDef() const {
     return UseDef;
   }
 };

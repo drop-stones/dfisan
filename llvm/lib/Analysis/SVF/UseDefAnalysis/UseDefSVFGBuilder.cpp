@@ -59,7 +59,7 @@ void UseDefSVFGBuilder::rmIncomingEdgeForSUStore(BVDataPTAImpl *pta) {
       if (SVFUtil::isa<StoreSVFGNode>(stmtNode) && SVFUtil::isa<StoreInst>(stmtNode->getValue())) {
         NodeID singleton;
         if (isStrongUpdate(node, singleton, pta)) {
-          for (const auto inEdge : node->getInEdges()) {
+          for (const auto &inEdge : node->getInEdges()) {
             if (inEdge->isIndirectVFGEdge()) {
               toRemove.insert(inEdge);
             }
@@ -80,7 +80,7 @@ void UseDefSVFGBuilder::rmDirOutgoingEdgeForLoad(BVDataPTAImpl *pta) {
     const SVFGNode *node = it.second;
     if (const StmtSVFGNode *stmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(node)) {
       if (SVFUtil::isa<LoadSVFGNode>(stmtNode) && SVFUtil::isa<LoadInst>(stmtNode->getValue())) {
-        for (const auto outEdge : stmtNode->getOutEdges()) {
+        for (const auto &outEdge : stmtNode->getOutEdges()) {
           toRemove.insert(outEdge);
         }
       }

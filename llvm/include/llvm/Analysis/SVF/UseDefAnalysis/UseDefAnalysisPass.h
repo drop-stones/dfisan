@@ -5,14 +5,17 @@
 
 namespace SVF {
 class SVFG;
+class UseDefChain;
 } // namespace SVF
 
 namespace llvm {
 
 struct UseDefAnalysisResult {
   SVF::SVFG *Svfg;
+  SVF::UseDefChain *UseDef;
 
-  UseDefAnalysisResult(SVF::SVFG *Svfg) : Svfg(Svfg) {}
+  UseDefAnalysisResult(SVF::SVFG *Svfg, SVF::UseDefChain *UseDef)
+    : Svfg(Svfg), UseDef(UseDef) {}
 };
 
 class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {

@@ -20,8 +20,8 @@ public:
   /// Insert Use-Def
   void insert(const LoadSVFGNode *Use, const StoreSVFGNode *Def);
 
-  /// Print
-  void print();
+  /// Print Use-Def
+  void print(llvm::raw_ostream &OS);
 
 private:
   UseDefMap UseDef;
