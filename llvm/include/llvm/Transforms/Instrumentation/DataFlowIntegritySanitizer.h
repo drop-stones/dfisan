@@ -8,6 +8,11 @@ namespace llvm {
 class DataFlowIntegritySanitizerPass : public PassInfoMixin<DataFlowIntegritySanitizerPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+
+private:
+  FunctionCallee DfiStoreFn, DfiLoadFn;
+  Type *VoidTy, *ArgTy, *PtrTy;
+  void initializeSanitizerFuncs(Module &M);
 };
 
 } // namespace llvm
