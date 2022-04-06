@@ -51,6 +51,6 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
 
-  DfiStoreFn = M.getOrInsertFunction("__dfi_store_id", StoreFnTy);
-  DfiLoadFn  = M.getOrInsertFunction("__dfi_check_ids", LoadFnTy); // VarArg Function
+  DfiStoreFn = M.getOrInsertFunction("__dfisan_store_id", StoreFnTy);
+  DfiLoadFn  = M.getOrInsertFunction("__dfisan_check_ids", LoadFnTy); // VarArg Function
 }
