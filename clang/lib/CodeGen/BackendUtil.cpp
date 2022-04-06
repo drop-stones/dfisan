@@ -75,6 +75,7 @@
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
+#include "llvm/Transforms/Instrumentation/DataFlowIntegritySanitizer.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
@@ -1226,6 +1227,10 @@ static void addSanitizers(const Triple &TargetTriple,
 
     if (LangOpts.Sanitize.has(SanitizerKind::DataFlow)) {
       MPM.addPass(DataFlowSanitizerPass(LangOpts.NoSanitizeFiles));
+    }
+
+    if (LangOpts.Sanitize.has(SanitizerKind::DataFlowIntegrity)) {
+      MPM.addPass(DataFlowIntegritySanitizerPass());
     }
   });
 }

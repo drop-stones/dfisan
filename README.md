@@ -41,7 +41,9 @@ $ bin/opt /path/to/file -passes=dfisan -S -o -
 
 ### Sanitize with dfisan
 
-TODO
+```
+$ bin/clang -fsanitize=dfi /path/to/file
+```
 
 ## Testing
 

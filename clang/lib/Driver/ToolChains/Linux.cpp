@@ -718,6 +718,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   Res |= SanitizerKind::Memory;
   Res |= SanitizerKind::Vptr;
   Res |= SanitizerKind::SafeStack;
+  Res |= SanitizerKind::DataFlowIntegrity;
   if (IsX86_64 || IsMIPS64 || IsAArch64)
     Res |= SanitizerKind::DataFlow;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch || IsPowerPC64 ||
