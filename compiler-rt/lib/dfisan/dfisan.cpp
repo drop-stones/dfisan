@@ -1,6 +1,7 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
+#include <stdlib.h>
 #include <stdarg.h>
 
 using namespace __sanitizer;
@@ -36,7 +37,6 @@ void __dfisan_check_ids(u32 *LoadAddr, u32 Argc, ...) {
   va_end(Args);
   if (NoErr == false) {
     Report("Error detected!!\n");
-  } else {
-    Report("No error\n");
+    exit(1);
   }
 }

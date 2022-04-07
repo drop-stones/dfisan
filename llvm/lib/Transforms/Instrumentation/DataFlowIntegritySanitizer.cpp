@@ -13,6 +13,16 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto Result = MAM.getResult<UseDefAnalysisPass>(M);
 
   IRBuilder<> Builder{M.getContext()};
+  // Insert a DEF function after each store statement.
+  for (const auto *Def : Result.UseDef->getDefList()) {
+    if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Def->getInst())) {
+      Value *StoreAddr = Store->getPointerOperand();
+      Value *DefID = ConstantInt::get(ArgTy, Def->getId(), false);
+      Builder.SetInsertPoint(Store->getNextNode());
+      Builder.CreateCall(DfiStoreFn, {StoreAddr, DefID});
+    }
+  }
+  // Insert a CHECK function before each load statement.
   for (const auto &Iter : *Result.UseDef) {
     const LoadSVFGNode *Use = Iter.first;
     if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Use->getInst())) {
@@ -21,17 +31,11 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
       Value *Argc = ConstantInt::get(ArgTy, Iter.second.size(), false);
       SmallVector<Value *, 8> Args{LoadAddr, Argc};
       for (const auto *Def : Iter.second) {
-        // Insert a DEF function after store statement.
         if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Def->getInst())) {
-          Value *StoreAddr = Store->getPointerOperand();
           Value *DefID = ConstantInt::get(ArgTy, Def->getId(), false);
-          Builder.SetInsertPoint(Store->getNextNode());
-          Builder.CreateCall(DfiStoreFn, {StoreAddr, DefID});
-
           Args.push_back(DefID);
         }
       }
-      // Insert a CHECK function before load statement.
       Builder.SetInsertPoint(Load);
       Builder.CreateCall(DfiLoadFn, Args);
     }
