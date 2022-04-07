@@ -21,8 +21,6 @@ void __dfisan_store_id(u32 *StoreAddr, u32 DefID) {
   setRDT(StoreAddr, DefID);
 }
 
-//template<typename T, typename... Args>
-//void __dfisan_check_ids(u32 *LoadAddr, T t, Args... args) {
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids(u32 *LoadAddr, u32 Argc, ...) {
   Report("INFO: Check SetID at %p\n", (void *)LoadAddr);

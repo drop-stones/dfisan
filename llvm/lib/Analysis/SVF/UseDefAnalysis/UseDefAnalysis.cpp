@@ -14,6 +14,19 @@
 using namespace SVF;
 using namespace SVFUtil;
 
+namespace {
+/// Return true if the DEF statement uses pointer or array access.
+bool isDefUsingPtr(const StoreSVFGNode *Store) {
+  if (const auto *StoreInst = llvm::dyn_cast<const llvm::StoreInst>(Store->getInst())) {
+    const auto *StoreAddr = StoreInst->getPointerOperand();
+    if (llvm::isa<LoadInst>(StoreAddr) || llvm::isa<GetElementPtrInst>(StoreAddr)) {
+      return true;
+    }
+  }
+  return false;
+}
+} // namespace
+
 /// Initialize analysis
 void UseDefAnalysis::initialize(SVFModule *M) {
   SVFIRBuilder Builder;
@@ -35,7 +48,8 @@ void UseDefAnalysis::analyze(SVFModule *M) {
     const SVFGNode *Node = Iter.second;
     if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Node)) {
       Worklist.push(ID);
-      UseDef->insert(StoreNode);
+      if (isDefUsingPtr(StoreNode))
+        UseDef->insertDefUsingPtr(StoreNode);
     }
   }
 

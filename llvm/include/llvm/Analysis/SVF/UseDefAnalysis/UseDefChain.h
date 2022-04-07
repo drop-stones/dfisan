@@ -35,14 +35,14 @@ public:
   void insert(const LoadSVFGNode *Use, const StoreSVFGNode *Def);
 
   /// Insert Def to StoerList
-  void insert(const StoreSVFGNode *Def);
+  void insertDefUsingPtr(const StoreSVFGNode *Def);
 
   /// Print Use-Def
   void print(llvm::raw_ostream &OS) const;
 
-  /// Get DefList
-  StoreSVFGNodeList &getDefList() {
-    return DefList;
+  /// Get DefUsingPtrList
+  StoreSVFGNodeList &getDefUsingPtrList() {
+    return DefUsingPtrList;
   }
 
   /// Return the begin iterator to enable range-based loop.
@@ -55,7 +55,7 @@ public:
 
 private:
   UseDefMap UseDef;
-  StoreSVFGNodeList DefList;
+  StoreSVFGNodeList DefUsingPtrList;
 };
 
 } // namespace SVF

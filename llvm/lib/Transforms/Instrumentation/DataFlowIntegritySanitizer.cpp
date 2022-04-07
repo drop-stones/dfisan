@@ -11,34 +11,21 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initializeSanitizerFuncs(M);
 
   auto Result = MAM.getResult<UseDefAnalysisPass>(M);
+  SVF::UseDefChain *UseDef = Result.UseDef;
 
   IRBuilder<> Builder{M.getContext()};
-  // Insert a DEF function after each store statement.
-  for (const auto *Def : Result.UseDef->getDefList()) {
-    if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Def->getInst())) {
-      Value *StoreAddr = Store->getPointerOperand();
-      Value *DefID = ConstantInt::get(ArgTy, Def->getId(), false);
-      Builder.SetInsertPoint(Store->getNextNode());
-      Builder.CreateCall(DfiStoreFn, {StoreAddr, DefID});
-    }
+  for (const auto *DefUsingPtr : UseDef->getDefUsingPtrList()) {
+    insertDfiStoreFn(Builder, DefUsingPtr);
   }
-  // Insert a CHECK function before each load statement.
-  for (const auto &Iter : *Result.UseDef) {
+  for (const auto &Iter : *UseDef) {
     const LoadSVFGNode *Use = Iter.first;
-    if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Use->getInst())) {
-      Value *LoadAddr = Load->getPointerOperand();
-      Value *UseID = ConstantInt::get(ArgTy, Use->getId(), false);
-      Value *Argc = ConstantInt::get(ArgTy, Iter.second.size(), false);
-      SmallVector<Value *, 8> Args{LoadAddr, Argc};
-      for (const auto *Def : Iter.second) {
-        if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Def->getInst())) {
-          Value *DefID = ConstantInt::get(ArgTy, Def->getId(), false);
-          Args.push_back(DefID);
-        }
-      }
-      Builder.SetInsertPoint(Load);
-      Builder.CreateCall(DfiLoadFn, Args);
+    SmallVector<Value *, 8> DefIDs;
+    for (const auto *Def : Iter.second) {
+      Value *DefID = ConstantInt::get(ArgTy, Def->getId(), false);
+      DefIDs.push_back(DefID);
+      insertDfiStoreFn(Builder, Def);
     }
+    insertDfiLoadFn(Builder, Use, DefIDs);
   }
 
   return PreservedAnalyses::all();
@@ -58,4 +45,45 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
 
   DfiStoreFn = M.getOrInsertFunction("__dfisan_store_id", StoreFnTy);
   DfiLoadFn  = M.getOrInsertFunction("__dfisan_check_ids", LoadFnTy); // VarArg Function
+}
+
+/// Insert a DEF function after each store statement using pointer.
+void DataFlowIntegritySanitizerPass::insertDfiStoreFn(IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
+  // Check whether the insertion is first time.
+  const Instruction *Inst = StoreNode->getInst();
+  const Instruction *NextInst = Inst->getNextNode();
+  if (const CallInst *Call = dyn_cast<const CallInst>(NextInst)) {
+    const Function *Callee = Call->getCalledFunction();
+    if (Callee == nullptr || Callee->getName() == "__dfisan_store_id")
+      return;
+  }
+
+  if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
+    Value *StoreAddr = Store->getPointerOperand();
+    Value *DefID = ConstantInt::get(ArgTy, StoreNode->getId(), false);
+    Builder.SetInsertPoint(Store->getNextNode());
+    Builder.CreateCall(DfiStoreFn, {StoreAddr, DefID});
+  }
+}
+
+/// Insert a CHECK function before each load statement.
+void DataFlowIntegritySanitizerPass::insertDfiLoadFn(IRBuilder<> &Builder, const LoadSVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs) {
+  // Check whether the insertion is first time.
+  const Instruction *Inst = LoadNode->getInst();
+  const Instruction *NextInst = Inst->getNextNode();
+  if (const CallInst *Call = dyn_cast<const CallInst>(NextInst)) {
+    const Function *Callee = Call->getCalledFunction();
+    if (Callee == nullptr || Callee->getName() == "__dfisan_check_ids")
+      return;
+  }
+
+  if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Inst)) {
+    Value *LoadAddr = Load->getPointerOperand();
+    Value *UseID = ConstantInt::get(ArgTy, LoadNode->getId(), false);
+    Value *Argc  = ConstantInt::get(ArgTy, DefIDs.size(), false);
+    SmallVector<Value *, 8> Args{LoadAddr, Argc};
+    Args.append(DefIDs);
+    Builder.SetInsertPoint(Load);
+    Builder.CreateCall(DfiLoadFn, Args);
+  }
 }

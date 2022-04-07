@@ -15,8 +15,8 @@ void UseDefChain::insert(const LoadSVFGNode *Use, const StoreSVFGNode *Def) {
   UseDef[Use].insert(Def);
 }
 
-void UseDefChain::insert(const StoreSVFGNode *Def) {
-  DefList.insert(Def);
+void UseDefChain::insertDefUsingPtr(const StoreSVFGNode *Def) {
+  DefUsingPtrList.insert(Def);
 }
 
 void UseDefChain::print(llvm::raw_ostream &OS) const {
@@ -30,7 +30,7 @@ void UseDefChain::print(llvm::raw_ostream &OS) const {
   }
 
   OS << "Print All-Defs\n";
-  for (const auto *Def : DefList) {
+  for (const auto *Def : DefUsingPtrList) {
     OS << *Def->getValue() << "\n";
   }
 }
