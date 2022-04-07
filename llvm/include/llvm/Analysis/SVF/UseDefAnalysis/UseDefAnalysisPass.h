@@ -11,6 +11,7 @@
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFANALYSIS_PASS_H
 
 #include "llvm/IR/PassManager.h"
+#include <vector>
 
 namespace SVF {
 class SVFG;

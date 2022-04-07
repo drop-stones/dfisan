@@ -11,6 +11,7 @@
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFCHAIN_H
 
 #include "Graphs/SVFG.h"
+#include <vector>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -20,6 +21,8 @@ class UseDefChain {
   using UseDefMap = std::unordered_map<const LoadSVFGNode *, std::unordered_set<const StoreSVFGNode *>>;
   using iterator = UseDefMap::iterator;
   using const_iterator = UseDefMap::const_iterator;
+
+  using StoreSVFGNodeList = std::unordered_set<const StoreSVFGNode *>;
 
 public:
   /// Constructor
@@ -31,8 +34,16 @@ public:
   /// Insert Use-Def
   void insert(const LoadSVFGNode *Use, const StoreSVFGNode *Def);
 
+  /// Insert Def to StoerList
+  void insert(const StoreSVFGNode *Def);
+
   /// Print Use-Def
   void print(llvm::raw_ostream &OS) const;
+
+  /// Get DefList
+  StoreSVFGNodeList &getDefList() {
+    return DefList;
+  }
 
   /// Return the begin iterator to enable range-based loop.
   iterator begin();
@@ -44,6 +55,7 @@ public:
 
 private:
   UseDefMap UseDef;
+  StoreSVFGNodeList DefList;
 };
 
 } // namespace SVF

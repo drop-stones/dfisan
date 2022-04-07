@@ -33,8 +33,10 @@ void UseDefAnalysis::analyze(SVFModule *M) {
   for (const auto &Iter : *Svfg) {
     const NodeID ID = Iter.first;
     const SVFGNode *Node = Iter.second;
-    if (SVFUtil::isa<StoreSVFGNode>(Node))
+    if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Node)) {
       Worklist.push(ID);
+      UseDef->insert(StoreNode);
+    }
   }
 
   using DefIDSet = llvm::SparseBitVector<>;
