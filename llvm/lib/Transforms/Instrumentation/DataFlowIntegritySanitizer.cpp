@@ -18,7 +18,8 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
     if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Use->getInst())) {
       Value *LoadAddr = Load->getPointerOperand();
       Value *UseID = ConstantInt::get(ArgTy, Use->getId(), false);
-      SmallVector<Value *, 8> Args{LoadAddr};
+      Value *Argc = ConstantInt::get(ArgTy, Iter.second.size(), false);
+      SmallVector<Value *, 8> Args{LoadAddr, Argc};
       for (const auto *Def : Iter.second) {
         // Insert a DEF function after store statement.
         if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Def->getInst())) {
