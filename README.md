@@ -56,5 +56,5 @@ $ ninja check-llvm-unit
 ### Regression Test
 
 ```
-$ ninja check-llvm
+$ ninja check-dfisan
 ```
