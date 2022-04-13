@@ -32,10 +32,10 @@ add_llvm_component_library(LLVMSvf
     Cudd
     BitWriter
     Core
-    ipo
+    # ipo
     IRReader
     InstCombine
-    Instrumentation
+    # Instrumentation
     Target
     Linker
     Analysis

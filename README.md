@@ -33,9 +33,17 @@ $ ninja clang compiler-rt opt llvm-profdata
 $ bin/opt -passes=print-usedef -disable-output /path/to/file
 ```
 
+### IR Transformation
+
+```
+$ bin/opt /path/to/file -passes=dfisan -S -o -
+```
+
 ### Sanitize with dfisan
 
-TODO
+```
+$ bin/clang -fsanitize=dfi /path/to/file
+```
 
 ## Testing
 
@@ -48,5 +56,5 @@ $ ninja check-llvm-unit
 ### Regression Test
 
 ```
-$ ninja check-llvm
+$ ninja check-dfisan
 ```

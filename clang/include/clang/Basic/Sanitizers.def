@@ -112,6 +112,9 @@ SANITIZER("unsigned-shift-base", UnsignedShiftBase)
 // DataFlowSanitizer
 SANITIZER("dataflow", DataFlow)
 
+// DataFlowIntegritySanitizer
+SANITIZER("dfi", DataFlowIntegrity)
+
 // Control Flow Integrity
 SANITIZER("cfi-cast-strict", CFICastStrict)
 SANITIZER("cfi-derived-cast", CFIDerivedCast)
