@@ -16,11 +16,19 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
-  FunctionCallee DfiStoreFn, DfiLoadFn;
+  FunctionCallee DfiInitFn, DfiStoreFn, DfiLoadFn;
   Type *VoidTy, *ArgTy, *PtrTy;
 
+  /// Initialize member variables.
   void initializeSanitizerFuncs(Module &M);
+
+  /// Create Ctor functions which call DfiInitFn and Insert it to global ctors.
+  void insertDfiInitFn(Module &M, IRBuilder<> &Builder);
+
+  /// Insert DfiStoreFn after each store instruction.
   void insertDfiStoreFn(IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode);
+
+  /// Insert DfiLoadFn before each load instruction.
   void insertDfiLoadFn(IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs);
 };
 

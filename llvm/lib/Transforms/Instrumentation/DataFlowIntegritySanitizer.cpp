@@ -1,10 +1,16 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Instrumentation/DataFlowIntegritySanitizer.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"  /* appendToUsed */
 #include "UseDefAnalysis/UseDefAnalysisPass.h"
 #include "UseDefAnalysis/UseDefChain.h"
 
 using namespace llvm;
 using namespace SVF;
+
+const char DfisanModuleCtorName[] = "dfisan.module_ctor";
+const char DfisanInitFunName[]    = "__dfisan_init";
+const char DfisanStoreFunName[]   = "__dfisan_store_id";
+const char DfisanLoadFunName[]    = "__dfisan_check_ids";
 
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
@@ -14,6 +20,8 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   SVF::UseDefChain *UseDef = Result.UseDef;
 
   IRBuilder<> Builder{M.getContext()};
+  insertDfiInitFn(M, Builder);
+
   for (const auto *DefUsingPtr : UseDef->getDefUsingPtrList()) {
     insertDfiStoreFn(Builder, DefUsingPtr);
   }
@@ -43,8 +51,29 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
 
-  DfiStoreFn = M.getOrInsertFunction("__dfisan_store_id", StoreFnTy);
-  DfiLoadFn  = M.getOrInsertFunction("__dfisan_check_ids", LoadFnTy); // VarArg Function
+  DfiInitFn  = M.getOrInsertFunction(DfisanInitFunName, VoidTy);
+  DfiStoreFn = M.getOrInsertFunction(DfisanStoreFunName, StoreFnTy);
+  DfiLoadFn  = M.getOrInsertFunction(DfisanLoadFunName, LoadFnTy); // VarArg Function
+}
+
+/// Insert a constructor function in comdat
+void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Builder) {
+  // Create Sanitizer Ctor
+  Function *Ctor = Function::createWithDefaultAttr(
+    FunctionType::get(VoidTy, false),
+    GlobalValue::InternalLinkage, 0, DfisanModuleCtorName, &M);
+  Ctor->addFnAttr(Attribute::NoUnwind);
+  BasicBlock *CtorBB = BasicBlock::Create(M.getContext(), "", Ctor);
+  ReturnInst::Create(M.getContext(), CtorBB);
+
+  // Insert Init Function
+  Builder.SetInsertPoint(Ctor->getEntryBlock().getTerminator());
+  Builder.CreateCall(DfiInitFn, {});
+
+  // Ensure Ctor cannot be discarded, even if in a comdat.
+  appendToUsed(M, {Ctor});
+  // Put the constructor in GlobalCtors
+  appendToGlobalCtors(M, Ctor, 1);
 }
 
 /// Insert a DEF function after each store statement using pointer.
@@ -54,7 +83,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(IRBuilder<> &Builder, cons
   const Instruction *NextInst = Inst->getNextNode();
   if (const CallInst *Call = dyn_cast<const CallInst>(NextInst)) {
     const Function *Callee = Call->getCalledFunction();
-    if (Callee == nullptr || Callee->getName() == "__dfisan_store_id")
+    if (Callee == nullptr || Callee->getName() == DfisanStoreFunName)
       return;
   }
 
@@ -73,7 +102,7 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(IRBuilder<> &Builder, const
   const Instruction *NextInst = Inst->getNextNode();
   if (const CallInst *Call = dyn_cast<const CallInst>(NextInst)) {
     const Function *Callee = Call->getCalledFunction();
-    if (Callee == nullptr || Callee->getName() == "__dfisan_check_ids")
+    if (Callee == nullptr || Callee->getName() == DfisanLoadFunName)
       return;
   }
 
