@@ -2,11 +2,13 @@ include_directories(..)
 
 # Runtime library sources and build flags.
 set(DFISAN_RTL_SOURCES
-  dfisan.cpp
+  dfisan_rtl.cpp
+  dfisan_interceptors.cpp
 )
 
 set(DFISAN_RTL_HEADERS
-  # Put additional headers here if any
+  dfisan_interceptors.h
+  dfisan_interface_internal.h
 )
 
 set(DFISAN_COMMON_CFLAGS ${SANITIZER_COMMON_CFLAGS})
@@ -23,6 +25,7 @@ foreach(arch ${DFISAN_SUPPORTED_ARCH})
     STATIC
     ARCHS ${arch}
     SOURCES ${DFISAN_RTL_SOURCES}
+            $<TARGET_OBJECTS:RTInterception.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
     ADDITIONAL_HEADERS ${DFISAN_RTL_HEADERS}
