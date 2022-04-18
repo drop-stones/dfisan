@@ -88,4 +88,7 @@ void UseDefAnalysis::analyze(SVFModule *M) {
       }
     }
   }
+
+  // ID to Defs
+  UseDef->idToUseDef();
 }

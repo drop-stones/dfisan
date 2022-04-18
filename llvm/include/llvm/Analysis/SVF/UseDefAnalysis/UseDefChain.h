@@ -18,11 +18,13 @@
 namespace SVF {
 
 class UseDefChain {
-  using UseDefMap = std::unordered_map<const LoadSVFGNode *, std::unordered_set<const StoreSVFGNode *>>;
+  using DefSet = std::unordered_set<const StoreSVFGNode *>;
+  using UseDefMap = std::unordered_map<const LoadSVFGNode *, DefSet>;
   using iterator = UseDefMap::iterator;
   using const_iterator = UseDefMap::const_iterator;
 
-  using StoreSVFGNodeList = std::unordered_set<const StoreSVFGNode *>;
+  using DefID = uint16_t;
+  using DefIdMap = std::unordered_map<const StoreSVFGNode *, DefID>;
 
 public:
   /// Constructor
@@ -37,11 +39,19 @@ public:
   /// Insert Def to StoerList
   void insertDefUsingPtr(const StoreSVFGNode *Def);
 
+  /// ID to Defs
+  void idToUseDef();
+
+  /// Get DefID
+  DefID getDefID(const StoreSVFGNode *Def) const {
+    return DefToID.at(Def);
+  }
+
   /// Print Use-Def
   void print(llvm::raw_ostream &OS) const;
 
   /// Get DefUsingPtrList
-  StoreSVFGNodeList &getDefUsingPtrList() {
+  DefSet &getDefUsingPtrList() {
     return DefUsingPtrList;
   }
 
@@ -55,7 +65,10 @@ public:
 
 private:
   UseDefMap UseDef;
-  StoreSVFGNodeList DefUsingPtrList;
+  DefSet DefUsingPtrList;
+  DefIdMap DefToID;
+
+  void setDefID(const StoreSVFGNode *Def);
 };
 
 } // namespace SVF

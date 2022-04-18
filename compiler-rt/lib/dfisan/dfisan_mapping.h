@@ -18,7 +18,6 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 using __sanitizer::u8;
-using __sanitizer::u64;
 using __sanitizer::uptr;
 
 constexpr uptr kShadowOffset = 0x7fff8000;

@@ -16,22 +16,22 @@ PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initializeSanitizerFuncs(M);
 
-  auto Result = MAM.getResult<UseDefAnalysisPass>(M);
+  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   SVF::UseDefChain *UseDef = Result.UseDef;
 
   IRBuilder<> Builder{M.getContext()};
   insertDfiInitFn(M, Builder);
 
   for (const auto *DefUsingPtr : UseDef->getDefUsingPtrList()) {
-    insertDfiStoreFn(Builder, DefUsingPtr);
+    insertDfiStoreFn(Builder, UseDef, DefUsingPtr);
   }
   for (const auto &Iter : *UseDef) {
     const LoadSVFGNode *Use = Iter.first;
     SmallVector<Value *, 8> DefIDs;
     for (const auto *Def : Iter.second) {
-      Value *DefID = ConstantInt::get(ArgTy, Def->getId(), false);
+      Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
       DefIDs.push_back(DefID);
-      insertDfiStoreFn(Builder, Def);
+      insertDfiStoreFn(Builder, UseDef, Def);
     }
     insertDfiLoadFn(Builder, Use, DefIDs);
   }
@@ -43,7 +43,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   LLVMContext &Ctx = M.getContext();
 
   VoidTy = Type::getVoidTy(Ctx);
-  ArgTy  = Type::getInt32Ty(Ctx);
+  ArgTy  = Type::getInt16Ty(Ctx);
   PtrTy  = Type::getInt32PtrTy(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
@@ -77,7 +77,7 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
 }
 
 /// Insert a DEF function after each store statement using pointer.
-void DataFlowIntegritySanitizerPass::insertDfiStoreFn(IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
+void DataFlowIntegritySanitizerPass::insertDfiStoreFn(IRBuilder<> &Builder, UseDefChain *UseDef, const StoreSVFGNode *StoreNode) {
   // Check whether the insertion is first time.
   const Instruction *Inst = StoreNode->getInst();
   const Instruction *NextInst = Inst->getNextNode();
@@ -89,7 +89,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(IRBuilder<> &Builder, cons
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     Value *StoreAddr = Store->getPointerOperand();
-    Value *DefID = ConstantInt::get(ArgTy, StoreNode->getId(), false);
+    Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
     Builder.SetInsertPoint(Store->getNextNode());
     Builder.CreateCall(DfiStoreFn, {StoreAddr, DefID});
   }

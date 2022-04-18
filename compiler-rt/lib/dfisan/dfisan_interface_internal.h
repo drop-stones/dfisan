@@ -13,8 +13,8 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 using __sanitizer::uptr;
-using __sanitizer::u64;
 using __sanitizer::u32;
+using __sanitizer::u16;
 
 extern "C" {
   // This function should be called at the very beginning of the process,
@@ -22,10 +22,10 @@ extern "C" {
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_init();
 
   // Sets Def-IDs to the given range of the shadow memory.
-  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id(uptr StoreAddr, u32 DefID);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id(uptr StoreAddr, u16 DefID);
 
   // Checks whether Def-IDs in the given range of the shadow memory are the same as correct IDs.
-  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_ids(uptr LoadAddr, u32 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_ids(uptr LoadAddr, u16 Argc, ...);
 
 } // externc "C"
 

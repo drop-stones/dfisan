@@ -19,19 +19,51 @@ void UseDefChain::insertDefUsingPtr(const StoreSVFGNode *Def) {
   DefUsingPtrList.insert(Def);
 }
 
+void UseDefChain::idToUseDef() {
+  // ID to UseDef
+  for (const auto &Iter : UseDef) {
+    for (const auto *Def : Iter.second) {
+      setDefID(Def);
+    }
+  }
+
+  // ID to DefUsingPtr
+  for (const auto *Def : DefUsingPtrList) {
+    setDefID(Def);
+  }
+}
+
+void UseDefChain::setDefID(const StoreSVFGNode *Def) {
+  static DefID CurrDefID = 1;
+
+  assert(Def != nullptr);
+  assert(ID != 0);
+
+  if (DefToID[Def] == 0) {
+    DefToID[Def] = CurrDefID++;
+  }
+
+  if (CurrDefID == std::numeric_limits<uint16_t>::max()) {
+    llvm::errs() << "DefID overflow occured.\n";
+    CurrDefID = 1;
+  }
+}
+
 void UseDefChain::print(llvm::raw_ostream &OS) const {
   OS << "UseDefChain::print()\n";
   for (const auto &Iter : UseDef) {
     const LoadSVFGNode *Use = Iter.first;
     OS << "- USE:" << *Use->getValue() << "\n";
-    for (const auto *Def : Iter.second) {
-      OS << "  - DEF:" << *Def->getValue() << "\n";
+    for (const auto *Store : Iter.second) {
+      DefID ID = getDefID(Store);
+      OS << "  - DEF: ID(" << ID << ") " << *(Store->getValue()) << "\n";
     }
   }
 
   OS << "Print All-Defs\n";
-  for (const auto *Def : DefUsingPtrList) {
-    OS << *Def->getValue() << "\n";
+  for (const auto *Store : DefUsingPtrList) {
+    DefID ID = getDefID(Store);
+    OS << "  - DEF: ID(" << ID << ") " << *(Store->getValue()) << "\n";
   }
 }
 
