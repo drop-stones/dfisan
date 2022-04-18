@@ -4,6 +4,7 @@ include_directories(..)
 set(DFISAN_RTL_SOURCES
   dfisan_rtl.cpp
   dfisan_interceptors.cpp
+  dfisan_shadow_setup.cpp
 )
 
 set(DFISAN_RTL_HEADERS

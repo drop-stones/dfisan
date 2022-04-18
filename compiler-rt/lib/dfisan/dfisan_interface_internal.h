@@ -22,10 +22,10 @@ extern "C" {
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_init();
 
   // Sets Def-IDs to the given range of the shadow memory.
-  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id(u32 *StoreAddr, u32 DefID);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id(uptr StoreAddr, u32 DefID);
 
   // Checks whether Def-IDs in the given range of the shadow memory are the same as correct IDs.
-  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_ids(u32 *LoadAddr, u32 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_ids(uptr LoadAddr, u32 Argc, ...);
 
 } // externc "C"
 
