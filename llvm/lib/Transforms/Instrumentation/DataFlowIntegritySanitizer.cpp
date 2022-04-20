@@ -42,9 +42,10 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
 void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   LLVMContext &Ctx = M.getContext();
 
+  int LongSize = M.getDataLayout().getPointerSizeInBits();
+  PtrTy  = Type::getIntNTy(Ctx, LongSize);
   VoidTy = Type::getVoidTy(Ctx);
   ArgTy  = Type::getInt16Ty(Ctx);
-  PtrTy  = Type::getInt32PtrTy(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
@@ -88,9 +89,11 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(IRBuilder<> &Builder, UseD
   }
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
-    Value *StoreAddr = Store->getPointerOperand();
-    Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
     Builder.SetInsertPoint(Store->getNextNode());
+
+    Value *StoreAddr = Builder.CreatePtrToInt(Store->getPointerOperand(), PtrTy); // Cast 'i32 **' to 'i64'
+    Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
+
     Builder.CreateCall(DfiStoreFn, {StoreAddr, DefID});
   }
 }
@@ -107,12 +110,15 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(IRBuilder<> &Builder, const
   }
 
   if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Inst)) {
-    Value *LoadAddr = Load->getPointerOperand();
+    Builder.SetInsertPoint(Load);
+
+    Value *LoadAddr = Builder.CreatePtrToInt(Load->getPointerOperand(), PtrTy); // Cast 'i32 **' to 'i64'
     Value *UseID = ConstantInt::get(ArgTy, LoadNode->getId(), false);
     Value *Argc  = ConstantInt::get(ArgTy, DefIDs.size(), false);
+
     SmallVector<Value *, 8> Args{LoadAddr, Argc};
     Args.append(DefIDs);
-    Builder.SetInsertPoint(Load);
+
     Builder.CreateCall(DfiLoadFn, Args);
   }
 }
