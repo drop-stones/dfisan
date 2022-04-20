@@ -17,7 +17,9 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
-  FunctionCallee DfiInitFn, DfiStoreFn, DfiLoadFn;
+  FunctionCallee DfiInitFn, DfiStoreFn, DfiLoadFn,
+                 DfiStore1Fn, DfiStore2Fn, DfiStore4Fn, DfiStore8Fn, DfiStore16Fn,
+                 DfiLoad1Fn, DfiLoad2Fn, DfiLoad4Fn, DfiLoad8Fn, DfiLoad16Fn;
   Type *VoidTy, *ArgTy, *PtrTy;
 
   /// Initialize member variables.
@@ -27,10 +29,10 @@ private:
   void insertDfiInitFn(Module &M, IRBuilder<> &Builder);
 
   /// Insert DfiStoreFn after each store instruction.
-  void insertDfiStoreFn(IRBuilder<> &Builder, SVF::UseDefChain *UseDef, const SVF::StoreVFGNode *StoreNode);
+  void insertDfiStoreFn(Module &M, IRBuilder<> &Builder, SVF::UseDefChain *UseDef, const SVF::StoreVFGNode *StoreNode);
 
   /// Insert DfiLoadFn before each load instruction.
-  void insertDfiLoadFn(IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs);
+  void insertDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs);
 };
 
 } // namespace llvm

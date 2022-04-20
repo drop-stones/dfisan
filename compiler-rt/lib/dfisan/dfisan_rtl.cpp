@@ -31,6 +31,23 @@ static inline bool checkRDT(uptr Addr, u16 ID) {
   return *shadow_memory == ID;
 }
 
+#define CHECK_RDT_WITH_VARARG(Addr, Argc)             \
+  Report("INFO: Check SetID at %p\n", (void *)Addr);  \
+  va_list Args;                                       \
+  va_start(Args, Argc);                               \
+  bool NoErr = false;                                 \
+  for (u16 i = 0; i < Argc; i++) {                    \
+    u16 ID = va_arg(Args, u16);                       \
+    Report("Checking SetID(%d)...\n", ID);            \
+    NoErr |= checkRDT(Addr, ID);                      \
+  }                                                   \
+  va_end(Args);                                       \
+  if (NoErr == false) {                               \
+    Report("Error detected!!\n");                     \
+    exit(1);                                          \
+  }
+
+
 // ------------- Runtime check ---------------------
 namespace __dfisan {
 
@@ -43,23 +60,62 @@ void __dfisan_store_id(uptr StoreAddr, u16 DefID) {
   setRDT(StoreAddr, DefID);
 }
 
-// TODO: va_arg cannot use `u16` (these values are converted to int)
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_store_id_1 (uptr StoreAddr, u16 DefID) {
+  uptr AlignedAddr = AlignAddr(StoreAddr);
+  setRDT(AlignedAddr, DefID);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_store_id_2 (uptr StoreAddr, u16 DefID) {
+  uptr AlignedAddr = AlignAddr(StoreAddr);
+  setRDT(AlignedAddr, DefID);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_store_id_4 (uptr StoreAddr, u16 DefID) {
+  setRDT(StoreAddr, DefID);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_store_id_8 (uptr StoreAddr, u16 DefID) {
+  setRDT(StoreAddr, DefID);
+  setRDT(StoreAddr + 4, DefID);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_store_id_16(uptr StoreAddr, u16 DefID) {
+  setRDT(StoreAddr, DefID);
+  setRDT(StoreAddr + 4, DefID);
+  setRDT(StoreAddr + 8, DefID);
+  setRDT(StoreAddr + 12, DefID);
+}
+
+// TODO: va_arg cannot use `u16` (these values are converted to i32)
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids(uptr LoadAddr, u16 Argc, ...) {
-  Report("INFO: Check SetID at %p\n", (void *)LoadAddr);
-  va_list Args;
-  va_start(Args, Argc);
-  bool NoErr = false;
-  for (u16 i = 0; i < Argc; i++) {
-    u16 ID = va_arg(Args, u16);
-    Report("Checking SetID(%d)...\n", ID);
-    NoErr |= checkRDT(LoadAddr, ID);
-  }
-  va_end(Args);
-  if (NoErr == false) {
-    Report("Error detected!!\n");
-    exit(1);
-  }
+  CHECK_RDT_WITH_VARARG(LoadAddr, Argc)
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_check_ids_1 (uptr LoadAddr, u16 Argc, ...) {
+  // TODO
+}
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_check_ids_2 (uptr LoadAddr, u16 Argc, ...) {
+  // TODO
+}
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_check_ids_4 (uptr LoadAddr, u16 Argc, ...) {
+  CHECK_RDT_WITH_VARARG(LoadAddr, Argc)
+}
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_check_ids_8 (uptr LoadAddr, u16 Argc, ...) {
+  // TODO
+}
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_check_ids_16(uptr LoadAddr, u16 Argc, ...) {
+  // TODO
 }
 
 static void DfisanInitInternal() {
