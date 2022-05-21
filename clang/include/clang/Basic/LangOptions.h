@@ -380,6 +380,10 @@ public:
   /// input is a header file (i.e. -x c-header).
   bool IsHeaderFile = false;
 
+  // Alignment numbers
+  unsigned StructAlign = 0;
+  unsigned StackAlign  = 0;
+
   LangOptions();
 
   // Define accessors/mutators for language options of enumeration type.

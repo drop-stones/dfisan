@@ -119,6 +119,8 @@ add_clang_library(clangAST
   VTableBuilder.cpp
   VTTBuilder.cpp
 
+  EnforcedAlign.cpp
+
   LINK_LIBS
   clangBasic
   clangLex

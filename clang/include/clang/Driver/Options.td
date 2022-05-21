@@ -6528,3 +6528,14 @@ def _SLASH_Ze : CLFlag<"Ze">;
 def _SLASH_Zg : CLFlag<"Zg">;
 def _SLASH_ZI : CLFlag<"ZI">;
 def _SLASH_ZW : CLJoined<"ZW">;
+
+// Custom flag for align instrumentation
+def fstruct_align_EQ : Joined<["-"], "fstruct-align=">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Minimal alignment number for struct layout">;
+def fstack_align_EQ : Joined<["-"], "fstack-align=">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Minimal alignment number for stack layout">;
+def fall_align_EQ : Joined<["-"], "fall-align=">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Minimal alignment number for struct and stack layout">;

@@ -5819,6 +5819,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (MessageLength != 0)
     CmdArgs.push_back(
         Args.MakeArgString("-fmessage-length=" + Twine(MessageLength)));
+  
+  // Pass -fstruct-align=.
+  if (Arg *A = Args.getLastArg(options::OPT_fstruct_align_EQ))
+    CmdArgs.push_back(
+      Args.MakeArgString("-fstruct-align=" + Twine(A->getValue())));
+  
+  // Pass -fstack-align=.
+  if (Arg *A = Args.getLastArg(options::OPT_fstack_align_EQ))
+    CmdArgs.push_back(
+      Args.MakeArgString("-fstack-align=" + Twine(A->getValue())));
+
+  // Pass -fall-align=.
+  if (Arg *A = Args.getLastArg(options::OPT_fall_align_EQ))
+    CmdArgs.push_back(
+      Args.MakeArgString("-fall-align=" + Twine(A->getValue())));
 
   // -fvisibility= and -fvisibility-ms-compat are of a piece.
   if (const Arg *A = Args.getLastArg(options::OPT_fvisibility_EQ,

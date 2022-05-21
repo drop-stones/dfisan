@@ -4132,6 +4132,18 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_cc1_unbounded_vscale_min);
   }
 
+  // Get minimal align number for struct or stack.
+  if (const Arg *A = Args.getLastArg(OPT_fstruct_align_EQ))
+    Opts.StructAlign = strtoul(A->getValue(), nullptr, 10);
+  
+  if (const Arg *A = Args.getLastArg(OPT_fstack_align_EQ))
+    Opts.StackAlign = strtoul(A->getValue(), nullptr, 10);
+  
+  if (const Arg *A = Args.getLastArg(OPT_fall_align_EQ)) {
+    Opts.StructAlign = strtoul(A->getValue(), nullptr, 10);
+    Opts.StackAlign = strtoul(A->getValue(), nullptr, 10);
+  }
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 
