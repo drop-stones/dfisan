@@ -13,10 +13,11 @@ namespace clang {
 class ASTContext;
 class FieldDecl;
 class VarDecl;
+class Sema;
 
 namespace align {
-void enforceFieldAlign(const ASTContext &Context, FieldDecl *FD, unsigned Align);
-void enforceStackAlign(const ASTContext &Context, VarDecl *VD, unsigned Align);
+void enforceFieldAlign(Sema &S, FieldDecl *FD, unsigned Align);
+void enforceStackAlign(Sema &S, VarDecl *VD, unsigned Align);
 } // namespace align
 } // namespace clang
 

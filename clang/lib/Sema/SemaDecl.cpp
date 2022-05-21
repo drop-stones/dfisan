@@ -7674,7 +7674,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (!getLangOpts().CPlusPlus &&
       NewVD->isLocalVarDeclOrParm() &&
       getLangOpts().StackAlign != 0) {
-    align::enforceStackAlign(Context, NewVD, getLangOpts().StackAlign);
+    align::enforceStackAlign(*this, NewVD, getLangOpts().StackAlign);
   }
 
   return NewVD;
@@ -16940,7 +16940,7 @@ Decl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   if (!getLangOpts().CPlusPlus &&
       RD != nullptr && RD->isStruct() &&
       getLangOpts().StructAlign != 0) {
-    align::enforceFieldAlign(Context, Res, getLangOpts().StructAlign);
+    align::enforceFieldAlign(*this, Res, getLangOpts().StructAlign);
   }
 
   return Res;
