@@ -36,9 +36,9 @@ bool isGlobalInit(const StoreSVFGNode *Store) {
   if (Value == nullptr)
     return false;
 
-  if (const auto *ConstantInt = llvm::dyn_cast<const llvm::ConstantInt>(Value)) {
-    //llvm::outs() << *ConstantInt << "\n";
-    //const auto DstNodes = Store->getDefSVFVars();
+  if (const auto *ConstData = llvm::dyn_cast<const llvm::ConstantData>(Value)) {
+    //llvm::outs() << *ConstData << "\n";
+    const auto DstNodes = Store->getDefSVFVars();
     return true;
   }
 

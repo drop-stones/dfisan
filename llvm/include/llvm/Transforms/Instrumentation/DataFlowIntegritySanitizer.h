@@ -18,7 +18,7 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
-  FunctionCallee DfiInitFn, DfiStoreFn, DfiLoadFn,
+  FunctionCallee DfiInitFn, DfiStoreNFn, DfiLoadNFn,
                  DfiStore1Fn, DfiStore2Fn, DfiStore4Fn, DfiStore8Fn, DfiStore16Fn,
                  DfiLoad1Fn, DfiLoad2Fn, DfiLoad4Fn, DfiLoad8Fn, DfiLoad16Fn;
   Type *VoidTy, *ArgTy, *PtrTy;

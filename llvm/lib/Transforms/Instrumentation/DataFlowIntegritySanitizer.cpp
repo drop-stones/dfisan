@@ -10,8 +10,10 @@ using namespace SVF;
 
 constexpr char DfisanModuleCtorName[] = "dfisan.module_ctor";
 constexpr char DfisanInitFnName[]     = "__dfisan_init";
-constexpr char DfisanStoreFnName[]    = "__dfisan_store_id";
-constexpr char DfisanLoadFnName[]     = "__dfisan_check_ids";
+constexpr char CommonDfisanStoreFnName[] = "__dfisan_store_id";
+constexpr char CommonDfisanLoadFnName[]  = "__dfisan_check_ids";
+constexpr char DfisanStoreNFnName[]    = "__dfisan_store_id_n";
+constexpr char DfisanLoadNFnName[]     = "__dfisan_check_ids_n";
 
 constexpr char DfisanStore1FnName[]   = "__dfisan_store_id_1";
 constexpr char DfisanStore2FnName[]   = "__dfisan_store_id_2";
@@ -67,8 +69,8 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
 
   DfiInitFn  = M.getOrInsertFunction(DfisanInitFnName, VoidTy);
-  DfiStoreFn = M.getOrInsertFunction(DfisanStoreFnName, StoreFnTy);
-  DfiLoadFn  = M.getOrInsertFunction(DfisanLoadFnName, LoadFnTy); // VarArg Function
+  DfiStoreNFn = M.getOrInsertFunction(DfisanStoreNFnName, StoreFnTy);
+  DfiLoadNFn  = M.getOrInsertFunction(DfisanLoadNFnName, LoadFnTy); // VarArg Function
 
   DfiStore1Fn = M.getOrInsertFunction(DfisanStore1FnName, StoreFnTy);
   DfiStore2Fn = M.getOrInsertFunction(DfisanStore2FnName, StoreFnTy);
@@ -106,7 +108,7 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
   for (const auto &GlobalInit : UseDef->getGlobalInitList()) {
     const Value *Val = GlobalInit->getValue();
     assert(Val != nullptr);
-    if (const auto *ConstInt = dyn_cast<const ConstantInt>(Val)) {
+    if (const auto *ConstData = dyn_cast<const ConstantData>(Val)) {
       const auto DefVars = GlobalInit->getDefSVFVars();
       for (const auto DefVarID : DefVars) {
         const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
@@ -128,7 +130,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
   if (NextToTwoInst != nullptr) {
     if (const CallInst *Call = dyn_cast<const CallInst>(NextToTwoInst)) {
       const Function *Callee = Call->getCalledFunction();
-      if (Callee == nullptr || Callee->getName().contains(DfisanStoreFnName))
+      if (Callee == nullptr || Callee->getName().contains(CommonDfisanStoreFnName))
         return;
     }
   }
@@ -146,7 +148,7 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Module &M, IRBuilder<> &Bui
   if (PrevInst != nullptr) {
     if (const CallInst *Call = dyn_cast<const CallInst>(PrevInst)) {
       const Function *Callee = Call->getCalledFunction();
-      if (Callee == nullptr || Callee->getName().contains(DfisanLoadFnName))
+      if (Callee == nullptr || Callee->getName().contains(CommonDfisanLoadFnName))
         return;
     }
   }
@@ -162,6 +164,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Bu
 
   Type *StoreTy = StorePointer->getType()->getNonOpaquePointerElementType();
   unsigned StoreSize = M.getDataLayout().getTypeStoreSize(StoreTy);
+  Value *StoreSizeVal = ConstantInt::get(ArgTy, StoreSize, false);
   Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
   Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
 
@@ -170,7 +173,8 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Bu
   case 2:   Builder.CreateCall(DfiStore2Fn, {StoreAddr, DefID});  break;
   case 4:   Builder.CreateCall(DfiStore4Fn, {StoreAddr, DefID});  break;
   case 8:   Builder.CreateCall(DfiStore8Fn, {StoreAddr, DefID});  break;
-  default:  Builder.CreateCall(DfiStoreFn,  {StoreAddr, DefID});  break;
+  case 16:  Builder.CreateCall(DfiStore16Fn,{StoreAddr, DefID});  break;
+  default:  Builder.CreateCall(DfiStoreNFn, {StoreAddr, StoreSizeVal, DefID});  break;
   }
 }
 
@@ -180,6 +184,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Bui
 
   Type  *LoadTy = LoadPointer->getType()->getNonOpaquePointerElementType();
   unsigned LoadSize = M.getDataLayout().getTypeStoreSize(LoadTy);
+  Value *LoadSizeVal = ConstantInt::get(ArgTy, LoadSize, false);
   Value *LoadAddr = Builder.CreatePtrToInt(LoadPointer, PtrTy); // Cast 'i32 **' to 'i64'
   //Value *UseID = ConstantInt::get(ArgTy, LoadNode->getId(), false);
   Value *Argc  = ConstantInt::get(ArgTy, DefIDs.size(), false);
@@ -192,6 +197,9 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Bui
   case 2:   Builder.CreateCall(DfiLoad2Fn, Args);   break;
   case 4:   Builder.CreateCall(DfiLoad4Fn, Args);   break;
   case 8:   Builder.CreateCall(DfiLoad8Fn, Args);   break;
-  default:  Builder.CreateCall(DfiLoadFn,  Args);   break;
+  case 16:  Builder.CreateCall(DfiLoad16Fn,Args);   break;
+  default:  auto *Iter = Args.begin() + 1;
+            Args.insert(Iter, LoadSizeVal);
+            Builder.CreateCall(DfiLoadNFn, Args);   break;
   }
 }

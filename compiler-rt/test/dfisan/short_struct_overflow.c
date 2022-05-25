@@ -1,6 +1,6 @@
 // RUN: %clang_dfisan %s -o %t && ! %run %t
 //
-// REQUIRED: x86_64-target-arch
+// REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can detect buffer overflow in short.
 
