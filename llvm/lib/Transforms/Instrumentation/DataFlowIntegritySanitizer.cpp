@@ -30,13 +30,14 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initializeSanitizerFuncs(M);
 
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  SVF::UseDefChain *UseDef = Result.UseDef;
+  Svfg = Result.Svfg;
+  UseDef = Result.UseDef;
 
   IRBuilder<> Builder{M.getContext()};
   insertDfiInitFn(M, Builder);
 
   for (const auto *DefUsingPtr : UseDef->getDefUsingPtrList()) {
-    insertDfiStoreFn(M, Builder, UseDef, DefUsingPtr);
+    insertDfiStoreFn(M, Builder, DefUsingPtr);
   }
   for (const auto &Iter : *UseDef) {
     const LoadSVFGNode *Use = Iter.first;
@@ -44,7 +45,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
     for (const auto *Def : Iter.second) {
       Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
       DefIDs.push_back(DefID);
-      insertDfiStoreFn(M, Builder, UseDef, Def);
+      insertDfiStoreFn(M, Builder, Def);
     }
     insertDfiLoadFn(M, Builder, Use, DefIDs);
   }
@@ -100,12 +101,29 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
   appendToUsed(M, {Ctor});
   // Put the constructor in GlobalCtors
   appendToGlobalCtors(M, Ctor, 1);
+
+  // Insert DfiStoreFn for GlobalInit
+  for (const auto &GlobalInit : UseDef->getGlobalInitList()) {
+    const Value *Val = GlobalInit->getValue();
+    assert(Val != nullptr);
+    if (const auto *ConstInt = dyn_cast<const ConstantInt>(Val)) {
+      const auto DefVars = GlobalInit->getDefSVFVars();
+      for (const auto DefVarID : DefVars) {
+        const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
+        Value *StorePointer = (Value *)DstNode->getValue();
+        createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
+      }
+    }
+  }
 }
 
 /// Insert a DEF function after each store statement using pointer.
-void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Builder, UseDefChain *UseDef, const StoreSVFGNode *StoreNode) {
+void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
   // Check whether the insertion is first time.
   const Instruction *Inst = StoreNode->getInst();
+  if (Inst == nullptr)
+    return;
+
   const Instruction *NextToTwoInst = (Inst->getNextNode() != nullptr) ? Inst->getNextNode()->getNextNode() : nullptr;
   if (NextToTwoInst != nullptr) {
     if (const CallInst *Call = dyn_cast<const CallInst>(NextToTwoInst)) {
@@ -116,21 +134,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
   }
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
-    Builder.SetInsertPoint(Store->getNextNode());
-
-    Value *StorePointer = Store->getPointerOperand();
-    Type  *StoreTy = StorePointer->getType()->getNonOpaquePointerElementType();
-    unsigned StoreSize = M.getDataLayout().getTypeStoreSize(StoreTy);
-    Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy); // Cast 'i32 **' to 'i64'
-    Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
-
-    switch(StoreSize) {
-    case 1:   Builder.CreateCall(DfiStore1Fn, {StoreAddr, DefID});  break;
-    case 2:   Builder.CreateCall(DfiStore2Fn, {StoreAddr, DefID});  break;
-    case 4:   Builder.CreateCall(DfiStore4Fn, {StoreAddr, DefID});  break;
-    case 8:   Builder.CreateCall(DfiStore8Fn, {StoreAddr, DefID});  break;
-    default:  Builder.CreateCall(DfiStoreFn,  {StoreAddr, DefID});  break;
-    }
+    createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
   }
 }
 
@@ -148,24 +152,46 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Module &M, IRBuilder<> &Bui
   }
 
   if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Inst)) {
-    Builder.SetInsertPoint(Load);
+    createDfiLoadFn(M, Builder, LoadNode, Load->getPointerOperand(), Load, DefIDs);
+  }
+}
 
-    Value *LoadPointer = Load->getPointerOperand();
-    Type  *LoadTy = LoadPointer->getType()->getNonOpaquePointerElementType();
-    unsigned LoadSize = M.getDataLayout().getTypeStoreSize(LoadTy);
-    Value *LoadAddr = Builder.CreatePtrToInt(Load->getPointerOperand(), PtrTy); // Cast 'i32 **' to 'i64'
-    Value *UseID = ConstantInt::get(ArgTy, LoadNode->getId(), false);
-    Value *Argc  = ConstantInt::get(ArgTy, DefIDs.size(), false);
+/// Create a function call to DfiStoreFn.
+void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer, Instruction *InsertPoint) {
+  Builder.SetInsertPoint(InsertPoint);
 
-    SmallVector<Value *, 8> Args{LoadAddr, Argc};
-    Args.append(DefIDs);
+  Type *StoreTy = StorePointer->getType()->getNonOpaquePointerElementType();
+  unsigned StoreSize = M.getDataLayout().getTypeStoreSize(StoreTy);
+  Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
+  Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
 
-    switch(LoadSize) {
-    case 1:   Builder.CreateCall(DfiLoad1Fn, Args);   break;
-    case 2:   Builder.CreateCall(DfiLoad2Fn, Args);   break;
-    case 4:   Builder.CreateCall(DfiLoad4Fn, Args);   break;
-    case 8:   Builder.CreateCall(DfiLoad8Fn, Args);   break;
-    default:  Builder.CreateCall(DfiLoadFn,  Args);   break;
-    }
+  switch(StoreSize) {
+  case 1:   Builder.CreateCall(DfiStore1Fn, {StoreAddr, DefID});  break;
+  case 2:   Builder.CreateCall(DfiStore2Fn, {StoreAddr, DefID});  break;
+  case 4:   Builder.CreateCall(DfiStore4Fn, {StoreAddr, DefID});  break;
+  case 8:   Builder.CreateCall(DfiStore8Fn, {StoreAddr, DefID});  break;
+  default:  Builder.CreateCall(DfiStoreFn,  {StoreAddr, DefID});  break;
+  }
+}
+
+/// Create a function call to DfiLoadFn.
+void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, Instruction *InsertPoint, SmallVector<Value *, 8> &DefIDs) {
+  Builder.SetInsertPoint(InsertPoint);
+
+  Type  *LoadTy = LoadPointer->getType()->getNonOpaquePointerElementType();
+  unsigned LoadSize = M.getDataLayout().getTypeStoreSize(LoadTy);
+  Value *LoadAddr = Builder.CreatePtrToInt(LoadPointer, PtrTy); // Cast 'i32 **' to 'i64'
+  //Value *UseID = ConstantInt::get(ArgTy, LoadNode->getId(), false);
+  Value *Argc  = ConstantInt::get(ArgTy, DefIDs.size(), false);
+
+  SmallVector<Value *, 8> Args{LoadAddr, Argc};
+  Args.append(DefIDs);
+
+  switch(LoadSize) {
+  case 1:   Builder.CreateCall(DfiLoad1Fn, Args);   break;
+  case 2:   Builder.CreateCall(DfiLoad2Fn, Args);   break;
+  case 4:   Builder.CreateCall(DfiLoad4Fn, Args);   break;
+  case 8:   Builder.CreateCall(DfiLoad8Fn, Args);   break;
+  default:  Builder.CreateCall(DfiLoadFn,  Args);   break;
   }
 }

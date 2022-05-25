@@ -19,6 +19,10 @@ void UseDefChain::insertDefUsingPtr(const StoreSVFGNode *Def) {
   DefUsingPtrList.insert(Def);
 }
 
+void UseDefChain::insertGlobalInit(const StoreSVFGNode *GlobalInit) {
+  GlobalInitList.insert(GlobalInit);
+}
+
 void UseDefChain::idToUseDef() {
   // ID to UseDef
   for (const auto &Iter : UseDef) {
@@ -30,6 +34,11 @@ void UseDefChain::idToUseDef() {
   // ID to DefUsingPtr
   for (const auto *Def : DefUsingPtrList) {
     setDefID(Def);
+  }
+
+  // ID to GlobalInit
+  for (const auto *GlobalInit : GlobalInitList) {
+    setDefID(GlobalInit);
   }
 }
 
@@ -60,10 +69,16 @@ void UseDefChain::print(llvm::raw_ostream &OS) const {
     }
   }
 
-  OS << "Print All-Defs\n";
+  OS << "Print Def using pointer\n";
   for (const auto *Store : DefUsingPtrList) {
     DefID ID = getDefID(Store);
     OS << "  - DEF: ID(" << ID << ") " << *(Store->getValue()) << "\n";
+  }
+
+  OS << "Print Global initialization\n";
+  for (const auto *GlobalInit : GlobalInitList) {
+    DefID ID = getDefID(GlobalInit);
+    OS << "  - GlobalInit: ID(" << ID << ") " << *(GlobalInit->getValue()) << "\n";
   }
 }
 

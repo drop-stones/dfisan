@@ -36,8 +36,11 @@ public:
   /// Insert Use-Def
   void insert(const LoadSVFGNode *Use, const StoreSVFGNode *Def);
 
-  /// Insert Def to StoerList
+  /// Insert Def to StoreList
   void insertDefUsingPtr(const StoreSVFGNode *Def);
+
+  /// Insert Def to GlobalInitList
+  void insertGlobalInit(const StoreSVFGNode *Def);
 
   /// ID to Defs
   void idToUseDef();
@@ -55,6 +58,11 @@ public:
     return DefUsingPtrList;
   }
 
+  /// Get GlobalInitList
+  DefSet &getGlobalInitList() {
+    return GlobalInitList;
+  }
+
   /// Return the begin iterator to enable range-based loop.
   iterator begin();
   const_iterator begin() const;
@@ -66,6 +74,7 @@ public:
 private:
   UseDefMap UseDef;
   DefSet DefUsingPtrList;
+  DefSet GlobalInitList;
   DefIdMap DefToID;
 
   void setDefID(const StoreSVFGNode *Def);

@@ -17,12 +17,31 @@ using namespace SVFUtil;
 namespace {
 /// Return true if the DEF statement uses pointer or array access.
 bool isDefUsingPtr(const StoreSVFGNode *Store) {
-  if (const auto *StoreInst = llvm::dyn_cast<const llvm::StoreInst>(Store->getInst())) {
+  const auto *Inst = Store->getInst();
+  if (Inst == nullptr)
+    return false;
+
+  if (const auto *StoreInst = llvm::dyn_cast<const llvm::StoreInst>(Inst)) {
     const auto *StoreAddr = StoreInst->getPointerOperand();
     if (llvm::isa<LoadInst>(StoreAddr) || llvm::isa<GetElementPtrInst>(StoreAddr)) {
       return true;
     }
   }
+  return false;
+}
+
+/// Return true if the DEF statement is global initialization.
+bool isGlobalInit(const StoreSVFGNode *Store) {
+  const auto *Value = Store->getValue();
+  if (Value == nullptr)
+    return false;
+
+  if (const auto *ConstantInt = llvm::dyn_cast<const llvm::ConstantInt>(Value)) {
+    //llvm::outs() << *ConstantInt << "\n";
+    //const auto DstNodes = Store->getDefSVFVars();
+    return true;
+  }
+
   return false;
 }
 } // namespace
@@ -47,9 +66,12 @@ void UseDefAnalysis::analyze(SVFModule *M) {
     const NodeID ID = Iter.first;
     const SVFGNode *Node = Iter.second;
     if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Node)) {
+      // llvm::outs() << *(StoreNode->getValue()) << "\n";
       Worklist.push(ID);
       if (isDefUsingPtr(StoreNode))
         UseDef->insertDefUsingPtr(StoreNode);
+      if (isGlobalInit(StoreNode))
+        UseDef->insertGlobalInit(StoreNode);
     }
   }
 
