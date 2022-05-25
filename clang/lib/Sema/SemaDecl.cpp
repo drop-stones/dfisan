@@ -25,6 +25,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/NonTrivialTypeVisitor.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/AST/EnforcedAlign.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
@@ -7668,6 +7669,20 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   if (IsMemberSpecialization && !NewVD->isInvalidDecl())
     CompleteMemberSpecialization(NewVD, Previous);
+
+  // Enforce stack align.
+  if (!getLangOpts().CPlusPlus &&
+      NewVD->isLocalVarDeclOrParm() &&
+      getLangOpts().StackAlign != 0) {
+    align::enforceStackAlign(*this, NewVD, getLangOpts().StackAlign);
+  }
+
+  // Enforce global align.
+  if (!getLangOpts().CPlusPlus &&
+      NewVD->hasGlobalStorage() &&
+      getLangOpts().GlobalAlign != 0) {
+    align::enforceGlobalAlign(*this, NewVD, getLangOpts().GlobalAlign);
+  }
 
   return NewVD;
 }
@@ -16927,6 +16942,14 @@ Decl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
+  
+  RecordDecl *RD = cast_or_null<RecordDecl>(TagD);
+  if (!getLangOpts().CPlusPlus &&
+      RD != nullptr && RD->isStruct() &&
+      getLangOpts().StructAlign != 0) {
+    align::enforceFieldAlign(*this, Res, getLangOpts().StructAlign);
+  }
+
   return Res;
 }
 

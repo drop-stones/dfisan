@@ -5,7 +5,7 @@
 // Tests that dfisan can detect buffer overflow in local struct.
 
 struct Array {
-  int arr[8];
+  char arr[8];
   int id;
 };
 
@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
   struct Array Arr;
   Arr.id = 100;
   for (int i = 0; i < 9; i++)
-    Arr.arr[i] = i;
+    Arr.arr[i] = 'a';
 
   Arr.id;   // Error: read broken 'Arr.id'
   return 0;
