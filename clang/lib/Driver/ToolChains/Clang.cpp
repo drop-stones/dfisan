@@ -5830,6 +5830,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
       Args.MakeArgString("-fstack-align=" + Twine(A->getValue())));
 
+  // Pass -fglobal-align=.
+  if (Arg *A = Args.getLastArg(options::OPT_fglobal_align_EQ))
+    CmdArgs.push_back(
+      Args.MakeArgString("-fglobal-align=" + Twine(A->getValue())));
+
   // Pass -fall-align=.
   if (Arg *A = Args.getLastArg(options::OPT_fall_align_EQ))
     CmdArgs.push_back(

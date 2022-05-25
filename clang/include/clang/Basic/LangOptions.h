@@ -383,6 +383,7 @@ public:
   // Alignment numbers
   unsigned StructAlign = 0;
   unsigned StackAlign  = 0;
+  unsigned GlobalAlign = 0;
 
   LangOptions();
 

@@ -53,5 +53,15 @@ void enforceStackAlign(Sema &S, VarDecl *VD, unsigned Align) {
   if (isSmallerThanAlign(S.getASTContext(), VD, Align))
     AddAlignAttr(S, VD, Align);
 }
+
+void enforceGlobalAlign(Sema &S, VarDecl *VD, unsigned Align) {
+  if (!VD->hasGlobalStorage())
+    return;
+
+  llvm::outs() << __func__ << ": " << VD->getDeclName() << "\n";
+
+  if (isSmallerThanAlign(S.getASTContext(), VD, Align))
+    AddAlignAttr(S, VD, Align);
+}
 } // namespace align
 } // namespace clang

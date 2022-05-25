@@ -4139,9 +4139,14 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   if (const Arg *A = Args.getLastArg(OPT_fstack_align_EQ))
     Opts.StackAlign = strtoul(A->getValue(), nullptr, 10);
   
+  if (const Arg *A = Args.getLastArg(OPT_fglobal_align_EQ))
+    Opts.GlobalAlign = strtoul(A->getValue(), nullptr, 10);
+  
   if (const Arg *A = Args.getLastArg(OPT_fall_align_EQ)) {
-    Opts.StructAlign = strtoul(A->getValue(), nullptr, 10);
-    Opts.StackAlign = strtoul(A->getValue(), nullptr, 10);
+    unsigned Align = strtoul(A->getValue(), nullptr, 10);
+    Opts.StructAlign = Align;
+    Opts.StackAlign  = Align;
+    Opts.GlobalAlign = Align;
   }
 
   return Diags.getNumErrors() == NumErrorsBefore;

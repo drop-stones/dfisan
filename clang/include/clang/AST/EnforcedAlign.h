@@ -18,6 +18,7 @@ class Sema;
 namespace align {
 void enforceFieldAlign(Sema &S, FieldDecl *FD, unsigned Align);
 void enforceStackAlign(Sema &S, VarDecl *VD, unsigned Align);
+void enforceGlobalAlign(Sema &S, VarDecl *VD, unsigned Align);
 } // namespace align
 } // namespace clang
 

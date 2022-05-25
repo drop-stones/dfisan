@@ -6536,6 +6536,9 @@ def fstruct_align_EQ : Joined<["-"], "fstruct-align=">,
 def fstack_align_EQ : Joined<["-"], "fstack-align=">,
   Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Minimal alignment number for stack layout">;
+def fglobal_align_EQ : Joined<["-"], "fglobal-align=">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Minimal alignment number for global layout">;
 def fall_align_EQ : Joined<["-"], "fall-align=">,
   Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Minimal alignment number for struct and stack layout">;
