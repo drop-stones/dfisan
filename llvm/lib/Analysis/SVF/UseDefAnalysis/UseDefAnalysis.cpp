@@ -29,21 +29,6 @@ bool isDefUsingPtr(const StoreSVFGNode *Store) {
   }
   return false;
 }
-
-/// Return true if the DEF statement is global initialization.
-bool isGlobalInit(const StoreSVFGNode *Store) {
-  const auto *Value = Store->getValue();
-  if (Value == nullptr)
-    return false;
-
-  if (const auto *ConstData = llvm::dyn_cast<const llvm::ConstantData>(Value)) {
-    //llvm::outs() << *ConstData << "\n";
-    const auto DstNodes = Store->getDefSVFVars();
-    return true;
-  }
-
-  return false;
-}
 } // namespace
 
 /// Initialize analysis
@@ -60,18 +45,23 @@ void UseDefAnalysis::initialize(SVFModule *M) {
 void UseDefAnalysis::analyze(SVFModule *M) {
   initialize(M);
 
-  // Analyze SVFG for Use-Def calculation.
+  // Create GlobalInitList.
+  for (const auto *Iter : Svfg->getGlobalVFGNodes()) {
+    //llvm::outs() << Iter->toString() << "\n";
+    if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Iter)) {
+      UseDef->insertGlobalInit(StoreNode);
+    }
+  }
+
+  // Push all StoreSVFGNodes to worklist.
   FIFOWorkList<NodeID> Worklist;
   for (const auto &Iter : *Svfg) {
     const NodeID ID = Iter.first;
     const SVFGNode *Node = Iter.second;
     if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Node)) {
-      // llvm::outs() << *(StoreNode->getValue()) << "\n";
       Worklist.push(ID);
       if (isDefUsingPtr(StoreNode))
         UseDef->insertDefUsingPtr(StoreNode);
-      if (isGlobalInit(StoreNode))
-        UseDef->insertGlobalInit(StoreNode);
     }
   }
 

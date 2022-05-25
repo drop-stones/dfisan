@@ -10,22 +10,22 @@ using namespace SVF;
 
 constexpr char DfisanModuleCtorName[] = "dfisan.module_ctor";
 constexpr char DfisanInitFnName[]     = "__dfisan_init";
+
 constexpr char CommonDfisanStoreFnName[] = "__dfisan_store_id";
+constexpr char DfisanStoreNFnName[]      = "__dfisan_store_id_n";
+constexpr char DfisanStore1FnName[]      = "__dfisan_store_id_1";
+constexpr char DfisanStore2FnName[]      = "__dfisan_store_id_2";
+constexpr char DfisanStore4FnName[]      = "__dfisan_store_id_4";
+constexpr char DfisanStore8FnName[]      = "__dfisan_store_id_8";
+constexpr char DfisanStore16FnName[]     = "__dfisan_store_id_16";
+
 constexpr char CommonDfisanLoadFnName[]  = "__dfisan_check_ids";
-constexpr char DfisanStoreNFnName[]    = "__dfisan_store_id_n";
-constexpr char DfisanLoadNFnName[]     = "__dfisan_check_ids_n";
-
-constexpr char DfisanStore1FnName[]   = "__dfisan_store_id_1";
-constexpr char DfisanStore2FnName[]   = "__dfisan_store_id_2";
-constexpr char DfisanStore4FnName[]   = "__dfisan_store_id_4";
-constexpr char DfisanStore8FnName[]   = "__dfisan_store_id_8";
-constexpr char DfisanStore16FnName[]  = "__dfisan_store_id_16";
-
-constexpr char DfisanLoad1FnName[]    = "__dfisan_check_ids_1";
-constexpr char DfisanLoad2FnName[]    = "__dfisan_check_ids_2";
-constexpr char DfisanLoad4FnName[]    = "__dfisan_check_ids_4";
-constexpr char DfisanLoad8FnName[]    = "__dfisan_check_ids_8";
-constexpr char DfisanLoad16FnName[]   = "__dfisan_check_ids_16";
+constexpr char DfisanLoadNFnName[]       = "__dfisan_check_ids_n";
+constexpr char DfisanLoad1FnName[]       = "__dfisan_check_ids_1";
+constexpr char DfisanLoad2FnName[]       = "__dfisan_check_ids_2";
+constexpr char DfisanLoad4FnName[]       = "__dfisan_check_ids_4";
+constexpr char DfisanLoad8FnName[]       = "__dfisan_check_ids_8";
+constexpr char DfisanLoad16FnName[]      = "__dfisan_check_ids_16";
 
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
@@ -126,12 +126,13 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
   if (Inst == nullptr)
     return;
 
-  const Instruction *NextToTwoInst = (Inst->getNextNode() != nullptr) ? Inst->getNextNode()->getNextNode() : nullptr;
-  if (NextToTwoInst != nullptr) {
-    if (const CallInst *Call = dyn_cast<const CallInst>(NextToTwoInst)) {
+  const Instruction *NextInst = Inst->getNextNode();
+  if (NextInst != nullptr) {
+    if (const CallInst *Call = dyn_cast<const CallInst>(NextInst)) {
       const Function *Callee = Call->getCalledFunction();
       if (Callee == nullptr || Callee->getName().contains(CommonDfisanStoreFnName))
         return;
+      llvm::outs() << "Callee->getName() = " << Callee->getName() << "\n";
     }
   }
 
@@ -144,7 +145,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
 void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Module &M, IRBuilder<> &Builder, const LoadSVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs) {
   // Check whether the insertion is first time.
   const Instruction *Inst = LoadNode->getInst();
-  const Instruction *PrevInst = Inst->getPrevNode();  // error occured
+  const Instruction *PrevInst = Inst->getPrevNode();
   if (PrevInst != nullptr) {
     if (const CallInst *Call = dyn_cast<const CallInst>(PrevInst)) {
       const Function *Callee = Call->getCalledFunction();
