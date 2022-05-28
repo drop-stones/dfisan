@@ -39,6 +39,9 @@ public:
   /// Insert Def to StoreList
   void insertDefUsingPtr(const StoreSVFGNode *Def);
 
+  /// Insert MemcpyList
+  void insertMemcpy(const SVFG *Svfg, const StoreSVFGNode *Def);
+
   /// Insert Def to GlobalInitList
   void insertGlobalInit(const StoreSVFGNode *Def);
 

@@ -113,6 +113,8 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
       for (const auto DefVarID : DefVars) {
         const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
         Value *StorePointer = (Value *)DstNode->getValue();
+        if (StorePointer == nullptr)  // True if string literal or struct init values
+          continue;
         createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
       }
     }
@@ -132,12 +134,14 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
       const Function *Callee = Call->getCalledFunction();
       if (Callee == nullptr || Callee->getName().contains(CommonDfisanStoreFnName))
         return;
-      llvm::outs() << "Callee->getName() = " << Callee->getName() << "\n";
     }
   }
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
+  } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
+    // TODO: insert DfiStoreFn for the field of elements
+    llvm::outs() << "Found Memcpy: " << *Memcpy << "\n";
   }
 }
 

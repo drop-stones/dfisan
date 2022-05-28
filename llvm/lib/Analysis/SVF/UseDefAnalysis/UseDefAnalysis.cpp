@@ -29,6 +29,18 @@ bool isDefUsingPtr(const StoreSVFGNode *Store) {
   }
   return false;
 }
+
+/// Return true if the DEF statment is memcpy.
+bool isMemcpy(const StmtSVFGNode *Store) {
+  const auto *Inst = Store->getInst();
+  if (Inst == nullptr)
+    return false;
+  
+  if (llvm::isa<const llvm::MemCpyInst>(Inst))
+    return true;
+  
+  return false;
+}
 } // namespace
 
 /// Initialize analysis
@@ -62,12 +74,14 @@ void UseDefAnalysis::analyze(SVFModule *M) {
       Worklist.push(ID);
       if (isDefUsingPtr(StoreNode))
         UseDef->insertDefUsingPtr(StoreNode);
+      if (isMemcpy(StoreNode))
+        UseDef->insertMemcpy(Svfg, StoreNode);
     }
   }
 
   using DefIDSet = llvm::SparseBitVector<>;
   using SVFGNodeToStoreMap = std::unordered_map<NodeID, DefIDSet>;
-  SVFGNodeToStoreMap NodeToDefs;
+  SVFGNodeToStoreMap NodeToDefs;  // Map from nodes to out data-facts.
   while (!Worklist.empty()) {
     const NodeID ID = Worklist.pop();
     const SVFGNode *Node = Svfg->getSVFGNode(ID);
@@ -93,6 +107,9 @@ void UseDefAnalysis::analyze(SVFModule *M) {
   for (const auto &Iter : NodeToDefs) {
     const NodeID UseID = Iter.first;
     if (const auto *UseNode = dyn_cast<LoadSVFGNode>(Svfg->getSVFGNode(UseID))) {
+      if (isMemcpy(UseNode))  // Use by memcpy does not need any protection.
+        continue;
+
       for (const NodeID DefID : Iter.second) {
         if (const auto *DefNode = dyn_cast<StoreSVFGNode>(Svfg->getSVFGNode(DefID))) {
           UseDef->insert(UseNode, DefNode);

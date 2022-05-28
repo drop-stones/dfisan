@@ -45,6 +45,11 @@ private:
   /// Remove direct Outgoing Edge for load statement
   /// because we don't care about Load -> Store dependencies.
   void rmDirOutgoingEdgeForLoad(BVDataPTAImpl *Pta);
+
+  /// Remove direct Edges from Load-Memcpy to Store-Memcpy
+  /// because Load-Memcpy cannot be attacked
+  /// and Store-Memcpy must be strong updates.
+  void rmDirEdgeFromMemcpyToMemcpy(BVDataPTAImpl *Pta);
 };
 
 } // namespace SVF

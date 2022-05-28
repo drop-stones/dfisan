@@ -16,25 +16,32 @@ using namespace SVFUtil;
 void UseDefSVFGBuilder::buildSVFG() {
   MemSSA *Mssa = svfg->getMSSA();
   svfg->buildSVFG();
+  // dump for debug
+  svfg->dump("full-usedef-svfg");
   BVDataPTAImpl *Pta = Mssa->getPTA();
 
   rmDerefDirSVFGEdges(Pta);
   rmIncomingEdgeForSUStore(Pta);
   rmDirOutgoingEdgeForLoad(Pta);
+  rmDirEdgeFromMemcpyToMemcpy(Pta);
 }
 
 void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {
   for (const auto Iter : *svfg) {
     const SVFGNode *Node = Iter.second;
     if (const StmtSVFGNode *StmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(Node)) {
-      if (SVFUtil::isa<StoreSVFGNode>(StmtNode)) {
+      if (SVFUtil::isa<StoreSVFGNode>(StmtNode)) {    // delete {Addr, Gep} --dir--> Store
         const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGDstNode());
-        if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF))
+        if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF)) {
+          llvm::outs() << "Store delete " << Edge->toString() << "\n";
           svfg->removeSVFGEdge(Edge);
-      } else if (SVFUtil::isa<LoadSVFGNode>(StmtNode)) {
+        }
+      } else if (SVFUtil::isa<LoadSVFGNode>(StmtNode)) {  // delete {Addr, Gep} --dir--> Load
         const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGSrcNode());
-        if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF))
+        if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF)) {
+          llvm::outs() << "Load delete " << Edge->toString() << "\n";
           svfg->removeSVFGEdge(Edge);
+        }
       }
     }
   }
@@ -92,6 +99,28 @@ void UseDefSVFGBuilder::rmDirOutgoingEdgeForLoad(BVDataPTAImpl *Pta) {
         for (const auto &OutEdge : StmtNode->getOutEdges()) {
           ToRemove.insert(OutEdge);
         }
+      }
+    }
+  }
+
+  for (SVFGEdge *Edge : ToRemove) {
+    svfg->removeSVFGEdge(Edge);
+  }
+}
+
+void UseDefSVFGBuilder::rmDirEdgeFromMemcpyToMemcpy(BVDataPTAImpl *Pta) {
+  SVFGEdgeSet ToRemove;
+  for (const auto Iter : *svfg) {
+    const SVFGNode *Node = Iter.second;
+    if (const LoadSVFGNode *LoadNode = SVFUtil::dyn_cast<LoadSVFGNode>(Node)) {
+      const auto *Inst = LoadNode->getInst();
+      if (Inst == nullptr)
+        continue;
+      
+      if (const auto *Memcpy = llvm::dyn_cast<const llvm::MemCpyInst>(Inst)) {
+        // remove direct edges
+        for (const auto &OutEdge : LoadNode->getOutEdges())
+          ToRemove.insert(OutEdge);
       }
     }
   }
