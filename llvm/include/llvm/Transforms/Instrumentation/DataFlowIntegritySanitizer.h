@@ -38,9 +38,11 @@ private:
   void insertDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs);
 
   /// Create a function call to DfiStoreFn.
+  void createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer);
   void createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer, Instruction *InsertPoint);
 
   /// Create a function call to DfiLoadFn.
+  void createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, SmallVector<Value *, 8> &DefIDs);
   void createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, Instruction *InsertPoint, SmallVector<Value *, 8> &DefIDs);
 };
 

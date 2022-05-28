@@ -17,6 +17,19 @@
 
 namespace SVF {
 
+struct FieldOffset {
+  const llvm::StructType *StructTy;
+  const llvm::Value *Base;
+  unsigned Offset;
+
+  FieldOffset(const llvm::StructType *StructTy, const llvm::Value *Base, unsigned Offset) : StructTy(StructTy), Base(Base), Offset(Offset) {}
+  FieldOffset(const llvm::StructType *StructTy, unsigned Offset) : StructTy(StructTy), Base(nullptr), Offset(Offset) {}
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const FieldOffset &Offset);
+
+using OffsetVector = std::vector<FieldOffset>;
+
 class UseDefChain {
   using DefSet = std::unordered_set<const StoreSVFGNode *>;
   using UseDefMap = std::unordered_map<const LoadSVFGNode *, DefSet>;
@@ -25,6 +38,7 @@ class UseDefChain {
 
   using DefID = uint16_t;
   using DefIdMap = std::unordered_map<const StoreSVFGNode *, DefID>;
+  using MemcpyToOffsetVector = std::unordered_map<const StoreSVFGNode *, OffsetVector>;
 
 public:
   /// Constructor
@@ -66,6 +80,12 @@ public:
     return GlobalInitList;
   }
 
+  /// Get OffsetVec
+  const OffsetVector &getOffsetVector(const StoreSVFGNode *MemcpyNode) const {
+    assert(llvm::isa<const MemCpyInst>(MemcpyNode->getValue()));
+    return MemcpyMap.at(MemcpyNode);
+  }
+
   /// Return the begin iterator to enable range-based loop.
   iterator begin();
   const_iterator begin() const;
@@ -79,6 +99,7 @@ private:
   DefSet DefUsingPtrList;
   DefSet GlobalInitList;
   DefIdMap DefToID;
+  MemcpyToOffsetVector MemcpyMap;
 
   void setDefID(const StoreSVFGNode *Def);
 };
