@@ -18,17 +18,55 @@
 namespace SVF {
 
 struct FieldOffset {
-  const llvm::StructType *StructTy;
+  enum FieldOffsetKind {
+    StructKind,
+    ArrayKind,
+  };
+
+  const llvm::Type  *BaseTy;
   const llvm::Value *Base;
   unsigned Offset;
 
-  FieldOffset(const llvm::StructType *StructTy, const llvm::Value *Base, unsigned Offset) : StructTy(StructTy), Base(Base), Offset(Offset) {}
-  FieldOffset(const llvm::StructType *StructTy, unsigned Offset) : StructTy(StructTy), Base(nullptr), Offset(Offset) {}
+private:
+  const FieldOffsetKind Kind;
+
+protected:
+  FieldOffset(FieldOffsetKind Kind, const llvm::Type *BaseTy, const llvm::Value *Base, unsigned Offset) : Kind(Kind), BaseTy(BaseTy), Base(Base), Offset(Offset) {}
+  FieldOffset(FieldOffsetKind Kind, const llvm::Value *Base, unsigned Offset) : FieldOffset(Kind, nullptr, Base, Offset) {}
+
+public:
+  FieldOffsetKind getKind() const { return Kind; }
 };
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const FieldOffset &Offset);
 
-using FieldOffsetVector = std::vector<FieldOffset>;
+struct StructOffset : FieldOffset {
+  const llvm::StructType *StructTy;
+
+  StructOffset(const llvm::StructType *StructTy, const llvm::Value *Base, unsigned Offset)
+    : FieldOffset(StructKind, Base, Offset), StructTy(StructTy) {}
+  
+  static bool classof(const FieldOffset *F) {
+    return F->getKind() == StructKind;
+  }
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const StructOffset &Offset);
+
+struct ArrayOffset : FieldOffset {
+  const llvm::ArrayType *ArrayTy;
+
+  ArrayOffset(const llvm::ArrayType *ArrayTy, const llvm::Value *Base, unsigned Offset)
+    : FieldOffset(ArrayKind, Base, Offset), ArrayTy(ArrayTy) {}
+  
+  static bool classof(const FieldOffset *F) {
+    return F->getKind() == ArrayKind;
+  }
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const ArrayOffset &Offset);
+
+using FieldOffsetVector = std::vector<FieldOffset *>;
 
 class UseDefChain {
   using DefSet = std::unordered_set<const StoreSVFGNode *>;

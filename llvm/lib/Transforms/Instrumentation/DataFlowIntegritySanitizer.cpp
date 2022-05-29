@@ -136,6 +136,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
     return;
 
   // Check whether the insertion is first time.
+  // TODO: Complete Check!! (if gep statement is inserted, this implementation have no effects...)
   const Instruction *NextInst = Inst->getNextNode();
   if (NextInst != nullptr && isa<PtrToIntInst>(NextInst)) {
     const Instruction *NextNextInst = NextInst->getNextNode();
@@ -158,6 +159,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
 /// Insert a CHECK function before each load statement.
 void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Module &M, IRBuilder<> &Builder, const LoadSVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs) {
   // Check whether the insertion is first time.
+  // TODO: Complete Check!!
   const Instruction *Inst = LoadNode->getInst();
   const Instruction *PrevInst = Inst->getPrevNode();
   if (PrevInst != nullptr) {
@@ -234,14 +236,17 @@ DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, cons
 Value *
 DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
   const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
-  //llvm::outs() << "Found Memcpy: " << *Memcpy << " (";
-  //for (auto Offset : OffsetVec)
-  //  llvm::outs() << Offset << ", ";
+  assert(OffsetVec.size() != 0);
+  //llvm::outs() << "Print OffsetVec: (";
+  //for (auto *Offset : OffsetVec)
+  //  llvm::outs() << *Offset << ", ";
   //llvm::outs() << ")\n";
 
-  Value *CurVal = (Value *)OffsetVec.begin()->Base;
-  for (auto Offset : OffsetVec) {
-    CurVal = Builder.CreateStructGEP((Type *)Offset.StructTy, CurVal, Offset.Offset);
+  Value *CurVal = (Value *)OffsetVec[0]->Base;
+  for (auto *Offset : OffsetVec) {
+    if (auto *StructOff = dyn_cast<StructOffset>(Offset)) {
+      CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
+    }
   }
   return CurVal;
 }
