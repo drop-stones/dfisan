@@ -108,15 +108,22 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
   // Insert DfiStoreFn for GlobalInit
   for (const auto &GlobalInit : UseDef->getGlobalInitList()) {
     const Value *Val = GlobalInit->getValue();
+    //llvm::outs() << "GlobalInit: " << *Val << "\n";
     assert(Val != nullptr);
     if (const auto *ConstData = dyn_cast<const ConstantData>(Val)) {
       const auto DefVars = GlobalInit->getDefSVFVars();
       for (const auto DefVarID : DefVars) {
-        const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
-        Value *StorePointer = (Value *)DstNode->getValue();
-        if (StorePointer == nullptr)  // True if string literal or struct init values
-          continue;
-        createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
+        if (UseDef->containsOffsetVector(GlobalInit)) {   // Global struct initialization
+          Value *FieldAddr = createStructGep(Builder, GlobalInit);
+          createDfiStoreFn(M, Builder, GlobalInit, FieldAddr);
+        } else {  // Global primitive data initialization
+          const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
+          Value *StorePointer = (Value *)DstNode->getValue();
+          if (StorePointer == nullptr)  // True if string literal or struct init values
+            continue;
+          //llvm::outs() << "StorePointer: " << *StorePointer << "\n";
+          createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
+        }
       }
     }
   }
@@ -143,18 +150,8 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
   } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
-    const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
-    llvm::outs() << "Found Memcpy: " << *Memcpy << " (";
-    for (auto Offset : OffsetVec)
-      llvm::outs() << Offset << ", ";
-    llvm::outs() << ")\n";
-
-    Builder.SetInsertPoint(Memcpy->getNextNode());
-    Value *CurVal = (Value *)OffsetVec.begin()->Base;
-    for (auto Offset : OffsetVec) {
-      CurVal = Builder.CreateStructGEP((Type *)Offset.StructTy, CurVal, Offset.Offset);
-    }
-    createDfiStoreFn(M, Builder, StoreNode, CurVal);
+    Value *FieldAddr = createStructGep(Builder, StoreNode, Memcpy);
+    createDfiStoreFn(M, Builder, StoreNode, FieldAddr);
   }
 }
 
@@ -226,4 +223,25 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Bui
             Args.insert(Iter, LoadSizeVal);
             Builder.CreateCall(DfiLoadNFn, Args);   break;
   }
+}
+
+Value *
+DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode, Instruction *InsertPoint) {
+  Builder.SetInsertPoint(InsertPoint->getNextNode());
+  return createStructGep(Builder, StoreNode);
+}
+
+Value *
+DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
+  const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
+  //llvm::outs() << "Found Memcpy: " << *Memcpy << " (";
+  //for (auto Offset : OffsetVec)
+  //  llvm::outs() << Offset << ", ";
+  //llvm::outs() << ")\n";
+
+  Value *CurVal = (Value *)OffsetVec.begin()->Base;
+  for (auto Offset : OffsetVec) {
+    CurVal = Builder.CreateStructGEP((Type *)Offset.StructTy, CurVal, Offset.Offset);
+  }
+  return CurVal;
 }

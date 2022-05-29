@@ -62,6 +62,7 @@ void UseDefAnalysis::analyze(SVFModule *M) {
     //llvm::outs() << Iter->toString() << "\n";
     if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Iter)) {
       UseDef->insertGlobalInit(StoreNode);
+      UseDef->insertFieldStore(Svfg, StoreNode);  // Insert if the value is global struct.
     }
   }
 
@@ -75,7 +76,7 @@ void UseDefAnalysis::analyze(SVFModule *M) {
       if (isDefUsingPtr(StoreNode))
         UseDef->insertDefUsingPtr(StoreNode);
       if (isMemcpy(StoreNode))
-        UseDef->insertMemcpy(Svfg, StoreNode);
+        UseDef->insertFieldStore(Svfg, StoreNode);
     }
   }
 

@@ -28,7 +28,7 @@ struct FieldOffset {
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const FieldOffset &Offset);
 
-using OffsetVector = std::vector<FieldOffset>;
+using FieldOffsetVector = std::vector<FieldOffset>;
 
 class UseDefChain {
   using DefSet = std::unordered_set<const StoreSVFGNode *>;
@@ -38,7 +38,7 @@ class UseDefChain {
 
   using DefID = uint16_t;
   using DefIdMap = std::unordered_map<const StoreSVFGNode *, DefID>;
-  using MemcpyToOffsetVector = std::unordered_map<const StoreSVFGNode *, OffsetVector>;
+  using FieldStoreToOffsetMap = std::unordered_map<const StoreSVFGNode *, FieldOffsetVector>;
 
 public:
   /// Constructor
@@ -53,8 +53,8 @@ public:
   /// Insert Def to StoreList
   void insertDefUsingPtr(const StoreSVFGNode *Def);
 
-  /// Insert MemcpyList
-  void insertMemcpy(const SVFG *Svfg, const StoreSVFGNode *Def);
+  /// Insert Field-Store Nodes
+  void insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def);
 
   /// Insert Def to GlobalInitList
   void insertGlobalInit(const StoreSVFGNode *Def);
@@ -81,9 +81,15 @@ public:
   }
 
   /// Get OffsetVec
-  const OffsetVector &getOffsetVector(const StoreSVFGNode *MemcpyNode) const {
-    assert(llvm::isa<const MemCpyInst>(MemcpyNode->getValue()));
-    return MemcpyMap.at(MemcpyNode);
+  const FieldOffsetVector &getOffsetVector(const StoreSVFGNode *MemcpyNode) const {
+    assert(containsOffsetVector(MemcpyNode));
+    return FieldStoreMap.at(MemcpyNode);
+  }
+
+  /// Check whether the OffsetVector exists.
+  bool containsOffsetVector(const StoreSVFGNode *StoreNode) const {
+    auto Search = FieldStoreMap.find(StoreNode);
+    return Search != FieldStoreMap.end();
   }
 
   /// Return the begin iterator to enable range-based loop.
@@ -99,7 +105,7 @@ private:
   DefSet DefUsingPtrList;
   DefSet GlobalInitList;
   DefIdMap DefToID;
-  MemcpyToOffsetVector MemcpyMap;
+  FieldStoreToOffsetMap FieldStoreMap;   // Field-Store to FieldOffset
 
   void setDefID(const StoreSVFGNode *Def);
 };

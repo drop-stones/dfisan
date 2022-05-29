@@ -44,6 +44,10 @@ private:
   /// Create a function call to DfiLoadFn.
   void createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, SmallVector<Value *, 8> &DefIDs);
   void createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, Instruction *InsertPoint, SmallVector<Value *, 8> &DefIDs);
+
+  /// Create the StructGEP and return the target register.
+  Value *createStructGep(IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode);
+  Value *createStructGep(IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Instruction *InsertPoint);
 };
 
 } // namespace llvm

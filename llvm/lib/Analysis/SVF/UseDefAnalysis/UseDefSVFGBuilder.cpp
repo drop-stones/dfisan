@@ -33,13 +33,13 @@ void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {
       if (SVFUtil::isa<StoreSVFGNode>(StmtNode)) {    // delete {Addr, Gep} --dir--> Store
         const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGDstNode());
         if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF)) {
-          llvm::outs() << "Store delete " << Edge->toString() << "\n";
+          //llvm::outs() << "Store delete " << Edge->toString() << "\n";
           svfg->removeSVFGEdge(Edge);
         }
       } else if (SVFUtil::isa<LoadSVFGNode>(StmtNode)) {  // delete {Addr, Gep} --dir--> Load
         const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGSrcNode());
         if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF)) {
-          llvm::outs() << "Load delete " << Edge->toString() << "\n";
+          //llvm::outs() << "Load delete " << Edge->toString() << "\n";
           svfg->removeSVFGEdge(Edge);
         }
       }
