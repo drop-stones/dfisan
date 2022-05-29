@@ -77,7 +77,9 @@ bool calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsign
   if (const StructType *StructTy = llvm::dyn_cast<const StructType>(BaseTy)) {
     Ret = calculateStructOffset(OffsetVec, StructTy, RemainOffset, Base);
   } else if (const ArrayType *ArrayTy = llvm::dyn_cast<const ArrayType>(BaseTy)) {
-    Ret = calculateArrayOffset(OffsetVec, ArrayTy, RemainOffset, Base);
+    ArrayOffset *Offset = new ArrayOffset {ArrayTy, Base, 0};
+    OffsetVec.push_back(Offset);
+    Ret = true;
   }
   return Ret;
   //*/
