@@ -2,8 +2,11 @@
 #include "llvm/IR/TypeFinder.h"
 #include "llvm/Transforms/Instrumentation/DataFlowIntegritySanitizer.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"  /* appendToUsed */
+#include "llvm/Support/Debug.h"
 #include "UseDefAnalysis/UseDefAnalysisPass.h"
 #include "UseDefAnalysis/UseDefChain.h"
+
+#define DEBUG_TYPE "dfi-instrument"
 
 using namespace llvm;
 using namespace SVF;
@@ -34,7 +37,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   Svfg = Result.Svfg;
   UseDef = Result.UseDef;
-  Svfg->dump("usedef-svfg");
+  LLVM_DEBUG(Svfg->dump("usedef-svfg"));
 
   IRBuilder<> Builder{M.getContext()};
   insertDfiInitFn(M, Builder);
@@ -88,6 +91,8 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
 
 /// Insert a constructor function in comdat
 void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Builder) {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
+
   // Create Sanitizer Ctor
   Function *Ctor = Function::createWithDefaultAttr(
     FunctionType::get(VoidTy, false),
@@ -108,8 +113,8 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
   // Insert DfiStoreFn for GlobalInit
   for (const auto &GlobalInit : UseDef->getGlobalInitList()) {
     const Value *Val = GlobalInit->getValue();
-    //llvm::outs() << "GlobalInit: " << *Val << "\n";
     assert(Val != nullptr);
+    LLVM_DEBUG(dbgs() << "GlobalInit: " << *Val << "\n");
     if (const auto *ConstData = dyn_cast<const ConstantData>(Val)) {
       const auto DefVars = GlobalInit->getDefSVFVars();
       for (const auto DefVarID : DefVars) {
@@ -121,7 +126,6 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
           Value *StorePointer = (Value *)DstNode->getValue();
           if (StorePointer == nullptr)  // True if string literal or struct init values
             continue;
-          //llvm::outs() << "StorePointer: " << *StorePointer << "\n";
           createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
         }
       }
@@ -237,10 +241,6 @@ Value *
 DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
   const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
   assert(OffsetVec.size() != 0);
-  //llvm::outs() << "Print OffsetVec: (";
-  //for (auto *Offset : OffsetVec)
-  //  llvm::outs() << *Offset << ", ";
-  //llvm::outs() << ")\n";
 
   Value *CurVal = (Value *)OffsetVec[0]->Base;
   for (auto *Offset : OffsetVec) {

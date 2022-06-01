@@ -10,7 +10,11 @@
 #include "UseDefAnalysis/UseDefChain.h"
 #include "MemoryModel/SVFVariables.h"
 
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "usedef-chain"
+
 using namespace SVF;
+using namespace llvm;
 
 namespace {
 const Value *getBase(const Value *FieldVal) {
@@ -23,11 +27,11 @@ const Value *getBase(const Value *FieldVal) {
     const Value *V = Bitcast->getOperand(0);
     if (llvm::isa<const AllocaInst>(V)) {
       Base = V;
-      llvm::outs() << "Base: " << *Base << "\n";
+      LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
     }
   } else if (const auto *GlobalVal = llvm::dyn_cast<const GlobalValue>(FieldVal)) {
     Base = GlobalVal;
-    llvm::outs() << "GlobalValue: " << *GlobalVal << "\n";
+    LLVM_DEBUG(dbgs() << "GlobalValue: " << *GlobalVal << "\n");
   }
   return Base;
 }
@@ -51,7 +55,7 @@ const StructType *getStructTypeFromBase(const Value *Base) {
   const auto *BaseTy = getTypeFromBase(Base);
   if (BaseTy != nullptr && llvm::isa<const StructType>(BaseTy)) {
     StructTy = llvm::dyn_cast<const StructType>(BaseTy);
-    //llvm::outs() << "Base StructType: " << *BaseTy << "\n";
+    LLVM_DEBUG(dbgs() << "Base StructType: " << *BaseTy << "\n");
   }
 
   return StructTy;
@@ -72,7 +76,6 @@ bool calculateArrayOffset(FieldOffsetVector &OffsetVec, const ArrayType *ArrayTy
 
 // Return true if offset calculation is ended.
 bool calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsigned &RemainOffset, const Value *Base) {
-  ///*
   bool Ret = false;
   if (const StructType *StructTy = llvm::dyn_cast<const StructType>(BaseTy)) {
     Ret = calculateStructOffset(OffsetVec, StructTy, RemainOffset, Base);
@@ -82,33 +85,6 @@ bool calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsign
     Ret = true;
   }
   return Ret;
-  //*/
-
-  /*
-  unsigned EleOffset = 0;
-  if (const StructType *StructTy = llvm::dyn_cast<const StructType>(BaseTy)) {
-    for (auto *EleTy : StructTy->elements()) {
-      if (const auto *EleStructTy = llvm::dyn_cast<const StructType>(EleTy)) {
-        // Dive into element struct.
-        StructOffset *Offset = new StructOffset {StructTy, Base, EleOffset};
-        OffsetVec.push_back(Offset);
-        bool IsEnd = calculateOffsetVec(OffsetVec, EleStructTy, RemainOffset, Base);
-        if (IsEnd)
-          return true;
-        OffsetVec.pop_back(); // Back to the parent struct
-      } else {
-        if (RemainOffset == 0) {
-          StructOffset *Offset = new StructOffset {StructTy, Base, EleOffset};
-          OffsetVec.push_back(Offset);
-          return true;
-        }
-        RemainOffset--;
-      }
-      EleOffset++;
-    }
-  }
-  return false;
-  */
 }
 
 
@@ -138,11 +114,10 @@ bool calculateOffsetVecFromElement(FieldOffsetVector &OffsetVec, const Type *Par
       if (const auto *ParentStructTy = llvm::dyn_cast<const StructType>(ParentTy)) {
         StructOffset *Offset = new StructOffset {ParentStructTy, Base, EleOffset};
         OffsetVec.push_back(Offset);
-        llvm::outs() << "push_back " << *Offset << "\n";
+        LLVM_DEBUG(dbgs() << "push_back " << *Offset << "\n");
       //} else if (const auto *ParentArrayTy = llvm::dyn_cast<const ArrayType>(ParentTy)) {
       //  ArrayOffset *Offset = new ArrayOffset {ParentArrayTy, Base, EleOffset};
       //  OffsetVec.push_back(Offset);
-      //  llvm::outs() << "push_back " << *Offset << "\n";
       }
       return true;
     }
@@ -166,7 +141,7 @@ bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *Struc
 // Process array and calculate OffsetVector.
 bool calculateArrayOffset(FieldOffsetVector &OffsetVec, const ArrayType *ArrayTy, unsigned &RemainOffset, const Value *Base) {
   Type *EleTy = ArrayTy->getElementType();
-  //llvm::outs() << "ArrayTy->getElementType(): " << *EleTy << "\n";
+  LLVM_DEBUG(dbgs() << "ArrayTy->getElementType(): " << *EleTy << "\n");
   for (unsigned EleOffset = 0; EleOffset < ArrayTy->getNumElements(); EleOffset++) {
     // Dive into the element.
     ArrayOffset *Offset = new ArrayOffset {ArrayTy, Base, EleOffset};
@@ -214,7 +189,7 @@ void UseDefChain::insertDefUsingPtr(const StoreSVFGNode *Def) {
 }
 
 void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
-  llvm::outs() << __func__ << ":" << Def->toString() << "\n";
+  LLVM_DEBUG(dbgs() << __func__ << ": " << Def->toString() << "\n");
   SVFIR *Pag = Svfg->getPAG();
 
   // Get the destination node of memcpy.
@@ -225,11 +200,12 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
       // Get the accumulate offset.
       LocationSet Ls = Pag->getLocationSetFromBaseNode(Field);
       auto FieldIdx = Ls.accumulateConstantFieldIdx();
-      llvm::outs() << "FieldIdx: " << FieldIdx << "\n";
+      LLVM_DEBUG(dbgs() << "FieldIdx: " << FieldIdx << "\n");
 
       // Get the destination field node of memcpy.
       const SVFVar *FieldVar = Pag->getGNode(Field);
-      //llvm::outs() << "FieldVar: " << FieldVar->toString() << "\n";
+      LLVM_DEBUG(dbgs() << "FieldVar: " << FieldVar->toString() << "\n");
+
       const Value *FieldVal = FieldVar->getValue();
       const Value *Base = getBase(FieldVal);
       const Type *BaseTy = getTypeFromBase(Base);
@@ -268,7 +244,6 @@ void UseDefChain::setDefID(const StoreSVFGNode *Def) {
   static DefID CurrDefID = 1;
 
   assert(Def != nullptr);
-  assert(ID != 0);
 
   if (DefToID[Def] == 0) {
     DefToID[Def] = CurrDefID++;

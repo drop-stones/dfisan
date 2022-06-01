@@ -33,6 +33,10 @@ protected:
   bool isStrongUpdate(const SVFGNode *Node, NodeID &Singleton, BVDataPTAImpl *Pta);
 
 private:
+  /// Add global struct zeroinitializer.
+  /// Called only be addGlobalAggregateTypeInitialization().
+  void addGlobalStructZeroInitializer(SVFIR *Pag, const llvm::GlobalVariable *GlobalVar);
+
   /// Add PAG Node and StoreStmt to PAG for global aggregate type initialization.
   void addGlobalAggregateTypeInitialization(SVFIR *Pag);
 

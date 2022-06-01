@@ -10,25 +10,24 @@
 #include "UseDefAnalysis/UseDefSVFGBuilder.h"
 #include "MemoryModel/PointerAnalysisImpl.h"  // BVDataPTAImpl
 #include "MemoryModel/SVFVariables.h"
+#include "Util/BasicTypes.h"
+
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "usedef-svfg-builder"
 
 using namespace SVF;
 using namespace SVFUtil;
+using namespace llvm;
 
 void UseDefSVFGBuilder::buildSVFG() {
   SVFIR *Pag = svfg->getPAG();
-  svfg->getPAG()->dump("pag");
-  svfg->dump("before-buildSVFG");
   addGlobalAggregateTypeInitialization(Pag);
 
   svfg->buildSVFG();
   MemSSA *Mssa = svfg->getMSSA();
   BVDataPTAImpl *Pta = Mssa->getPTA();
 
-  // dump for debug
-  svfg->dump("full-usedef-svfg");
-
-  //addGlobalAggregateTypeInitialization(Pta);
-  svfg->dump("add-global-init-svfg");
+  LLVM_DEBUG(svfg->dump("full-svfg"));
 
   rmDerefDirSVFGEdges(Pta);
   rmIncomingEdgeForSUStore(Pta);
@@ -36,9 +35,31 @@ void UseDefSVFGBuilder::buildSVFG() {
   rmDirEdgeFromMemcpyToMemcpy(Pta);
 }
 
+// TODO: Support global struct zeroinitializer
+void UseDefSVFGBuilder::addGlobalStructZeroInitializer(SVFIR *Pag, const llvm::GlobalVariable *GlobalVar) {
+  const auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(GlobalVar->getType());
+  const auto *StructInit = GlobalVar->getInitializer();
+  if (!StructInit->isZeroValue())
+    return;
+  LLVM_DEBUG(dbgs() << "Struct: " << *GlobalVar << "\n");
+  LLVM_DEBUG(dbgs() << "StructInit: " << *StructInit << "\n");
+  LLVM_DEBUG(dbgs() << "IsZero = " << StructInit->isZeroValue() << "\n");
+
+  return;
+  for (auto *EleTy : StructTy->elements()) {
+    if (auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(EleTy)) {
+      //addGlobalStructZeroInitializer(Pag, )
+    } else if (auto *ArrayTy = SVFUtil::dyn_cast<llvm::ArrayType>(EleTy)) {
+      //ConstantAggregateZero *ZeroInit = new ConstantAggregateZero (ArrayTy);
+    } else if (auto *IntegerTy = SVFUtil::dyn_cast<llvm::IntegerType>(EleTy)) {
+      //ConstantInt *Const = new ConstantInt (IntegerTy, 0);
+    }
+  }
+}
+
 // TODO: Support array in struct
 void UseDefSVFGBuilder::addGlobalAggregateTypeInitialization(SVFIR *Pag) {
-  llvm::outs() << __func__ << "\n";
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   llvm::SmallVector<const llvm::GlobalVariable *, 8> ArrayVec;
   llvm::SmallVector<const llvm::GlobalVariable *, 8> StructVec;
   for (const auto *GlobalNode : svfg->getGlobalVFGNodes()) {
@@ -52,7 +73,6 @@ void UseDefSVFGBuilder::addGlobalAggregateTypeInitialization(SVFIR *Pag) {
     const auto *VarTy = GlobalVar->getValueType();
     if (VarTy == nullptr || (!SVFUtil::isa<llvm::ArrayType>(VarTy) && !SVFUtil::isa<llvm::StructType>(VarTy)))
       continue;
-    llvm::outs() << *GlobalVar << "\n";
     if (SVFUtil::isa<llvm::ArrayType>(VarTy))
       ArrayVec.push_back(GlobalVar);
     if (SVFUtil::isa<llvm::StructType>(VarTy))
@@ -62,39 +82,31 @@ void UseDefSVFGBuilder::addGlobalAggregateTypeInitialization(SVFIR *Pag) {
   for (const auto *GlobalVar : ArrayVec) {
     const auto *ArrayTy = SVFUtil::dyn_cast<llvm::ArrayType>(GlobalVar->getType());
     const auto *ArrayInit = GlobalVar->getInitializer();
-    llvm::outs() << *ArrayInit << " IsZero = " << ArrayInit->isZeroValue() << "\n";
+    LLVM_DEBUG(dbgs() << "Array: " << *GlobalVar << "\n");
+    LLVM_DEBUG(dbgs() << "ArrayInit: " << *ArrayInit << "\n");
+    LLVM_DEBUG(dbgs() << "IsZero = " << ArrayInit->isZeroValue() << "\n");
     NodeID SrcID = Pag->getPAGNodeNum();
-    llvm::outs() << "hasNode = " << Pag->hasGNode(SrcID) << "\n";
     Pag->addValNode(ArrayInit, SrcID);
     const auto *Src = Pag->getGNode(SrcID);
     NodeID DstID = Pag->getValueNode(GlobalVar);
     const auto *Dst = Pag->getGNode(DstID);
-    // TODO: Dst must be all field of struct
-    llvm::outs() << "Src: " << Src->toString() << "\nDst: " << Dst->toString() << "\n";
+    // TODO: Dst must be all field (or base) of struct
+    LLVM_DEBUG(dbgs() << "Create new StoreStmt:\n");
+    LLVM_DEBUG(dbgs() << "Src: " << Src->toString() << "\n");
+    LLVM_DEBUG(dbgs() << "Dst: " << Dst->toString() << "\n");
 
     auto *Stmt = Pag->addStoreStmt(SrcID, DstID, nullptr);
     Stmt->setICFGNode(Pag->getICFG()->getGlobalICFGNode());
     Stmt->setValue(ArrayInit);
-    llvm::outs() << "StoreStmt: " << Stmt->toString() << "\n";
+    LLVM_DEBUG(dbgs() << "StoreStmt: " << Stmt->toString() << "\n");
 
     svfg->addStoreVFGNode(Stmt);
   }
 
   for (const auto *GlobalVar : StructVec) {
     // TODO: support zeroinitializer, internal structs
-    const auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(GlobalVar->getType());
-    const auto *StructInit = GlobalVar->getInitializer();
-    if (!StructInit->isZeroValue())
-      continue;
-    llvm::outs() << *StructInit << " IsZero = " << StructInit->isZeroValue() << "\n";
+    addGlobalStructZeroInitializer(Pag, GlobalVar);
   }
-
-  // print for debug
-  /*
-  for (const auto Iter : *Pag) {
-    llvm::outs() << " - (" << Iter.first << ", " << Iter.second->toString() << "\n";
-  }
-  */
 }
 
 void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {
@@ -104,13 +116,13 @@ void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {
       if (SVFUtil::isa<StoreSVFGNode>(StmtNode)) {    // delete {Addr, Gep} --dir--> Store
         const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGDstNode());
         if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF)) {
-          //llvm::outs() << "Store delete " << Edge->toString() << "\n";
+          LLVM_DEBUG(dbgs() << "Store delete " << Edge->toString() << "\n");
           svfg->removeSVFGEdge(Edge);
         }
       } else if (SVFUtil::isa<LoadSVFGNode>(StmtNode)) {  // delete {Addr, Gep} --dir--> Load
         const SVFGNode *Def = svfg->getDefSVFGNode(StmtNode->getPAGSrcNode());
         if (SVFGEdge *Edge = svfg->getIntraVFGEdge(Def, StmtNode, SVFGEdge::IntraDirectVF)) {
-          //llvm::outs() << "Load delete " << Edge->toString() << "\n";
+          LLVM_DEBUG(dbgs() << "Load delete " << Edge->toString() << "\n");
           svfg->removeSVFGEdge(Edge);
         }
       }

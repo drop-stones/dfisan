@@ -59,7 +59,6 @@ void UseDefAnalysis::analyze(SVFModule *M) {
 
   // Create GlobalInitList.
   for (const auto *Iter : Svfg->getGlobalVFGNodes()) {
-    //llvm::outs() << Iter->toString() << "\n";
     if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Iter)) {
       UseDef->insertGlobalInit(StoreNode);
       UseDef->insertFieldStore(Svfg, StoreNode);  // Insert if the value is global struct.
