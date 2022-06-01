@@ -7678,6 +7678,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   }
 
   // Enforce global align.
+  llvm::errs() << getLangOpts().GlobalAlign << "\n";
   if (!getLangOpts().CPlusPlus &&
       NewVD->hasGlobalStorage() &&
       getLangOpts().GlobalAlign != 0) {
