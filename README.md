@@ -10,7 +10,7 @@ This project implements dfisan sanitizer which enforces Data-Flow Integrity usin
 $ cmake -G Ninja \
         -DLLVM_ENABLE_PROJECTS="clang;compiler-rt" \
         -DLLVM_USE_LINKER=lld             \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_BUILD_TYPE=Debug          \
         -DLLVM_TARGETS_TO_BUILD=X86       \
         -DBUILD_SHARED_LIBS=ON            \
         -DLLVM_USE_SPLIT_DWARF=ON         \

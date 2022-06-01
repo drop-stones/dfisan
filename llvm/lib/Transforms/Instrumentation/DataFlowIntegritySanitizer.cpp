@@ -69,11 +69,13 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
+  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, ArgTy, ArgTy};
+  FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
 
   DfiInitFn  = M.getOrInsertFunction(DfisanInitFnName, VoidTy);
-  DfiStoreNFn = M.getOrInsertFunction(DfisanStoreNFnName, StoreFnTy);
+  DfiStoreNFn = M.getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
   DfiLoadNFn  = M.getOrInsertFunction(DfisanLoadNFnName, LoadFnTy); // VarArg Function
 
   DfiStore1Fn = M.getOrInsertFunction(DfisanStore1FnName, StoreFnTy);
@@ -245,6 +247,8 @@ DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, cons
   Value *CurVal = (Value *)OffsetVec[0]->Base;
   for (auto *Offset : OffsetVec) {
     if (auto *StructOff = dyn_cast<StructOffset>(Offset)) {
+      LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
+      LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
       CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
     }
   }

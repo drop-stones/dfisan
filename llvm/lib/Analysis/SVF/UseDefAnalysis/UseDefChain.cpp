@@ -89,10 +89,11 @@ bool calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsign
 
 
 // Process one element in StructTy or ArrayTy.
-bool calculateOffsetVecFromElement(FieldOffsetVector &OffsetVec, const Type *ParentTy, Type *EleTy, unsigned EleOffset, unsigned &RemainOffset, const Value *Base) {
+bool calculateOffsetVecFromElement(FieldOffsetVector &OffsetVec, const StructType *ParentTy, Type *EleTy, unsigned EleOffset, unsigned &RemainOffset, const Value *Base) {
   if (const auto *EleStructTy = llvm::dyn_cast<const StructType>(EleTy)) {
     // Dive into element struct.
-    StructOffset *Offset = new StructOffset {EleStructTy, Base, EleOffset};
+    //StructOffset *Offset = new StructOffset {EleStructTy, Base, EleOffset};
+    StructOffset *Offset = new StructOffset {ParentTy, Base, EleOffset};
     OffsetVec.push_back(Offset);
     bool IsEnd = calculateStructOffset(OffsetVec, EleStructTy, RemainOffset, Base);
     if (IsEnd)
@@ -111,14 +112,14 @@ bool calculateOffsetVecFromElement(FieldOffsetVector &OffsetVec, const Type *Par
   //    return true;
   } else {
     if (RemainOffset == 0) {
-      if (const auto *ParentStructTy = llvm::dyn_cast<const StructType>(ParentTy)) {
-        StructOffset *Offset = new StructOffset {ParentStructTy, Base, EleOffset};
-        OffsetVec.push_back(Offset);
-        LLVM_DEBUG(dbgs() << "push_back " << *Offset << "\n");
+      //if (const auto *ParentStructTy = llvm::dyn_cast<const StructType>(ParentTy)) {
+      StructOffset *Offset = new StructOffset {ParentTy, Base, EleOffset};
+      OffsetVec.push_back(Offset);
+      LLVM_DEBUG(dbgs() << "push_back " << *Offset << "\n");
       //} else if (const auto *ParentArrayTy = llvm::dyn_cast<const ArrayType>(ParentTy)) {
       //  ArrayOffset *Offset = new ArrayOffset {ParentArrayTy, Base, EleOffset};
       //  OffsetVec.push_back(Offset);
-      }
+      //}
       return true;
     }
     RemainOffset--;
@@ -140,6 +141,7 @@ bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *Struc
 
 // Process array and calculate OffsetVector.
 bool calculateArrayOffset(FieldOffsetVector &OffsetVec, const ArrayType *ArrayTy, unsigned &RemainOffset, const Value *Base) {
+  /*
   Type *EleTy = ArrayTy->getElementType();
   LLVM_DEBUG(dbgs() << "ArrayTy->getElementType(): " << *EleTy << "\n");
   for (unsigned EleOffset = 0; EleOffset < ArrayTy->getNumElements(); EleOffset++) {
@@ -151,6 +153,7 @@ bool calculateArrayOffset(FieldOffsetVector &OffsetVec, const ArrayType *ArrayTy
       return true;
     OffsetVec.pop_back();
   }
+  */
   return false;
 }
 } // anonymous namespace
