@@ -5,15 +5,24 @@
 
 // Tests that dfisan can manage static local variables correctly.
 
+struct S {
+  int i;
+  long l;
+};
+
 void static_vars() {
   static char c;      // uninitialized
   static int i = 100; // initialized
-
-  c;
-  i;
+  static int arr0[8];
+  static int arr1[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  static struct S s = { 100, 200 };
 
   c++;
   i++;
+  arr0[4]++;
+  arr1[4]++;
+  s.i++;
+  s.l++;
 }
 
 int main(int argc, char **argv) {

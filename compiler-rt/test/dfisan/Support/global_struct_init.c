@@ -4,6 +4,7 @@
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can manage struct initialization in local.
+// TODO: Support global struct zeroinitializer
 
 struct S0 {
   char c;
@@ -26,6 +27,7 @@ struct S2 g0;
 struct S2 g1 = { {'a', 100}, {200, 300}, 1.23, 4.56 };
 
 int main(void) {
+  // We cannot check g0 correctly
   g0.s0.c;
   g0.s0.s;
   g0.s1.i;
