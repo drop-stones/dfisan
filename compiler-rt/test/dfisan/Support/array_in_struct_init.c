@@ -15,7 +15,8 @@ struct S1 {
   char str1[8];
 };
 
-struct S1 g = { {"Chris", 200 }, "Dave" };
+struct S1 g0;
+struct S1 g1 = { {"Chris", 200 }, "Dave" };
 
 int main(void) {
   struct S1 s1 = { { "Alice", 100 }, "Bob" };
@@ -26,11 +27,17 @@ int main(void) {
   s1.str1[1];
 
   // TODO: global array is not instrumented.
-  g.s0.str0[0];   // No checked 
-  g.s0.str0[1];   // No checked
-  g.s0.i;
-  g.str1[0];      // No checked
-  g.str1[1];      // No checked
+  g0.s0.str0[0];   // No checked 
+  g0.s0.str0[1];   // No checked
+  g0.s0.i;
+  g0.str1[0];      // No checked
+  g0.str1[1];      // No checked
+
+  g1.s0.str0[0];   // No checked 
+  g1.s0.str0[1];   // No checked
+  g1.s0.i;
+  g1.str1[0];      // No checked
+  g1.str1[1];      // No checked
 
   return 0;
 }

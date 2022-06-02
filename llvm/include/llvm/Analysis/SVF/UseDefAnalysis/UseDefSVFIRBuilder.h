@@ -2,6 +2,7 @@
 #define LLVM_ANALYSIS_SVF_USEDEFANALYSIS_USEDEFSVFIRBUILDER_H
 
 #include "SVF-FE/SVFIRBuilder.h"
+#include "llvm/ADT/SmallVector.h"
 
 namespace SVF {
 
@@ -14,8 +15,12 @@ public:
   virtual ~UseDefSVFIRBuilder() {}
 
   /// Add global struct zeroinitializer.
-  /// Called only be addGlobalAggregateTypeInitialization().
-  void addGlobalStructZeroInitializer(const llvm::GlobalVariable *StructVal, llvm::StructType *StructTy, const llvm::Constant *StructInit, unsigned &Offset);
+  /// Called only be addGlobalAggregateTypeInitializationNodes().
+  void addGlobalStructZeroInitializer(const llvm::GlobalVariable *BaseVal, llvm::StructType *StructTy, const llvm::Constant *StructInit, unsigned &AccumulateOffset);
+
+  /// Add global struct member initializations.
+  /// Called only be addGlobalAggregateTypeInitializationNodes().
+  void addGlobalStructMemberInitializer(const llvm::GlobalVariable *BaseVal, llvm::StructType *StructTy, const llvm::ConstantStruct *StructConst, unsigned &AccumulateOffset, llvm::SmallVector<unsigned, 8> &OffsetVec);
 
   /// Add PAG Node and StoreStmt to PAG for global aggregate type initialization.
   void addGlobalAggregateTypeInitializationNodes();
