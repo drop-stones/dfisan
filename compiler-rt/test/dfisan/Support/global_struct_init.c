@@ -23,24 +23,32 @@ struct S2 {
   double d;
 };
 
-struct S2 g0;
-struct S2 g1 = { {'a', 100}, {200, 300}, 1.23, 4.56 };
+struct S0 g0;
+struct S1 g1 = { 100, 200 };
+struct S2 g2_0;
+struct S2 g2_1 = { {'a', 300}, {400, 500}, 1.23, 4.56 };
 
 int main(void) {
-  // We cannot check g0 correctly
-  g0.s0.c;
-  g0.s0.s;
-  g0.s1.i;
-  g0.s1.l;
-  g0.f;
-  g0.d;
+  g0.c;
+  g0.s;
 
-  g1.s0.c;
-  g1.s0.s;
-  g1.s1.i;
-  g1.s1.l;
-  g1.f;
-  g1.d;
+  g1.i;
+  g1.l;
+
+  // We cannot check g0 correctly
+  g2_0.s0.c;
+  g2_0.s0.s;
+  g2_0.s1.i;
+  g2_0.s1.l;
+  g2_0.f;
+  g2_0.d;
+
+  g2_1.s0.c;
+  g2_1.s0.s;
+  g2_1.s1.i;
+  g2_1.s1.l;
+  g2_1.f;
+  g2_1.d;
 
   return 0;
 }

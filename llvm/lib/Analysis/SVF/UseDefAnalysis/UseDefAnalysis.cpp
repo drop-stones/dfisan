@@ -45,8 +45,10 @@ bool isMemcpy(const StmtSVFGNode *Store) {
 
 /// Initialize analysis
 void UseDefAnalysis::initialize(SVFModule *M) {
-  SVFIRBuilder Builder;
-  SVFIR *Pag = Builder.build(M);
+  IRBuilder.build(M);
+
+  IRBuilder.addGlobalAggregateTypeInitializationNodes();
+  Pag = IRBuilder.getPAG();
 
   AndersenWaveDiff *Ander = AndersenWaveDiff::createAndersenWaveDiff(Pag);
   Svfg = SvfgBuilder.buildFullSVFG(Ander);

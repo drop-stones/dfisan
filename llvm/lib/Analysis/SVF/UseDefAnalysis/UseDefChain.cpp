@@ -210,8 +210,11 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
       LLVM_DEBUG(dbgs() << "FieldVar: " << FieldVar->toString() << "\n");
 
       const Value *FieldVal = FieldVar->getValue();
+      LLVM_DEBUG(dbgs() << "FieldVal: " << *FieldVal << "\n");
       const Value *Base = getBase(FieldVal);
+      LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
       const Type *BaseTy = getTypeFromBase(Base);
+      LLVM_DEBUG(dbgs() << "BaseTy: " << *BaseTy << "\n");
       FieldOffsetVector OffsetVec;
       unsigned RemainOffset = FieldIdx;
       calculateOffsetVec(OffsetVec, BaseTy, RemainOffset, Base);

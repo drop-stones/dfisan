@@ -4157,9 +4157,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     Opts.StackAlign  = Align;
     Opts.GlobalAlign = Align;
   }
-  //Opts.StructAlign = 4;
-  //Opts.StackAlign  = 4;
-  //Opts.GlobalAlign = 4;
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }

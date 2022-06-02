@@ -33,13 +33,6 @@ protected:
   bool isStrongUpdate(const SVFGNode *Node, NodeID &Singleton, BVDataPTAImpl *Pta);
 
 private:
-  /// Add global struct zeroinitializer.
-  /// Called only be addGlobalAggregateTypeInitialization().
-  void addGlobalStructZeroInitializer(SVFIR *Pag, const llvm::GlobalVariable *GlobalVar);
-
-  /// Add PAG Node and StoreStmt to PAG for global aggregate type initialization.
-  void addGlobalAggregateTypeInitialization(SVFIR *Pag);
-
   /// Remove direct value-flow edge to a dereference point for Use-Def calculation.
   /// For example, given two statements: p = alloc; q = *p, the direct SVFG edge between them is deleted
   /// because those edges only stand for values used at the dereference points but they can not pass the value to other definitions.

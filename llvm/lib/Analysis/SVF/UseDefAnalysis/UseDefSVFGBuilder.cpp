@@ -21,7 +21,7 @@ using namespace llvm;
 
 void UseDefSVFGBuilder::buildSVFG() {
   SVFIR *Pag = svfg->getPAG();
-  addGlobalAggregateTypeInitialization(Pag);
+  LLVM_DEBUG(Pag->dump("pag"));
 
   svfg->buildSVFG();
   MemSSA *Mssa = svfg->getMSSA();
@@ -33,80 +33,6 @@ void UseDefSVFGBuilder::buildSVFG() {
   rmIncomingEdgeForSUStore(Pta);
   rmDirOutgoingEdgeForLoad(Pta);
   rmDirEdgeFromMemcpyToMemcpy(Pta);
-}
-
-// TODO: Support global struct zeroinitializer
-void UseDefSVFGBuilder::addGlobalStructZeroInitializer(SVFIR *Pag, const llvm::GlobalVariable *GlobalVar) {
-  const auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(GlobalVar->getType());
-  const auto *StructInit = GlobalVar->getInitializer();
-  if (!StructInit->isZeroValue())
-    return;
-  LLVM_DEBUG(dbgs() << "Struct: " << *GlobalVar << "\n");
-  LLVM_DEBUG(dbgs() << "StructInit: " << *StructInit << "\n");
-  LLVM_DEBUG(dbgs() << "IsZero = " << StructInit->isZeroValue() << "\n");
-
-  return;
-  for (auto *EleTy : StructTy->elements()) {
-    if (auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(EleTy)) {
-      //addGlobalStructZeroInitializer(Pag, )
-    } else if (auto *ArrayTy = SVFUtil::dyn_cast<llvm::ArrayType>(EleTy)) {
-      //ConstantAggregateZero *ZeroInit = new ConstantAggregateZero (ArrayTy);
-    } else if (auto *IntegerTy = SVFUtil::dyn_cast<llvm::IntegerType>(EleTy)) {
-      //ConstantInt *Const = new ConstantInt (IntegerTy, 0);
-    }
-  }
-}
-
-// TODO: Support array in struct
-void UseDefSVFGBuilder::addGlobalAggregateTypeInitialization(SVFIR *Pag) {
-  LLVM_DEBUG(dbgs() << __func__ << "\n");
-  llvm::SmallVector<const llvm::GlobalVariable *, 8> ArrayVec;
-  llvm::SmallVector<const llvm::GlobalVariable *, 8> StructVec;
-  for (const auto *GlobalNode : svfg->getGlobalVFGNodes()) {
-    if (! SVFUtil::isa<AddrVFGNode>(GlobalNode))
-      continue;
-    const AddrVFGNode *AddrNode = SVFUtil::dyn_cast<AddrVFGNode>(GlobalNode);
-    const auto *Val = AddrNode->getValue();
-    if (Val == nullptr || !SVFUtil::isa<llvm::GlobalVariable>(Val))
-      continue;
-    const auto *GlobalVar = SVFUtil::dyn_cast<llvm::GlobalVariable>(Val);
-    const auto *VarTy = GlobalVar->getValueType();
-    if (VarTy == nullptr || (!SVFUtil::isa<llvm::ArrayType>(VarTy) && !SVFUtil::isa<llvm::StructType>(VarTy)))
-      continue;
-    if (SVFUtil::isa<llvm::ArrayType>(VarTy))
-      ArrayVec.push_back(GlobalVar);
-    if (SVFUtil::isa<llvm::StructType>(VarTy))
-      StructVec.push_back(GlobalVar);
-  }
-
-  for (const auto *GlobalVar : ArrayVec) {
-    const auto *ArrayTy = SVFUtil::dyn_cast<llvm::ArrayType>(GlobalVar->getType());
-    const auto *ArrayInit = GlobalVar->getInitializer();
-    LLVM_DEBUG(dbgs() << "Array: " << *GlobalVar << "\n");
-    LLVM_DEBUG(dbgs() << "ArrayInit: " << *ArrayInit << "\n");
-    LLVM_DEBUG(dbgs() << "IsZero = " << ArrayInit->isZeroValue() << "\n");
-    NodeID SrcID = Pag->getPAGNodeNum();
-    Pag->addValNode(ArrayInit, SrcID);
-    const auto *Src = Pag->getGNode(SrcID);
-    NodeID DstID = Pag->getValueNode(GlobalVar);
-    const auto *Dst = Pag->getGNode(DstID);
-    // TODO: Dst must be all field (or base) of struct
-    LLVM_DEBUG(dbgs() << "Create new StoreStmt:\n");
-    LLVM_DEBUG(dbgs() << "Src: " << Src->toString() << "\n");
-    LLVM_DEBUG(dbgs() << "Dst: " << Dst->toString() << "\n");
-
-    auto *Stmt = Pag->addStoreStmt(SrcID, DstID, nullptr);
-    Stmt->setICFGNode(Pag->getICFG()->getGlobalICFGNode());
-    Stmt->setValue(ArrayInit);
-    LLVM_DEBUG(dbgs() << "StoreStmt: " << Stmt->toString() << "\n");
-
-    svfg->addStoreVFGNode(Stmt);
-  }
-
-  for (const auto *GlobalVar : StructVec) {
-    // TODO: support zeroinitializer, internal structs
-    addGlobalStructZeroInitializer(Pag, GlobalVar);
-  }
 }
 
 void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {
