@@ -15,7 +15,7 @@ public:
 
   /// Add global struct zeroinitializer.
   /// Called only be addGlobalAggregateTypeInitialization().
-  void addGlobalStructZeroInitializer(SVFIR *Pag, const llvm::GlobalVariable *GlobalVar);
+  void addGlobalStructZeroInitializer(const llvm::GlobalVariable *StructVal, llvm::StructType *StructTy, const llvm::Constant *StructInit, unsigned &Offset);
 
   /// Add PAG Node and StoreStmt to PAG for global aggregate type initialization.
   void addGlobalAggregateTypeInitializationNodes();

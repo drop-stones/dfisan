@@ -6,8 +6,30 @@
 using namespace SVF;
 
 // TODO: Support global struct zeroinitializer
-void UseDefSVFIRBuilder::addGlobalStructZeroInitializer(SVFIR *Pag, const llvm::GlobalVariable *GlobalVar) {
+void UseDefSVFIRBuilder::addGlobalStructZeroInitializer(const llvm::GlobalVariable *StructVal, llvm::StructType *StructTy, const llvm::Constant *StructInit, unsigned &Offset) {
   LLVM_DEBUG(llvm::dbgs() << __func__ << "\n");
+  SVFIR *Pag = getPAG();
+  NodeIDAllocator *IDAllocator = NodeIDAllocator::get();
+  for (auto *EleTy : StructTy->elements()) {
+    LLVM_DEBUG(llvm::dbgs() << "EleTy: " << *EleTy << "\n");
+
+    if (auto *EleStructTy = SVFUtil::dyn_cast<StructType>(EleTy)) {
+      addGlobalStructZeroInitializer(StructVal, EleStructTy, StructInit, Offset);
+    } else {
+      NodeID FieldID = getGlobalVarField(StructVal, Offset, EleTy);
+      const auto *FieldNode = Pag->getGNode(FieldID);
+      LLVM_DEBUG(llvm::dbgs() << "Create Field: " << FieldNode->toString() << "\n");
+
+      NodeID ZeroInitID = IDAllocator->allocateValueId();
+      Pag->addValNode(StructInit, ZeroInitID);
+      auto *Stmt = Pag->addStoreStmt(ZeroInitID, FieldID, nullptr);
+      Stmt->setICFGNode(Pag->getICFG()->getGlobalICFGNode());
+      Stmt->setValue(StructInit);
+      LLVM_DEBUG(llvm::dbgs() << "StoreStmt: " << Stmt->toString() << "\n");
+    
+      Offset++;
+    }
+  }
 }
 
 // TODO: Support array in struct
@@ -57,28 +79,15 @@ void UseDefSVFIRBuilder::addGlobalAggregateTypeInitializationNodes() {
 
   for (const auto *StructStmt : StructVec) {  // Add struct zero initializer nodes
     const auto *StructVal = SVFUtil::dyn_cast<llvm::GlobalVariable>(StructStmt->getValue());
-    const auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(StructVal->getValueType());
+    auto *StructTy = SVFUtil::dyn_cast<llvm::StructType>(StructVal->getValueType());
     const auto *StructInit = StructVal->getInitializer();
     LLVM_DEBUG(llvm::dbgs() << "Struct: " << *StructVal << "\n");
     LLVM_DEBUG(llvm::dbgs() << "StructTy: " << *StructTy << "\n");
     LLVM_DEBUG(llvm::dbgs() << "StructInit: " << *StructInit << "\n");
 
     if (StructInit->isZeroValue()) {  // zero initializer
-      for (unsigned EleOffset = 0; EleOffset < StructTy->getNumElements(); EleOffset++) {
-        auto *EleTy = StructTy->getElementType(EleOffset);
-        LLVM_DEBUG(llvm::dbgs() << "EleTy: " << *EleTy << "\n");
-
-        NodeID FieldID = getGlobalVarField(StructVal, EleOffset, EleTy);
-        const auto *FieldNode = Pag->getGNode(FieldID);
-        LLVM_DEBUG(llvm::dbgs() << "Create Field: " << FieldNode->toString() << "\n");
-
-        NodeID ZeroInitID = IDAllocator->allocateValueId();
-        Pag->addValNode(StructInit, ZeroInitID);
-        auto *Stmt = Pag->addStoreStmt(ZeroInitID, FieldID, nullptr);
-        Stmt->setICFGNode(Pag->getICFG()->getGlobalICFGNode());
-        Stmt->setValue(StructInit);
-        LLVM_DEBUG(llvm::dbgs() << "StoreStmt: " << Stmt->toString() << "\n");
-      }
+      unsigned Offset = 0;
+      addGlobalStructZeroInitializer(StructVal, StructTy, StructInit, Offset);
     }
   }
 }
