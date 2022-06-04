@@ -24,6 +24,10 @@ public:
 
   /// Add PAG Node and StoreStmt to PAG for global aggregate type initialization.
   void addGlobalAggregateTypeInitializationNodes();
+
+protected:
+  /// Initialze global variables
+  void InitialGlobal(const GlobalVariable *Gvar, Constant *Const, u32_t Offset) override;
 };
 
 } // namespace SVF

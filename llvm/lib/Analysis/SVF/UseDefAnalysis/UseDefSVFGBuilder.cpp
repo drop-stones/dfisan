@@ -138,3 +138,19 @@ void UseDefSVFGBuilder::rmDirEdgeFromMemcpyToMemcpy(BVDataPTAImpl *Pta) {
     svfg->removeSVFGEdge(Edge);
   }
 }
+
+void UseDefSVFGBuilder::printSVFGNodes(SVFGNode::VFGNodeK Type) const {
+  assert(svfg && "svfg is nullptr!!");
+  LLVM_DEBUG(dbgs() << __func__ << "(" << Type << ")\n");
+  for (const auto Iter : *svfg) {
+    //NodeID NodeID = Iter.first;
+    const auto *SvfgNode = Iter.second;
+    if (SvfgNode->getNodeKind() == Type) {
+      LLVM_DEBUG(dbgs() << SvfgNode->toString() << "\n");
+      if (const auto *StmtNode = SVFUtil::dyn_cast<StmtSVFGNode>(SvfgNode)) {
+        LLVM_DEBUG(dbgs() << "Src: " << StmtNode->getPAGSrcNode()->toString() << "\n");
+        LLVM_DEBUG(dbgs() << "Dst: " << StmtNode->getPAGDstNode()->toString() << "\n");
+      }
+    }
+  }
+}

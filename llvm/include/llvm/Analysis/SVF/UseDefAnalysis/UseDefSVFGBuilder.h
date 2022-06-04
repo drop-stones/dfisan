@@ -25,6 +25,9 @@ public:
   /// Destructor
   virtual ~UseDefSVFGBuilder() {}
 
+  /// Print all SVFG nodes of a specified type.
+  void printSVFGNodes(SVFGNode::VFGNodeK Type) const;
+
 protected:
   /// Build SVFG for Use-Def analysis.
   virtual void buildSVFG() override;
@@ -33,6 +36,10 @@ protected:
   bool isStrongUpdate(const SVFGNode *Node, NodeID &Singleton, BVDataPTAImpl *Pta);
 
 private:
+  /// Merge zeroinitializer nodes of global array
+  /// because array initialization has one unique DefID.
+  void mergeArrayZeroinitializer(BVDataPTAImpl *Pta);
+
   /// Remove direct value-flow edge to a dereference point for Use-Def calculation.
   /// For example, given two statements: p = alloc; q = *p, the direct SVFG edge between them is deleted
   /// because those edges only stand for values used at the dereference points but they can not pass the value to other definitions.

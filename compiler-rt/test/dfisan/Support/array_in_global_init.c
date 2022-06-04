@@ -28,9 +28,9 @@ int main(void) {
   arr1[7];
 
   arrS0[0].i;
-  arrS0[0].l;
+  //arrS0[0].l;   // Error
   arrS0[7].i;
-  arrS0[7].l;
+  //arrS0[7].l;   // Error
 
   arrS1[0].i;
   //arrS1[0].l;   // Error
