@@ -29,10 +29,69 @@ void UseDefSVFGBuilder::buildSVFG() {
 
   LLVM_DEBUG(svfg->dump("full-svfg"));
 
+  mergeGlobalArrayZeroinitializer(Pag);
   rmDerefDirSVFGEdges(Pta);
   rmIncomingEdgeForSUStore(Pta);
   rmDirOutgoingEdgeForLoad(Pta);
   rmDirEdgeFromMemcpyToMemcpy(Pta);
+}
+
+void UseDefSVFGBuilder::mergeGlobalArrayZeroinitializer(SVFIR *Pag) {
+  using ToMergeVec = llvm::SmallVector<StoreSVFGNode *, 8>;
+  using ArrayToMergeVec = std::unordered_map<const GlobalVariable *, ToMergeVec>;
+  ArrayToMergeVec ArrayToMerge;
+  for (const auto Iter : *svfg) {
+    if (StoreSVFGNode *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Iter.second)) {
+      LLVM_DEBUG(llvm::dbgs() << "StoreNode: " << StoreNode->toString() << "\n");
+      NodeBS DefVars = StoreNode->getDefSVFVars();
+
+      auto *PagSrcNode = StoreNode->getPAGSrcNode();
+      auto *IcfgNode = StoreNode->getICFGNode();
+      if (!PagSrcNode->isConstantData() || IcfgNode != Pag->getICFG()->getGlobalICFGNode())
+        continue;
+
+      for (auto DefVarID : DefVars) {
+        SVFVar *DefVar = Pag->getGNode(DefVarID);
+        LLVM_DEBUG(llvm::dbgs() << "DefVar: " << DefVar->toString() << "\n");
+
+        if (DefVar->getNodeKind() == SVFVar::DummyValNode || DefVar->getNodeKind() == SVFVar::DummyObjNode)
+          continue;
+
+        if (const auto *GlobalVar = SVFUtil::dyn_cast<llvm::GlobalVariable>(DefVar->getValue())) {
+          if (!SVFUtil::isa<llvm::ArrayType>(GlobalVar->getValueType()))
+            continue;
+          const auto *ArrayTy = SVFUtil::dyn_cast<llvm::ArrayType>(GlobalVar->getValueType());
+          LLVM_DEBUG(llvm::dbgs() << "Global ArrayType: " << *ArrayTy << "\n");
+          ArrayToMerge[GlobalVar].push_back(StoreNode);
+        }
+      }
+    }
+  }
+
+  for (const auto &Iter : ArrayToMerge) {
+    const auto *ArrayVal = Iter.first;
+    LLVM_DEBUG(llvm::dbgs() << "Array: " << *ArrayVal << "\n");
+    StoreSVFGNode *DelegateNode = nullptr;
+    for (StoreSVFGNode *ToMerge : Iter.second) {
+      LLVM_DEBUG(llvm::dbgs() << " - ToMerge: " << ToMerge->toString() << "\n");
+      if (DelegateNode == nullptr)
+        DelegateNode = ToMerge;
+      else {
+        Set<SVFGNode *> ToAddDstSet;
+        SVFGEdgeSet ToRemoveSet;
+        for (auto *OutEdge : ToMerge->getOutEdges()) {
+          LLVM_DEBUG(llvm::dbgs() << "\t- OutEdge: " << OutEdge->toString() << "\n");
+          ToAddDstSet.insert(OutEdge->getDstNode());
+          ToRemoveSet.insert(OutEdge);
+        }
+        for (auto *ToAddDst : ToAddDstSet) {
+          svfg->addIntraIndirectVFEdge(DelegateNode->getId(), ToAddDst->getId(), {});
+        }
+        for (auto *ToRemove : ToRemoveSet)
+          svfg->removeSVFGEdge(ToRemove);
+      }
+    }
+  }
 }
 
 void UseDefSVFGBuilder::rmDerefDirSVFGEdges(BVDataPTAImpl *Pta) {

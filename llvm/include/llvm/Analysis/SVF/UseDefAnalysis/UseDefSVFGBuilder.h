@@ -38,7 +38,7 @@ protected:
 private:
   /// Merge zeroinitializer nodes of global array
   /// because array initialization has one unique DefID.
-  void mergeArrayZeroinitializer(BVDataPTAImpl *Pta);
+  void mergeGlobalArrayZeroinitializer(SVFIR *Pag);
 
   /// Remove direct value-flow edge to a dereference point for Use-Def calculation.
   /// For example, given two statements: p = alloc; q = *p, the direct SVFG edge between them is deleted

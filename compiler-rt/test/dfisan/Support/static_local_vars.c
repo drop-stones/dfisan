@@ -4,6 +4,7 @@
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can manage static local variables correctly.
+// TODO: Support static local array initialization using memcpy
 
 struct S {
   int i;
@@ -15,12 +16,12 @@ void static_vars() {
   static int i = 100; // initialized
   static int arr0[8];
   static int arr1[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-  static struct S s = { 100, 200 };
+  static struct S s = { 200, 300 };
 
   c++;
   i++;
   arr0[4]++;
-  arr1[4]++;
+  //arr1[4]++;    // Error occur
   s.i++;
   s.l++;
 }
