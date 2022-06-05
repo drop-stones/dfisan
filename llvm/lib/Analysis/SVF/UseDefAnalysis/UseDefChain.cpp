@@ -227,7 +227,7 @@ void UseDefChain::insertGlobalInit(const StoreSVFGNode *GlobalInit) {
   GlobalInitList.insert(GlobalInit);
 }
 
-void UseDefChain::idToUseDef() {
+void UseDefChain::idToUseDef(SVFIR *Pag) {
   // ID to UseDef
   for (const auto &Iter : UseDef) {
     for (const auto *Def : Iter.second) {
@@ -244,6 +244,8 @@ void UseDefChain::idToUseDef() {
   for (const auto *GlobalInit : GlobalInitList) {
     setDefID(GlobalInit);
   }
+
+  mergeMemcpyIDs(Pag);
 }
 
 void UseDefChain::setDefID(const StoreSVFGNode *Def) {
@@ -258,6 +260,56 @@ void UseDefChain::setDefID(const StoreSVFGNode *Def) {
   if (CurrDefID == std::numeric_limits<uint16_t>::max()) {
     llvm::errs() << "DefID overflow occured.\n";
     CurrDefID = 1;
+  }
+}
+
+const SVFVar *
+UseDefChain::getArrayBaseFromMemcpy(SVFIR *Pag, const StoreSVFGNode *StoreNode) {
+  const Value *StoreVal = StoreNode->getValue();
+  if (StoreVal == nullptr)
+    return nullptr;
+  if (!llvm::isa<llvm::CallInst>(StoreVal))
+    return nullptr;
+  const auto *Call = llvm::cast<llvm::CallInst>(StoreVal);
+  const auto *Callee = Call->getCalledFunction();
+  if (!Callee->isIntrinsic() || !Callee->getName().contains("memcpy"))
+    return nullptr;
+  LLVM_DEBUG(llvm::dbgs() << "Memcpy: " << *Callee << "\n");
+  const PAGNode *DstNode = StoreNode->getPAGDstNode();
+  NodeID DstID = StoreNode->getPAGDstNodeID();
+  if (DstNode->getNodeKind() == PAGNode::DummyValNode || DstNode->getNodeKind() == PAGNode::DummyObjNode)
+    return nullptr;
+  if (!llvm::isa<llvm::BitCastInst>(DstNode->getValue()))
+    return nullptr;
+  const auto *Bitcast = llvm::cast<llvm::BitCastInst>(DstNode->getValue());
+  if (!llvm::isa<llvm::PointerType>(Bitcast->getSrcTy()))
+    return nullptr;
+  const auto *PtrTy = llvm::cast<llvm::PointerType>(Bitcast->getSrcTy());
+  if (!llvm::isa<llvm::ArrayType>(PtrTy->getPointerElementType()))
+    return nullptr;
+  const auto *ArrayTy = llvm::cast<llvm::ArrayType>(PtrTy->getPointerElementType());
+  
+  NodeID BaseID = Pag->getBaseValVar(StoreNode->getPAGDstNodeID());
+  const auto *Base = Pag->getGNode(BaseID);
+  return Base;
+}
+
+void UseDefChain::mergeMemcpyIDs(SVFIR *Pag) {
+  LLVM_DEBUG(llvm::dbgs() << __func__ << "\n");
+  using ArrayToMemcpyIDMap = std::unordered_map<const SVFVar *, DefID>;
+  ArrayToMemcpyIDMap ArrayBaseToID;
+  for (auto Iter : DefToID) {
+    const StoreSVFGNode *StoreNode = Iter.first;
+    NodeID StoreID = Iter.second;
+    const auto *Base = getArrayBaseFromMemcpy(Pag, StoreNode);
+    if (Base == nullptr)
+      continue;
+    if (ArrayBaseToID.count(Base) == 0) {
+      ArrayBaseToID[Base] = StoreID;
+    } else {
+      LLVM_DEBUG(llvm::dbgs() << "Change DefID from " << DefToID[StoreNode] << " to " << ArrayBaseToID[Base] << "\n");
+      DefToID[StoreNode] = ArrayBaseToID[Base];
+    }
   }
 }
 

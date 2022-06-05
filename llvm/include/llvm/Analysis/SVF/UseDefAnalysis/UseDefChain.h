@@ -98,7 +98,7 @@ public:
   void insertGlobalInit(const StoreSVFGNode *Def);
 
   /// ID to Defs
-  void idToUseDef();
+  void idToUseDef(SVFIR *Pag);
 
   /// Get DefID
   DefID getDefID(const StoreSVFGNode *Def) const {
@@ -146,6 +146,9 @@ private:
   FieldStoreToOffsetMap FieldStoreMap;   // Field-Store to FieldOffset
 
   void setDefID(const StoreSVFGNode *Def);
+
+  const SVFVar *getArrayBaseFromMemcpy(SVFIR *Pag, const StoreSVFGNode *StoreNode);
+  void mergeMemcpyIDs(SVFIR *Pag);
 };
 
 } // namespace SVF
