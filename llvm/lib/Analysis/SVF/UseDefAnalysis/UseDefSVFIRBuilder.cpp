@@ -214,6 +214,9 @@ void UseDefSVFIRBuilder::addGlobalAggregateTypeInitializationNodes() {
  * struct Z l;    // store zeroinitializer {l.s, l.t}
  */
 void UseDefSVFIRBuilder::InitialGlobal(const GlobalVariable *Gvar, Constant *Const, u32_t Offset) {
+  //SVFIRBuilder::InitialGlobal(Gvar, Const, Offset);
+  //return;
+
   SVFIR *Pag = getPAG();
   SymbolTableInfo *SymInfo = SymbolTableInfo::SymbolInfo();
   if (Const->getType()->isSingleValueType()) {
@@ -255,10 +258,8 @@ void UseDefSVFIRBuilder::InitialGlobal(const GlobalVariable *Gvar, Constant *Con
     }
   }
   /// New implementation
-  else if(ConstantData* Data = SVFUtil::dyn_cast<ConstantData>(Const)) {    // Create zeroinitializer PAG nodes
+  else if(ConstantData* Data = SVFUtil::dyn_cast<ConstantData>(Const)) {    // Create aggregate data initialize PAG nodes
     LLVM_DEBUG(llvm::dbgs() << "Const Data: " << *Data << "\n");
-    if (!Data->isZeroValue())
-      return;
 
     const Type *DataTy = Data->getType();
     for (u32_t Idx = 0; Idx < SymInfo->getNumOfFlattenElements(DataTy); Idx++) {

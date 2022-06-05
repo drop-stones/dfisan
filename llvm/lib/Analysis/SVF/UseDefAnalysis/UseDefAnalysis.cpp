@@ -71,8 +71,6 @@ void UseDefAnalysis::initialize(SVFModule *M) {
   */
 
   IRBuilder.build(M);
-
-  //IRBuilder.addGlobalAggregateTypeInitializationNodes();
   Pag = IRBuilder.getPAG();
 
   AndersenWaveDiff *Ander = AndersenWaveDiff::createAndersenWaveDiff(Pag);
