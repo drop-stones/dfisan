@@ -29,17 +29,19 @@ void UseDefSVFGBuilder::buildSVFG() {
 
   LLVM_DEBUG(svfg->dump("full-svfg"));
 
-  mergeGlobalArrayZeroinitializer(Pag);
+  mergeGlobalArrayInitializer(Pag);
   rmDerefDirSVFGEdges(Pta);
   rmIncomingEdgeForSUStore(Pta);
   rmDirOutgoingEdgeForLoad(Pta);
   rmDirEdgeFromMemcpyToMemcpy(Pta);
 }
 
-void UseDefSVFGBuilder::mergeGlobalArrayZeroinitializer(SVFIR *Pag) {
+void UseDefSVFGBuilder::mergeGlobalArrayInitializer(SVFIR *Pag) {
   using ToMergeVec = llvm::SmallVector<StoreSVFGNode *, 8>;
   using ArrayToMergeVec = std::unordered_map<const GlobalVariable *, ToMergeVec>;
   ArrayToMergeVec ArrayToMerge;
+
+  // Find global array initializations.
   for (const auto Iter : *svfg) {
     if (StoreSVFGNode *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Iter.second)) {
       LLVM_DEBUG(llvm::dbgs() << "StoreNode: " << StoreNode->toString() << "\n");
@@ -68,6 +70,7 @@ void UseDefSVFGBuilder::mergeGlobalArrayZeroinitializer(SVFIR *Pag) {
     }
   }
 
+  // Merge global array initialization nodes into one node.
   for (const auto &Iter : ArrayToMerge) {
     const auto *ArrayVal = Iter.first;
     LLVM_DEBUG(llvm::dbgs() << "Array: " << *ArrayVal << "\n");
@@ -76,11 +79,11 @@ void UseDefSVFGBuilder::mergeGlobalArrayZeroinitializer(SVFIR *Pag) {
       LLVM_DEBUG(llvm::dbgs() << " - ToMerge: " << ToMerge->toString() << "\n");
       if (DelegateNode == nullptr)
         DelegateNode = ToMerge;
-      else {
+      else {    // Merge the node to DelegateNode.
         Set<SVFGNode *> ToAddDstSet;
         SVFGEdgeSet ToRemoveSet;
         for (auto *OutEdge : ToMerge->getOutEdges()) {
-          LLVM_DEBUG(llvm::dbgs() << "\t- OutEdge: " << OutEdge->toString() << "\n");
+          LLVM_DEBUG(llvm::dbgs() << "    - OutEdge: " << OutEdge->toString() << "\n");
           ToAddDstSet.insert(OutEdge->getDstNode());
           ToRemoveSet.insert(OutEdge);
         }
@@ -186,7 +189,7 @@ void UseDefSVFGBuilder::rmDirEdgeFromMemcpyToMemcpy(BVDataPTAImpl *Pta) {
         continue;
       
       if (const auto *Memcpy = llvm::dyn_cast<const llvm::MemCpyInst>(Inst)) {
-        // remove direct edges
+        // Remove direct edges
         for (const auto &OutEdge : LoadNode->getOutEdges())
           ToRemove.insert(OutEdge);
       }
@@ -202,7 +205,6 @@ void UseDefSVFGBuilder::printSVFGNodes(SVFGNode::VFGNodeK Type) const {
   assert(svfg && "svfg is nullptr!!");
   LLVM_DEBUG(dbgs() << __func__ << "(" << Type << ")\n");
   for (const auto Iter : *svfg) {
-    //NodeID NodeID = Iter.first;
     const auto *SvfgNode = Iter.second;
     if (SvfgNode->getNodeKind() == Type) {
       LLVM_DEBUG(dbgs() << SvfgNode->toString() << "\n");

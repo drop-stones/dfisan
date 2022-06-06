@@ -48,28 +48,6 @@ bool isMemcpy(const StmtSVFGNode *Store) {
 
 /// Initialize analysis
 void UseDefAnalysis::initialize(SVFModule *M) {
-  /*
-  SymbolTableInfo *SymInfo = SymbolTableInfo::SymbolInfo();
-  for (auto Iter : SymInfo->idToObjMap()) {
-    SymID MemObjID = Iter.first;
-    MemObj *Obj = Iter.second;
-    LLVM_DEBUG(llvm::dbgs() << "ID: " << MemObjID << ", " << Obj->toString());
-    LLVM_DEBUG(llvm::dbgs() << "Obj->isFieldInsensitive = " << Obj->isFieldInsensitive() << "\n");
-    const Value *Val = Obj->getValue();
-    if (Val == nullptr)
-      continue;
-    if (const auto *Fun = SVFUtil::dyn_cast<llvm::Function>(Val)) {
-      if (!Fun->isIntrinsic())
-        continue;
-      LLVM_DEBUG(llvm::dbgs() << "Intrinsic Function: " << Fun->getName() << "\n");
-      if (Fun->getName().contains("memcpy")) {
-        Obj->setFieldInsensitive();
-        LLVM_DEBUG(llvm::dbgs() << "Obj->isFieldInsensitive = " << Obj->isFieldInsensitive() << "\n");
-      }
-    }
-  }
-  */
-
   IRBuilder.build(M);
   Pag = IRBuilder.getPAG();
 

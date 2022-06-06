@@ -50,111 +50,48 @@ const Type *getTypeFromBase(const Value *Base) {
   return BaseTy;
 }
 
-const StructType *getStructTypeFromBase(const Value *Base) {
-  const StructType *StructTy = nullptr;
-  const auto *BaseTy = getTypeFromBase(Base);
-  if (BaseTy != nullptr && llvm::isa<const StructType>(BaseTy)) {
-    StructTy = llvm::dyn_cast<const StructType>(BaseTy);
-    LLVM_DEBUG(dbgs() << "Base StructType: " << *BaseTy << "\n");
+// Process struct and calculate OffsetVector.
+bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *StructTy, unsigned &RemainOffset, const Value *Base) {
+  SymbolTableInfo *SymInfo = SymbolTableInfo::SymbolInfo();
+  auto *StructInfo = SymInfo->getStructInfo(StructTy);
+  unsigned FieldIdx = 0;
+  for (auto FlattenedFieldIdx : StructInfo->getFlattenedFieldIdxVec()) {
+    const auto *FieldTy = StructInfo->getOriginalElemType(FlattenedFieldIdx);
+    LLVM_DEBUG(llvm::dbgs() << "- FieldIdx(" << FieldIdx << "): " << *FieldTy << "\n");
+
+    if (const auto *FldStructTy = SVFUtil::dyn_cast<StructType>(FieldTy)) {
+      auto *FldStructInfo = SymInfo->getStructInfo(FldStructTy);
+      auto NumOfFields = FldStructInfo->getNumOfFlattenFields();
+      if (RemainOffset < NumOfFields) {
+        StructOffset *Offset = new StructOffset {StructTy, Base, FieldIdx};
+        OffsetVec.push_back(Offset);
+        LLVM_DEBUG(llvm::dbgs() << "push_back " << *Offset << "\n");
+        return calculateStructOffset(OffsetVec, FldStructTy, RemainOffset, Base);
+      }
+      RemainOffset -= NumOfFields;
+    } else {
+      if (RemainOffset == 0) {
+        StructOffset *Offset = new StructOffset {StructTy, Base, FieldIdx};
+        OffsetVec.push_back(Offset);
+        LLVM_DEBUG(llvm::dbgs() << "push_back " << *Offset << "\n");
+        return true;
+      }
+      RemainOffset--;
+    }
+    FieldIdx++;
   }
 
-  return StructTy;
+  return false;
 }
-
-const ArrayType *getArrayTypeFromBase(const Value *Base) {
-  const ArrayType *ArrayTy = nullptr;
-  const auto *BaseTy = getTypeFromBase(Base);
-  if (BaseTy != nullptr && llvm::isa<const ArrayType>(BaseTy)) {
-    ArrayTy = llvm::dyn_cast<const ArrayType>(BaseTy);
-  }
-
-  return ArrayTy;
-}
-
-bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *StructTy, unsigned &RemainOffset, const Value *Base);
-bool calculateArrayOffset(FieldOffsetVector &OffsetVec, const ArrayType *ArrayTy, unsigned &RemainOffset, const Value *Base);
 
 // Return true if offset calculation is ended.
-bool calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsigned &RemainOffset, const Value *Base) {
-  bool Ret = false;
+void calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsigned &RemainOffset, const Value *Base) {
   if (const StructType *StructTy = llvm::dyn_cast<const StructType>(BaseTy)) {
-    Ret = calculateStructOffset(OffsetVec, StructTy, RemainOffset, Base);
+    calculateStructOffset(OffsetVec, StructTy, RemainOffset, Base);
   } else if (const ArrayType *ArrayTy = llvm::dyn_cast<const ArrayType>(BaseTy)) {
     ArrayOffset *Offset = new ArrayOffset {ArrayTy, Base, 0};
     OffsetVec.push_back(Offset);
-    Ret = true;
   }
-  return Ret;
-}
-
-
-// Process one element in StructTy or ArrayTy.
-bool calculateOffsetVecFromElement(FieldOffsetVector &OffsetVec, const StructType *ParentTy, Type *EleTy, unsigned EleOffset, unsigned &RemainOffset, const Value *Base) {
-  if (const auto *EleStructTy = llvm::dyn_cast<const StructType>(EleTy)) {
-    // Dive into element struct.
-    //StructOffset *Offset = new StructOffset {EleStructTy, Base, EleOffset};
-    StructOffset *Offset = new StructOffset {ParentTy, Base, EleOffset};
-    OffsetVec.push_back(Offset);
-    bool IsEnd = calculateStructOffset(OffsetVec, EleStructTy, RemainOffset, Base);
-    if (IsEnd)
-      return true;
-    OffsetVec.pop_back(); // Back to the parent struct
-  //} else if (const auto *EleArrayTy = llvm::dyn_cast<const ArrayType>(EleTy)) {
-  //  // Dive into element array.
-  //  ArrayOffset *Offset = new ArrayOffset {EleArrayTy, Base, EleOffset};
-  //  OffsetVec.push_back(Offset);
-  //  bool IsEnd = calculateArrayOffset(OffsetVec, EleArrayTy, RemainOffset, Base);
-  //  if (IsEnd)
-  //    return true;
-  //  OffsetVec.pop_back(); // Back to the parent struct
-  //  bool IsEnd = calculateArrayOffset(OffsetVec, EleArrayTy, RemainOffset, Base);
-  //  if (IsEnd)
-  //    return true;
-  } else {
-    if (RemainOffset == 0) {
-      //if (const auto *ParentStructTy = llvm::dyn_cast<const StructType>(ParentTy)) {
-      StructOffset *Offset = new StructOffset {ParentTy, Base, EleOffset};
-      OffsetVec.push_back(Offset);
-      LLVM_DEBUG(dbgs() << "push_back " << *Offset << "\n");
-      //} else if (const auto *ParentArrayTy = llvm::dyn_cast<const ArrayType>(ParentTy)) {
-      //  ArrayOffset *Offset = new ArrayOffset {ParentArrayTy, Base, EleOffset};
-      //  OffsetVec.push_back(Offset);
-      //}
-      return true;
-    }
-    RemainOffset--;
-  }
-  return false;
-}
-
-// Process struct and calculate OffsetVector.
-bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *StructTy, unsigned &RemainOffset, const Value *Base) {
-  unsigned EleOffset = 0;
-  for (auto *EleTy : StructTy->elements()) {
-    bool IsEnd = calculateOffsetVecFromElement(OffsetVec, StructTy, EleTy, EleOffset, RemainOffset, Base);
-    if (IsEnd == true)
-      return true;
-    EleOffset++;
-  }
-  return false;
-}
-
-// Process array and calculate OffsetVector.
-bool calculateArrayOffset(FieldOffsetVector &OffsetVec, const ArrayType *ArrayTy, unsigned &RemainOffset, const Value *Base) {
-  /*
-  Type *EleTy = ArrayTy->getElementType();
-  LLVM_DEBUG(dbgs() << "ArrayTy->getElementType(): " << *EleTy << "\n");
-  for (unsigned EleOffset = 0; EleOffset < ArrayTy->getNumElements(); EleOffset++) {
-    // Dive into the element.
-    ArrayOffset *Offset = new ArrayOffset {ArrayTy, Base, EleOffset};
-    OffsetVec.push_back(Offset);
-    bool IsEnd = calculateOffsetVecFromElement(OffsetVec, ArrayTy, EleTy, EleOffset, RemainOffset, Base);
-    if (IsEnd == true)
-      return true;
-    OffsetVec.pop_back();
-  }
-  */
-  return false;
 }
 } // anonymous namespace
 
