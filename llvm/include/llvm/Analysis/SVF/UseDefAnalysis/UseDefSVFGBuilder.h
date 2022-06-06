@@ -36,6 +36,8 @@ protected:
   bool isStrongUpdate(const SVFGNode *Node, NodeID &Singleton, BVDataPTAImpl *Pta);
 
 private:
+  StringRef ModuleName;
+
   /// Merge zeroinitializer nodes of global array
   /// because array initialization has one unique DefID.
   void mergeGlobalArrayInitializer(SVFIR *Pag);

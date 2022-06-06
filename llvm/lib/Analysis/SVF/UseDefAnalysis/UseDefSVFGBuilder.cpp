@@ -21,13 +21,15 @@ using namespace llvm;
 
 void UseDefSVFGBuilder::buildSVFG() {
   SVFIR *Pag = svfg->getPAG();
-  LLVM_DEBUG(Pag->dump("pag"));
+  ModuleName = Pag->getModule()->getModuleIdentifier();
+  ModuleName = ModuleName.drop_back(3);
+  LLVM_DEBUG(Pag->dump(ModuleName.str() + "-pag"));
 
   svfg->buildSVFG();
   MemSSA *Mssa = svfg->getMSSA();
   BVDataPTAImpl *Pta = Mssa->getPTA();
 
-  LLVM_DEBUG(svfg->dump("full-svfg"));
+  LLVM_DEBUG(svfg->dump(ModuleName.str() + "-full-svfg"));
 
   mergeGlobalArrayInitializer(Pag);
   rmDerefDirSVFGEdges(Pta);

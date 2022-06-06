@@ -31,7 +31,7 @@ private:
   const FieldOffsetKind Kind;
 
 protected:
-  FieldOffset(FieldOffsetKind Kind, const llvm::Type *BaseTy, const llvm::Value *Base, unsigned Offset) : Kind(Kind), BaseTy(BaseTy), Base(Base), Offset(Offset) {}
+  FieldOffset(FieldOffsetKind Kind, const llvm::Type *BaseTy, const llvm::Value *Base, unsigned Offset) : BaseTy(BaseTy), Base(Base), Offset(Offset), Kind(Kind) {}
   FieldOffset(FieldOffsetKind Kind, const llvm::Value *Base, unsigned Offset) : FieldOffset(Kind, nullptr, Base, Offset) {}
 
 public:
@@ -58,7 +58,7 @@ struct ArrayOffset : FieldOffset {
 
   ArrayOffset(const llvm::ArrayType *ArrayTy, const llvm::Value *Base, unsigned Offset)
     : FieldOffset(ArrayKind, Base, Offset), ArrayTy(ArrayTy) {}
-  
+
   static bool classof(const FieldOffset *F) {
     return F->getKind() == ArrayKind;
   }

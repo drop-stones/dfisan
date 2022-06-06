@@ -26,18 +26,17 @@ int main(void) {
   s1.str1[0];
   s1.str1[1];
 
-  // TODO: global array is not instrumented.
-  g0.s0.str0[0];   // No checked 
-  g0.s0.str0[1];   // No checked
+  g0.s0.str0[0];
+  g0.s0.str0[4];
   g0.s0.i;
-  g0.str1[0];      // No checked
-  g0.str1[1];      // No checked
+  g0.str1[0];
+  g0.str1[4];
 
-  g1.s0.str0[0];   // No checked 
-  g1.s0.str0[1];   // No checked
+  g1.s0.str0[0];
+  g1.s0.str0[4];
   g1.s0.i;
-  g1.str1[0];      // No checked
-  g1.str1[1];      // No checked
+  g1.str1[0];
+  g1.str1[4];
 
   return 0;
 }

@@ -4,7 +4,6 @@
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can manage array initialization in global.
-// TODO: Support array of struct.
 
 struct S {
   int i;
@@ -14,7 +13,7 @@ struct S {
 int arr0[8];            // uninitialized
 int arr1[8] = { 100 };  // initialized with value
 struct S arrS0[8];
-struct S arrS1[8] = { { 200, 300 } };   // Don't support array of struct
+struct S arrS1[8] = { { 200, 300 } };
 
 int main(void) {
   arr0[0];
@@ -28,14 +27,14 @@ int main(void) {
   arr1[7];
 
   arrS0[0].i;
-  //arrS0[0].l;   // Error
+  arrS0[0].l;
   arrS0[7].i;
-  //arrS0[7].l;   // Error
+  arrS0[7].l;
 
   arrS1[0].i;
-  //arrS1[0].l;   // Error
+  arrS1[0].l;
   arrS1[7].i;
-  //arrS1[7].l;   // Error
+  arrS1[7].l;
 
   return 0;
 }

@@ -31,7 +31,9 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 PreservedAnalyses UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   OS << "UseDefPrinterPass::print " << M.getName() << "\n";
   auto Result = MAM.getResult<UseDefAnalysisPass>(M);
-  Result.Svfg->dump("usedef-svfg");
+  StringRef ModuleName = M.getModuleIdentifier();
+  ModuleName = ModuleName.drop_back(3);
+  Result.Svfg->dump(ModuleName.str() + "-usedef-svfg");
   Result.UseDef->print(OS);
   return PreservedAnalyses::all();
 }
