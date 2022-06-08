@@ -17,9 +17,16 @@
 
 - [x] Global initialization with not const values
   - 理由: 実装によるバグ (at DataFlowIntegritySanitizer.cpp)
+    ```
+    %160 = getelementptr inbounds [7 x i32], %10, 0, 0
+    %161 = bitcast i32* to i8* %160
+    call llvm.memcpy(%159, %161)
+    ```
 - [x] bitcast Valueへの対応
   - 理由: `memcpy(i8* (bitcast %struct* to i8*), ...)`
   - 解決: `llvm::Value::stripPointerCasts()`: bitcastを外した値を返す
+- [x] 配列のコピー
+  - 理由: `memcpy()`の引数に関する`bitcast`に対して未対応
 
 ## TODO
 

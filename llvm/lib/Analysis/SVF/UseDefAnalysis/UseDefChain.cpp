@@ -21,10 +21,13 @@ const Value *getBase(const Value *FieldVal) {
   if (FieldVal == nullptr)
     return nullptr;
 
+  const Value *Base = FieldVal->stripPointerCasts();
+  LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
+  /*
   // The destination must be `bitcast %struct`.
-  const Value *Base = nullptr;
   if (const auto *Bitcast = llvm::dyn_cast<const BitCastInst>(FieldVal)) {
-    Base = Bitcast->getOperand(0);
+    //Base = Bitcast->getOperand(0);
+    Base = FieldVal->stripPointerCasts();
     LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
   } else if (const auto *GlobalVal = llvm::dyn_cast<const GlobalValue>(FieldVal)) {
     Base = GlobalVal;
@@ -33,6 +36,7 @@ const Value *getBase(const Value *FieldVal) {
     Base = FieldVal->stripPointerCasts();
     //assert(false && "Not supported opcode!! " );
   }
+  */
   return Base;
 }
 
@@ -145,10 +149,10 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
       auto FieldIdx = Ls.accumulateConstantFieldIdx();
       LLVM_DEBUG(dbgs() << "FieldIdx: " << FieldIdx << "\n");
 
+      const SVFVar *FieldVar = Pag->getGNode(Field);
       const Value *Base = getBase(GepNode->getPAGSrcNode()->getValue());
       const Type *BaseTy = getTypeFromBase(Base);
       if (BaseTy == nullptr) {
-        const SVFVar *FieldVar = Pag->getGNode(Field);
         dbgs() << "FieldVar: " << FieldVar->toString() << "\n";
         assert(false && "Not supported code pattern!!");
       }
@@ -158,6 +162,10 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
       FieldOffsetVector OffsetVec;
       unsigned RemainOffset = FieldIdx;
       calculateOffsetVec(OffsetVec, BaseTy, RemainOffset, Base);
+      if (OffsetVec.size() == 0) {
+        dbgs() << "FieldVar: " << FieldVar->toString() << "\n";
+        assert(false && "OffsetVec is empty!!");
+      }
       FieldStoreMap.emplace(Def, OffsetVec);
     }
   }
@@ -208,23 +216,17 @@ UseDefChain::getArrayBaseFromMemcpy(SVFIR *Pag, const StoreSVFGNode *StoreNode) 
   const Value *StoreVal = StoreNode->getValue();
   if (StoreVal == nullptr)
     return nullptr;
-  if (!llvm::isa<llvm::CallInst>(StoreVal))
+  if (!llvm::isa<llvm::MemCpyInst>(StoreVal))
     return nullptr;
-  const auto *Call = llvm::cast<llvm::CallInst>(StoreVal);
-  const auto *Callee = Call->getCalledFunction();
-  if (!Callee->isIntrinsic() || !Callee->getName().contains("memcpy"))
-    return nullptr;
-  LLVM_DEBUG(llvm::dbgs() << "Memcpy: " << *Callee << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Memcpy: " << *StoreVal << "\n");
   const PAGNode *DstNode = StoreNode->getPAGDstNode();
   NodeID DstID = StoreNode->getPAGDstNodeID();
   if (DstNode->getNodeKind() == PAGNode::DummyValNode || DstNode->getNodeKind() == PAGNode::DummyObjNode)
     return nullptr;
-  if (!llvm::isa<llvm::BitCastInst>(DstNode->getValue()))
+  const auto *BaseVal = DstNode->getValue()->stripPointerCasts();
+  if (!llvm::isa<llvm::PointerType>(BaseVal->getType()))
     return nullptr;
-  const auto *Bitcast = llvm::cast<llvm::BitCastInst>(DstNode->getValue());
-  if (!llvm::isa<llvm::PointerType>(Bitcast->getSrcTy()))
-    return nullptr;
-  const auto *PtrTy = llvm::cast<llvm::PointerType>(Bitcast->getSrcTy());
+  const auto *PtrTy = llvm::cast<llvm::PointerType>(BaseVal->getType());
   if (!llvm::isa<llvm::ArrayType>(PtrTy->getPointerElementType()))
     return nullptr;
   const auto *ArrayTy = llvm::cast<llvm::ArrayType>(PtrTy->getPointerElementType());
