@@ -117,19 +117,17 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
     const Value *Val = GlobalInit->getValue();
     assert(Val != nullptr);
     LLVM_DEBUG(dbgs() << "GlobalInit: " << *Val << "\n");
-    if (const auto *ConstData = dyn_cast<const ConstantData>(Val)) {
-      const auto DefVars = GlobalInit->getDefSVFVars();
-      for (const auto DefVarID : DefVars) {
-        if (UseDef->containsOffsetVector(GlobalInit)) {   // Global struct initialization
-          Value *FieldAddr = createStructGep(Builder, GlobalInit);
-          createDfiStoreFn(M, Builder, GlobalInit, FieldAddr);
-        } else {  // Global primitive data initialization
-          const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
-          Value *StorePointer = (Value *)DstNode->getValue();
-          if (StorePointer == nullptr)  // True if string literal or struct init values
-            continue;
-          createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
-        }
+    const auto DefVars = GlobalInit->getDefSVFVars();
+    for (const auto DefVarID : DefVars) {
+      if (UseDef->containsOffsetVector(GlobalInit)) {   // Global struct initialization
+        Value *FieldAddr = createStructGep(Builder, GlobalInit);
+        createDfiStoreFn(M, Builder, GlobalInit, FieldAddr);
+      } else {  // Global primitive data initialization
+        const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
+        Value *StorePointer = (Value *)DstNode->getValue();
+        if (StorePointer == nullptr)  // True if string literal or struct init values
+          continue;
+        createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
       }
     }
   }
