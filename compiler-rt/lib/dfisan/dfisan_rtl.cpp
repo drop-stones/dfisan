@@ -34,7 +34,7 @@ static inline void setRDT(uptr Addr, u16 ID, u8 Length) {
 }
 static inline bool checkRDT(uptr Addr, u16 ID) {
   u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  Report("CHECK: %d at %p\n", ID, (void *)shadow_memory);
+  Report("CHECK: %d == %d at %p\n", ID, *shadow_memory, (void *)shadow_memory);
   return *shadow_memory == ID;
 }
 static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {

@@ -24,14 +24,14 @@ const Value *getBase(const Value *FieldVal) {
   // The destination must be `bitcast %struct`.
   const Value *Base = nullptr;
   if (const auto *Bitcast = llvm::dyn_cast<const BitCastInst>(FieldVal)) {
-    const Value *V = Bitcast->getOperand(0);
-    if (llvm::isa<const AllocaInst>(V)) {
-      Base = V;
-      LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
-    }
+    Base = Bitcast->getOperand(0);
+    LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
   } else if (const auto *GlobalVal = llvm::dyn_cast<const GlobalValue>(FieldVal)) {
     Base = GlobalVal;
     LLVM_DEBUG(dbgs() << "GlobalValue: " << *GlobalVal << "\n");
+  } else {  // If the value is casted to pointer, we get the original value.
+    Base = FieldVal->stripPointerCasts();
+    //assert(false && "Not supported opcode!! " );
   }
   return Base;
 }
@@ -42,10 +42,13 @@ const Type *getTypeFromBase(const Value *Base) {
     return nullptr;
   
   const Type *BaseTy = nullptr;
-  if (const auto *Alloca = llvm::dyn_cast<const AllocaInst>(Base))
-    BaseTy = Alloca->getAllocatedType();
-  else if (const auto *GlobalVal = llvm::dyn_cast<const GlobalValue>(Base))
+  if (const auto *GlobalVal = llvm::dyn_cast<const GlobalValue>(Base)) {
     BaseTy = GlobalVal->getValueType();
+  } else if (const auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Base->getType())) {
+    BaseTy = PtrTy->getPointerElementType();
+  } else {
+    //assert(false && "Not supported code patterns!!");
+  }
   
   return BaseTy;
 }
@@ -142,15 +145,15 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
       auto FieldIdx = Ls.accumulateConstantFieldIdx();
       LLVM_DEBUG(dbgs() << "FieldIdx: " << FieldIdx << "\n");
 
-      // Get the destination field node of memcpy.
-      const SVFVar *FieldVar = Pag->getGNode(Field);
-      LLVM_DEBUG(dbgs() << "FieldVar: " << FieldVar->toString() << "\n");
-
-      const Value *FieldVal = FieldVar->getValue();
-      LLVM_DEBUG(dbgs() << "FieldVal: " << *FieldVal << "\n");
-      const Value *Base = getBase(FieldVal);
-      LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
+      const Value *Base = getBase(GepNode->getPAGSrcNode()->getValue());
       const Type *BaseTy = getTypeFromBase(Base);
+      if (BaseTy == nullptr) {
+        const SVFVar *FieldVar = Pag->getGNode(Field);
+        dbgs() << "FieldVar: " << FieldVar->toString() << "\n";
+        assert(false && "Not supported code pattern!!");
+      }
+      assert(BaseTy != nullptr);
+      LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
       LLVM_DEBUG(dbgs() << "BaseTy: " << *BaseTy << "\n");
       FieldOffsetVector OffsetVec;
       unsigned RemainOffset = FieldIdx;

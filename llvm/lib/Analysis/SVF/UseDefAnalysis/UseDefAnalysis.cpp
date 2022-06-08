@@ -110,9 +110,6 @@ void UseDefAnalysis::analyze(SVFModule *M) {
   for (const auto &Iter : NodeToDefs) {
     const NodeID UseID = Iter.first;
     if (const auto *UseNode = dyn_cast<LoadSVFGNode>(Svfg->getSVFGNode(UseID))) {
-      if (isMemcpy(UseNode))  // Use by memcpy does not need any protection.
-        continue;
-
       for (const NodeID DefID : Iter.second) {
         if (const auto *DefNode = dyn_cast<StoreSVFGNode>(Svfg->getSVFGNode(DefID))) {
           UseDef->insert(UseNode, DefNode);

@@ -17,12 +17,21 @@
 
 - [x] Global initialization with not const values
   - 理由: 実装によるバグ (at DataFlowIntegritySanitizer.cpp)
+- [x] bitcast Valueへの対応
+  - 理由: `memcpy(i8* (bitcast %struct* to i8*), ...)`
+  - 解決: `llvm::Value::stripPointerCasts()`: bitcastを外した値を返す
 
 ## TODO
+
+### 必須事項
 
 - [ ] Static variable
   - 理由: Static変数をまとめて解析してしまう &rarr; 保護精度 & 実行時コストに悪影響
   - 解決案: UseDef解析時，UseDefを結ぶ際にエイリアス関係にあるかどうかをチェック
-- [ ] `const global`ノードへのチェック関数を削除 (最適化)
-- [ ] チェック関数の重複を削除 (最適化)
 - [ ] 小規模リアル検体でテスト
+
+### 最適化
+
+- [ ] `const global`ノードへのチェック関数を削除
+- [ ] チェック関数の重複を削除
+- [ ] チェック関数の高速化
