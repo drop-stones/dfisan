@@ -57,8 +57,32 @@ const Type *getTypeFromBase(const Value *Base) {
   return BaseTy;
 }
 
+unsigned getBitWidth(const Type *Ty) {
+  if (llvm::isa<IntegerType>(Ty))
+    return Ty->getIntegerBitWidth();
+  if (llvm::isa<ArrayType>(Ty))
+    return Ty->getArrayNumElements() * getBitWidth(Ty->getArrayElementType());
+  if (llvm::isa<StructType>(Ty)) {
+    unsigned BitWidthSum = 0;
+    for (unsigned Idx = 0; Idx < Ty->getStructNumElements(); Idx++) {
+      BitWidthSum += getBitWidth(Ty->getStructElementType(Idx));
+    }
+    return BitWidthSum;
+  }
+  return 0;
+}
+
+// Update the current alignment.
+void calculateAlign(const Type *Ty, unsigned &CurAlign) {
+  unsigned BitWidth = getBitWidth(Ty);
+  if (BitWidth >= 32)
+    CurAlign = 0;
+  else
+    CurAlign = (CurAlign + BitWidth) % 32;
+}
+
 // Process struct and calculate OffsetVector.
-bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *StructTy, unsigned &RemainOffset, const Value *Base) {
+bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *StructTy, unsigned &RemainOffset, const Value *Base, unsigned &CurAlign) {
   SymbolTableInfo *SymInfo = SymbolTableInfo::SymbolInfo();
   auto *StructInfo = SymInfo->getStructInfo(StructTy);
   unsigned FieldIdx = 0;
@@ -73,16 +97,22 @@ bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *Struc
         StructOffset *Offset = new StructOffset {StructTy, Base, FieldIdx};
         OffsetVec.push_back(Offset);
         LLVM_DEBUG(llvm::dbgs() << "push_back " << *Offset << "\n");
-        return calculateStructOffset(OffsetVec, FldStructTy, RemainOffset, Base);
+        return calculateStructOffset(OffsetVec, FldStructTy, RemainOffset, Base, CurAlign);
       }
       RemainOffset -= NumOfFields;
     } else {
       if (RemainOffset == 0) {
+        if (CurAlign % 32 != 0 && llvm::isa<ArrayType>(FieldTy)) { // Found padding array!!
+          LLVM_DEBUG(llvm::dbgs() << "Skip padding array: CurAlign(" << CurAlign << "), Idx(" << FieldIdx << ") " << *FieldTy << "\n");
+          OffsetVec.clear();
+          return true;
+        }
         StructOffset *Offset = new StructOffset {StructTy, Base, FieldIdx};
         OffsetVec.push_back(Offset);
         LLVM_DEBUG(llvm::dbgs() << "push_back " << *Offset << "\n");
         return true;
       }
+      calculateAlign(FieldTy, CurAlign);
       RemainOffset--;
     }
     FieldIdx++;
@@ -92,12 +122,20 @@ bool calculateStructOffset(FieldOffsetVector &OffsetVec, const StructType *Struc
 }
 
 // Return true if offset calculation is ended.
-void calculateOffsetVec(FieldOffsetVector &OffsetVec, const Type *BaseTy, unsigned &RemainOffset, const Value *Base) {
-  if (const StructType *StructTy = llvm::dyn_cast<const StructType>(BaseTy)) {
-    calculateStructOffset(OffsetVec, StructTy, RemainOffset, Base);
-  } else if (const ArrayType *ArrayTy = llvm::dyn_cast<const ArrayType>(BaseTy)) {
+void calculateOffsetVec(const StoreSVFGNode *Def, FieldOffsetVector &OffsetVec, const Type *BaseTy, unsigned &RemainOffset, const Value *Base) {
+  if (const StructType *StructTy = llvm::dyn_cast<const StructType>(BaseTy)) {      // Field-sensitive DefIDs.
+    unsigned CurAlign = 0;
+    calculateStructOffset(OffsetVec, StructTy, RemainOffset, Base, CurAlign);
+  } else if (const ArrayType *ArrayTy = llvm::dyn_cast<const ArrayType>(BaseTy)) {  // Element- and Field-insensitive DefIDs.
     ArrayOffset *Offset = new ArrayOffset {ArrayTy, Base, 0};
     OffsetVec.push_back(Offset);
+  } else {                                                                          // Element- and Field-insensitive DefIDS.
+    if (const auto *Memcpy = llvm::dyn_cast<const MemCpyInst>(Def->getInst())) {
+      const auto *Length = Memcpy->getLength();
+      LLVM_DEBUG(dbgs() << "Memcpy->getLength: " << *Length << "\n");
+      PointerOffset *Offset = new PointerOffset {Base, Length};
+      OffsetVec.push_back(Offset);
+    }
   }
 }
 } // anonymous namespace
@@ -109,6 +147,8 @@ llvm::raw_ostream &SVF::operator<<(llvm::raw_ostream &OS, const FieldOffset &Off
     OS << *StructOff;
   } else if (const auto *ArrayOff = llvm::dyn_cast<ArrayOffset>(&Offset)) {
     OS << *ArrayOff;
+  } else if (const auto *PointerOff = llvm::dyn_cast<PointerOffset>(&Offset)) {
+    OS << *PointerOff;
   } else {
     OS << "{" << *(Offset.BaseTy) << ", " << Offset.Offset << "}";
   }
@@ -127,7 +167,15 @@ llvm::raw_ostream &SVF::operator<<(llvm::raw_ostream &OS, const ArrayOffset &Off
   return OS;
 }
 
+// Dump PointerOffset.
+llvm::raw_ostream &SVF::operator<<(llvm::raw_ostream &OS, const PointerOffset &Offset) {
+  OS << "{ i8, " << *(Offset.Length) << "}";
+  return OS;
+}
+
 void UseDefChain::insert(const LoadSVFGNode *Use, const StoreSVFGNode *Def) {
+  if (llvm::isa<UndefValue>(Def->getValue()))
+    return;
   UseDef[Use].insert(Def);
 }
 
@@ -157,21 +205,26 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
         assert(false && "Not supported code pattern!!");
       }
       assert(BaseTy != nullptr);
+      LLVM_DEBUG(dbgs() << "FieldVar: " << FieldVar->toString() << "\n");
       LLVM_DEBUG(dbgs() << "Base: " << *Base << "\n");
       LLVM_DEBUG(dbgs() << "BaseTy: " << *BaseTy << "\n");
       FieldOffsetVector OffsetVec;
       unsigned RemainOffset = FieldIdx;
-      calculateOffsetVec(OffsetVec, BaseTy, RemainOffset, Base);
+      calculateOffsetVec(Def, OffsetVec, BaseTy, RemainOffset, Base);
       if (OffsetVec.size() == 0) {
         dbgs() << "FieldVar: " << FieldVar->toString() << "\n";
-        assert(false && "OffsetVec is empty!!");
+        //assert(false && "OffsetVec is empty!!");
+        PaddingFieldSet.insert(FieldVar);
+      } else {
+        FieldStoreMap.emplace(Def, OffsetVec);
       }
-      FieldStoreMap.emplace(Def, OffsetVec);
     }
   }
 }
 
 void UseDefChain::insertGlobalInit(const StoreSVFGNode *GlobalInit) {
+  if (llvm::isa<UndefValue>(GlobalInit->getValue()))
+    return;
   GlobalInitList.insert(GlobalInit);
 }
 
@@ -283,6 +336,11 @@ void UseDefChain::print(llvm::raw_ostream &OS) const {
   for (const auto *GlobalInit : GlobalInitList) {
     DefID ID = getDefID(GlobalInit);
     OS << "  - GlobalInit: ID(" << ID << ") " << *(GlobalInit->getValue()) << "\n";
+  }
+
+  OS << "Print padding arrays\n";
+  for (const auto *PaddingVar : PaddingFieldSet) {
+    OS << "  - PaddingVar: " << PaddingVar->toString() << "\n";
   }
 }
 

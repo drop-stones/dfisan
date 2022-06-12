@@ -44,6 +44,30 @@ bool isMemcpy(const StmtSVFGNode *Store) {
   
   return false;
 }
+
+const SVFVar *getSVFVar(const SVFG *Svfg, const StoreSVFGNode *Store) {
+  SVFIR *Pag = Svfg->getPAG();
+  const auto *DstNode = Svfg->getDefSVFGNode(Store->getPAGDstNode());
+  if (const auto *GepNode = SVFUtil::dyn_cast<const GepSVFGNode>(DstNode)) {
+    const auto DefVars = GepNode->getDefSVFVars();
+    for (const auto Field : DefVars) {
+      return Pag->getGNode(Field);
+    }
+  }
+  return nullptr;
+}
+
+const SVFVar *getSVFVar(const SVFG *Svfg, const LoadSVFGNode *Load) {
+  SVFIR *Pag = Svfg->getPAG();
+  const auto *SrcNode = Svfg->getDefSVFGNode(Load->getPAGSrcNode());
+  if (const auto *GepNode = SVFUtil::dyn_cast<const GepSVFGNode>(SrcNode)) {
+    const auto DefVars = GepNode->getDefSVFVars();
+    for (const auto Field : DefVars) {
+      return Pag->getGNode(Field);
+    }
+  }
+  return nullptr;
+}
 } // namespace
 
 /// Initialize analysis
@@ -110,8 +134,16 @@ void UseDefAnalysis::analyze(SVFModule *M) {
   for (const auto &Iter : NodeToDefs) {
     const NodeID UseID = Iter.first;
     if (const auto *UseNode = dyn_cast<LoadSVFGNode>(Svfg->getSVFGNode(UseID))) {
+      if (UseDef->isPaddingArray(getSVFVar(Svfg, UseNode))) {
+        LLVM_DEBUG(llvm::dbgs() << "Skip Use of padding array: " << UseNode->toString() << "\n");
+        continue;
+      }
       for (const NodeID DefID : Iter.second) {
         if (const auto *DefNode = dyn_cast<StoreSVFGNode>(Svfg->getSVFGNode(DefID))) {
+          if (UseDef->isPaddingArray(getSVFVar(Svfg, DefNode))) {
+            LLVM_DEBUG(llvm::dbgs() << "Skip Def of padding array: " << DefNode->toString() << "\n");
+            continue;
+          }
           UseDef->insert(UseNode, DefNode);
         }
       }

@@ -27,6 +27,12 @@
   - 解決: `llvm::Value::stripPointerCasts()`: bitcastを外した値を返す
 - [x] 配列のコピー
   - 理由: `memcpy()`の引数に関する`bitcast`に対して未対応
+- [x] Paddingによる構造体のmemcpy()における誤検知
+  - 理由: `memcpy()`はField-sensitiveに定義IDを割り振るが，padding配列にたいしても定義IDを割り振ってしまい，他メンバ変数の定義IDを上書きしてしまう
+  - 解決: `PaddingFieldSet`にpaddingである変数を保存させ，判定する
+- [x] ポインタによるmemcpy()
+  - 理由: `memcpy()`の引数がポインタ変数であり，型・サイズが推測できない場合に未対応
+  - 解決: `getBaseType()`に修正
 
 ## TODO
 

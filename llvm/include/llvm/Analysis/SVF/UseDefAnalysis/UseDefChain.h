@@ -21,6 +21,7 @@ struct FieldOffset {
   enum FieldOffsetKind {
     StructKind,
     ArrayKind,
+    PointerKind,
   };
 
   const llvm::Type  *BaseTy;
@@ -32,7 +33,7 @@ private:
 
 protected:
   FieldOffset(FieldOffsetKind Kind, const llvm::Type *BaseTy, const llvm::Value *Base, unsigned Offset) : BaseTy(BaseTy), Base(Base), Offset(Offset), Kind(Kind) {}
-  FieldOffset(FieldOffsetKind Kind, const llvm::Value *Base, unsigned Offset) : FieldOffset(Kind, nullptr, Base, Offset) {}
+  FieldOffset(FieldOffsetKind Kind, const llvm::Value *Base, unsigned Offset) : FieldOffset(Kind, Base->getType(), Base, Offset) {}
 
 public:
   FieldOffsetKind getKind() const { return Kind; }
@@ -66,6 +67,19 @@ struct ArrayOffset : FieldOffset {
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const ArrayOffset &Offset);
 
+struct PointerOffset : FieldOffset {
+  const llvm::Value *Length;
+
+  PointerOffset(const llvm::Value *Base, const llvm::Value *Length)
+    : FieldOffset(PointerKind, Base, 0), Length(Length) {}
+  
+  static bool classof(const FieldOffset *F) {
+    return F->getKind() == PointerKind;
+  }
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const PointerOffset &Offset);
+
 using FieldOffsetVector = std::vector<FieldOffset *>;
 
 class UseDefChain {
@@ -77,6 +91,7 @@ class UseDefChain {
   using DefID = uint16_t;
   using DefIdMap = std::unordered_map<const StoreSVFGNode *, DefID>;
   using FieldStoreToOffsetMap = std::unordered_map<const StoreSVFGNode *, FieldOffsetVector>;
+  using SVFVarSet = std::unordered_set<const SVFVar *>;
 
 public:
   /// Constructor
@@ -130,6 +145,11 @@ public:
     return Search != FieldStoreMap.end();
   }
 
+  /// Check whether the SVFVar is padding array or not.
+  bool isPaddingArray(const SVFVar *Var) {
+    return PaddingFieldSet.count(Var) != 0;
+  }
+
   /// Return the begin iterator to enable range-based loop.
   iterator begin();
   const_iterator begin() const;
@@ -144,6 +164,7 @@ private:
   DefSet GlobalInitList;
   DefIdMap DefToID;
   FieldStoreToOffsetMap FieldStoreMap;   // Field-Store to FieldOffset
+  SVFVarSet PaddingFieldSet;
 
   void setDefID(const StoreSVFGNode *Def);
 

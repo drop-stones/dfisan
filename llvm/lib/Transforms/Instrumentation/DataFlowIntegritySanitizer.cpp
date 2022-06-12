@@ -66,6 +66,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   PtrTy  = Type::getIntNTy(Ctx, LongSize);
   VoidTy = Type::getVoidTy(Ctx);
   ArgTy  = Type::getInt16Ty(Ctx);
+  Int8Ty = Type::getInt8Ty(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
@@ -120,8 +121,7 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Bui
     const auto DefVars = GlobalInit->getDefSVFVars();
     for (const auto DefVarID : DefVars) {
       if (UseDef->containsOffsetVector(GlobalInit)) {   // Global struct initialization
-        Value *FieldAddr = createStructGep(Builder, GlobalInit);
-        createDfiStoreFn(M, Builder, GlobalInit, FieldAddr);
+        createDfiStoreFnForAggregateData(M, Builder, GlobalInit);
       } else {  // Global primitive data initialization
         const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
         Value *StorePointer = (Value *)DstNode->getValue();
@@ -155,8 +155,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
   } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
-    Value *FieldAddr = createStructGep(Builder, StoreNode, Memcpy);
-    createDfiStoreFn(M, Builder, StoreNode, FieldAddr);
+    createDfiStoreFnForAggregateData(M, Builder, StoreNode, Memcpy->getNextNode());
   }
 }
 
@@ -202,6 +201,16 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Bu
   }
 }
 
+void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer, Value *Length) {
+  LLVM_DEBUG(dbgs() << "Cast from " << *Length << " to " << *ArgTy << "\n");
+
+  Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
+  Value *StoreSizeVal = Builder.CreateIntCast(Length, ArgTy, false);
+  Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
+
+  Builder.CreateCall(DfiStoreNFn, {StoreAddr, StoreSizeVal, DefID});
+}
+
 /// Create a function call to DfiLoadFn.
 void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, Instruction *InsertPoint, SmallVector<Value *, 8> &DefIDs) {
   Builder.SetInsertPoint(InsertPoint);
@@ -231,18 +240,57 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Bui
   }
 }
 
-Value *
-DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode, Instruction *InsertPoint) {
-  Builder.SetInsertPoint(InsertPoint->getNextNode());
-  return createStructGep(Builder, StoreNode);
+void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Module &M, llvm::IRBuilder<> &Builder, const StoreVFGNode *StoreNode, Instruction *InsertPoint) {
+  Builder.SetInsertPoint(InsertPoint);
+  createDfiStoreFnForAggregateData(M, Builder, StoreNode);
+}
+
+void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Module &M, llvm::IRBuilder<> &Builder, const StoreVFGNode *StoreNode) {
+  const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
+  assert(OffsetVec.size() != 0);
+  if (llvm::isa<StructOffset>(OffsetVec[0])) {
+    Value *FieldAddr = createStructGep(Builder, StoreNode, OffsetVec);
+    createDfiStoreFn(M, Builder, StoreNode, FieldAddr);
+  } else if (llvm::isa<ArrayOffset>(OffsetVec[0])) {
+    Value *ArrayAddr = (Value *)OffsetVec[0]->Base;
+    createDfiStoreFn(M, Builder, StoreNode, ArrayAddr);
+  } else if (llvm::isa<PointerOffset>(OffsetVec[0])) {
+    // TODO
+    PointerOffset *Offset = llvm::dyn_cast<PointerOffset>(OffsetVec[0]);
+    Value *BaseAddr = (Value *)Offset->Base;
+    Value *Length = (Value *)Offset->Length;
+    createDfiStoreFn(M, Builder, StoreNode, BaseAddr, Length);
+  } else {
+    assert(false && "Invalid Offset Type!!");
+  }
 }
 
 Value *
-DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
-  const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
-  assert(OffsetVec.size() != 0);
-
+DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode, const std::vector<struct FieldOffset *> &OffsetVec) {
+  assert(OffsetVec.size() != 0 && llvm::isa<StructOffset>(OffsetVec[0]));
   Value *CurVal = (Value *)OffsetVec[0]->Base;
+  for (const auto *Offset : OffsetVec) {
+    const auto *StructOff = llvm::dyn_cast<StructOffset>(Offset);
+    LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
+    LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
+    CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
+  }
+  return CurVal;
+/*
+  const auto *Head = OffsetVec[0];
+  Value *CurVal = (Value *)Head->Base;
+  if (const auto *StructOff = dyn_cast<StructOffset>(Head)) {
+    for (auto *Offset : OffsetVec) {
+      const auto *EleStructOff = dyn_cast<StructOffset>(Offset);
+      LLVM_DEBUG(dbgs() << "Type: " << *EleStructOff->StructTy << "\n");
+      LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
+      CurVal = Builder.CreateStructGEP((Type *)EleStructOff->StructTy, CurVal, EleStructOff->Offset);
+    }
+  } else if (const auto *ArrayOff = dyn_cast<ArrayOffset>(Head)) {
+    // do nothing
+  } else if (const auto *PointerOff = dyn_cast<PointerOffset>(Head)) {
+    // cast to [i8 * Length]
+  }
   for (auto *Offset : OffsetVec) {
     if (auto *StructOff = dyn_cast<StructOffset>(Offset)) {
       LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
@@ -250,5 +298,5 @@ DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, cons
       CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
     }
   }
-  return CurVal;
+*/
 }
