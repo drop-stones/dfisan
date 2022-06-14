@@ -56,7 +56,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
     insertDfiLoadFn(M, Builder, Use, DefIDs);
   }
 
-  return PreservedAnalyses::all();
+  return PreservedAnalyses::none();
 }
 
 void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
@@ -139,18 +139,10 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
   if (Inst == nullptr)
     return;
 
-  // Check whether the insertion is first time.
-  // TODO: Complete Check!! (if gep statement is inserted, this implementation have no effects...)
-  const Instruction *NextInst = Inst->getNextNode();
-  if (NextInst != nullptr && isa<PtrToIntInst>(NextInst)) {
-    const Instruction *NextNextInst = NextInst->getNextNode();
-    if (NextNextInst != nullptr && isa<CallInst>(NextNextInst)) {
-      const CallInst *Call = dyn_cast<const CallInst>(NextNextInst);
-      const Function *Callee = Call->getCalledFunction();
-      if (Callee == nullptr || Callee->getName().contains(CommonDfisanStoreFnName))
-        return;
-    }
-  }
+  // Skip if the insertion is not the first time.
+  if (UseDef->isInstrumented(StoreNode))
+    return;
+  UseDef->setInstrumented(StoreNode);
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
@@ -162,17 +154,8 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
 /// Insert a CHECK function before each load statement.
 void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Module &M, IRBuilder<> &Builder, const LoadSVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs) {
   // Check whether the insertion is first time.
-  // TODO: Complete Check!!
-  const Instruction *Inst = LoadNode->getInst();
-  const Instruction *PrevInst = Inst->getPrevNode();
-  if (PrevInst != nullptr) {
-    if (const CallInst *Call = dyn_cast<const CallInst>(PrevInst)) {
-      const Function *Callee = Call->getCalledFunction();
-      if (Callee == nullptr || Callee->getName().contains(CommonDfisanLoadFnName))
-        return;
-    }
-  }
 
+  const Instruction *Inst = LoadNode->getInst();
   if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Inst)) {
     createDfiLoadFn(M, Builder, LoadNode, Load->getPointerOperand(), Load, DefIDs);
   }

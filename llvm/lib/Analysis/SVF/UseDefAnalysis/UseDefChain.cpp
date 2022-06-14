@@ -254,8 +254,8 @@ void UseDefChain::setDefID(const StoreSVFGNode *Def) {
 
   assert(Def != nullptr);
 
-  if (DefToID[Def] == 0) {
-    DefToID[Def] = CurrDefID++;
+  if (DefToInfo[Def].ID == 0) {
+    DefToInfo[Def].ID = CurrDefID++;
   }
 
   if (CurrDefID == std::numeric_limits<uint16_t>::max()) {
@@ -293,17 +293,18 @@ void UseDefChain::mergeMemcpyIDs(SVFIR *Pag) {
   LLVM_DEBUG(llvm::dbgs() << __func__ << "\n");
   using ArrayToMemcpyIDMap = std::unordered_map<const SVFVar *, DefID>;
   ArrayToMemcpyIDMap ArrayBaseToID;
-  for (auto Iter : DefToID) {
+  for (auto Iter : DefToInfo) {
     const StoreSVFGNode *StoreNode = Iter.first;
-    NodeID StoreID = Iter.second;
+    DefInfo StoreInfo = Iter.second;
+    NodeID StoreID = StoreInfo.ID;
     const auto *Base = getArrayBaseFromMemcpy(Pag, StoreNode);
     if (Base == nullptr)
       continue;
     if (ArrayBaseToID.count(Base) == 0) {
       ArrayBaseToID[Base] = StoreID;
     } else {
-      LLVM_DEBUG(llvm::dbgs() << "Change DefID from " << DefToID[StoreNode] << " to " << ArrayBaseToID[Base] << "\n");
-      DefToID[StoreNode] = ArrayBaseToID[Base];
+      LLVM_DEBUG(llvm::dbgs() << "Change DefID from " << DefToInfo[StoreNode].ID << " to " << ArrayBaseToID[Base] << "\n");
+      DefToInfo[StoreNode].ID = ArrayBaseToID[Base];
     }
   }
 }

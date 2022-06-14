@@ -82,14 +82,23 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const PointerOffset &Offset
 
 using FieldOffsetVector = std::vector<FieldOffset *>;
 
+using DefID = uint16_t;
+struct DefInfo {
+  DefID ID;
+  bool IsInstrumented;
+
+  DefInfo(DefID ID) : ID(ID), IsInstrumented(false) {}
+  DefInfo() : ID(0), IsInstrumented(false) {}
+};
+using DefInfoMap = std::unordered_map<const StoreSVFGNode *, DefInfo>;
+
+
 class UseDefChain {
   using DefSet = std::unordered_set<const StoreSVFGNode *>;
   using UseDefMap = std::unordered_map<const LoadSVFGNode *, DefSet>;
   using iterator = UseDefMap::iterator;
   using const_iterator = UseDefMap::const_iterator;
 
-  using DefID = uint16_t;
-  using DefIdMap = std::unordered_map<const StoreSVFGNode *, DefID>;
   using FieldStoreToOffsetMap = std::unordered_map<const StoreSVFGNode *, FieldOffsetVector>;
   using SVFVarSet = std::unordered_set<const SVFVar *>;
 
@@ -117,7 +126,17 @@ public:
 
   /// Get DefID
   DefID getDefID(const StoreSVFGNode *Def) const {
-    return DefToID.at(Def);
+    return DefToInfo.at(Def).ID;
+  }
+
+  /// Set to IsInstrumented.
+  void setInstrumented(const StoreSVFGNode *Def) {
+    DefToInfo.at(Def).IsInstrumented = true;
+  }
+
+  /// Check whether the store is instrumented or not.
+  bool isInstrumented(const StoreSVFGNode *Def) const {
+    return DefToInfo.at(Def).IsInstrumented;
   }
 
   /// Print Use-Def
@@ -162,7 +181,7 @@ private:
   UseDefMap UseDef;
   DefSet DefUsingPtrList;
   DefSet GlobalInitList;
-  DefIdMap DefToID;
+  DefInfoMap DefToInfo;
   FieldStoreToOffsetMap FieldStoreMap;   // Field-Store to FieldOffset
   SVFVarSet PaddingFieldSet;
 
