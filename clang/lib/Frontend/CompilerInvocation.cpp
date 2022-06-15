@@ -3583,6 +3583,15 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
 
   for (const auto &MP : Opts.MacroPrefixMap)
     GenerateArg(Args, OPT_fmacro_prefix_map_EQ, MP.first + "=" + MP.second, SA);
+  
+  if (Opts.StructAlign != 0)
+    GenerateArg(Args, OPT_fstruct_align_EQ, Twine(Opts.StructAlign), SA);
+
+  if (Opts.StackAlign != 0)
+    GenerateArg(Args, OPT_fstack_align_EQ, Twine(Opts.StackAlign), SA);
+
+  if (Opts.GlobalAlign != 0)
+    GenerateArg(Args, OPT_fglobal_align_EQ, Twine(Opts.GlobalAlign), SA);
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,

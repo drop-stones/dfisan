@@ -211,8 +211,8 @@ protected:
     /// Handle globals including (global variable and functions)
     //@{
     void visitGlobal(SVFModule* svfModule);
-    void InitialGlobal(const GlobalVariable *gvar, Constant *C,
-                       u32_t offset);
+    virtual void InitialGlobal(const GlobalVariable *gvar, Constant *C,
+                               u32_t offset);
     NodeID getGlobalVarField(const GlobalVariable *gvar, u32_t offset, Type* tpy);
     //@}
 

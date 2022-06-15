@@ -47,6 +47,8 @@ friend class SVFIRBuilder;
 friend class ExternalPAG;
 friend class PAGBuilderFromFile;
 friend class TypeBasedHeapCloning;  
+friend class UseDefSVFIRBuilder;
+friend class UseDefSVFGBuilder;
 
 public:
     typedef Set<const CallICFGNode*> CallSiteSet;

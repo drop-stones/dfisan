@@ -12,18 +12,21 @@
 
 #include "UseDefAnalysis/UseDefSVFGBuilder.h"
 #include "UseDefAnalysis/UseDefChain.h"
+#include "UseDefAnalysis/UseDefSVFIRBuilder.h"
 
 namespace SVF {
 
 class UseDefAnalysis {
 protected:
+  UseDefSVFIRBuilder IRBuilder;
   UseDefSVFGBuilder SvfgBuilder;
+  SVFIR *Pag;
   SVFG *Svfg;
   UseDefChain *UseDef;
 
 public:
   /// Constructor
-  UseDefAnalysis() : Svfg(nullptr), UseDef(nullptr) {}
+  UseDefAnalysis() : Pag(nullptr), Svfg(nullptr), UseDef(nullptr) {}
 
   /// Destructor
   ~UseDefAnalysis() {

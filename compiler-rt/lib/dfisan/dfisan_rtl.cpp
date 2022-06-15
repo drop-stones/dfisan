@@ -10,12 +10,14 @@
 #include "dfisan/dfisan_interface_internal.h"
 #include "dfisan/dfisan_internal.h"
 #include "dfisan/dfisan_mapping.h"
+#include "dfisan/dfisan_errors.h"
 
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 #include <stdlib.h>
 #include <stdarg.h>
+#include <math.h>
 
 using namespace __sanitizer;
 
@@ -33,7 +35,7 @@ static inline void setRDT(uptr Addr, u16 ID, u8 Length) {
 }
 static inline bool checkRDT(uptr Addr, u16 ID) {
   u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  Report("CHECK: %d at %p\n", ID, (void *)shadow_memory);
+  Report("CHECK: %d == %d at %p\n", ID, *shadow_memory, (void *)shadow_memory);
   return *shadow_memory == ID;
 }
 static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {
@@ -43,7 +45,7 @@ static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {
     NoErr |= checkRDT(Addr, ID);
   }
   if (NoErr == false) {
-    Report("Error occured!!\n");
+    __dfisan::ReportError(Addr);
     exit(1);
   }
   return NoErr;
@@ -57,9 +59,9 @@ bool dfisan_inited = false;
 bool dfisan_init_is_running = false;
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id(uptr StoreAddr, u16 DefID) {
-  Report("INFO: Set DefID(%d) at %p\n", DefID, (void *)StoreAddr);
-  setRDT(StoreAddr, DefID);
+void __dfisan_store_id_n(uptr StoreAddr, u32 Size, u16 DefID) {
+  //Report("INFO: Set DefID(%d) at %p\n", DefID, (void *)StoreAddr);
+  setRDT(StoreAddr, DefID, ceil((double)Size / (double)4));
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
@@ -91,10 +93,12 @@ void __dfisan_store_id_16(uptr StoreAddr, u16 DefID) {
 
 // TODO: va_arg cannot use `u16` (these values are converted to i32)
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids(uptr LoadAddr, u16 Argc, ...) {
+void __dfisan_check_ids_n(uptr LoadAddr, u32 Size, u16 Argc, ...) {
   va_list IDList;
-  va_start(IDList, Argc);
-  checkRDT(LoadAddr, Argc, IDList);
+  for (u8 i = 0; i < (u8)ceil((double)Size / (double)4); i++) {
+    va_start(IDList, Argc);
+    checkRDT(LoadAddr + (i * 4), Argc, IDList);
+  }
   va_end(IDList);
 }
 
@@ -148,6 +152,8 @@ static void DfisanInitInternal() {
 
   InitializeDfisanInterceptors();
   InitializeShadowMemory();
+
+  SetCommonFlagsDefaults();   // for Decorator
 
   dfisan_init_is_running = false;
   dfisan_inited = true;

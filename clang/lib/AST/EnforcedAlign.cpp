@@ -4,6 +4,9 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "enforced-align"
+
 namespace {
 using namespace clang;
 
@@ -16,29 +19,31 @@ bool isSmallerThanAlign(const ASTContext &Context, DeclaratorDecl *D, unsigned A
 }
 
 void AddAlignAttr(Sema &S, DeclaratorDecl *D, unsigned Align) {
-  llvm::outs() << __func__ << ": " << D->getDeclName() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << __func__ << ": " << D->getDeclName() << "\n");
+  static AlignedAttr *AlignAttr = nullptr;
 
-  ASTContext &Context = S.getASTContext();
-  llvm::APInt AlignNum{32, 4};
-  llvm::APSInt SignedAlignNum{AlignNum};
-  clang::APValue AlignNumValue{SignedAlignNum};
-  QualType Qual{Context.getIntTypeForBitwidth(32, 1)};
-  IntegerLiteral *IL = IntegerLiteral::Create(Context, AlignNum, Qual, SourceLocation());
-  ConstantExpr *CE = ConstantExpr::Create(Context, IL, AlignNumValue);
-  AlignedAttr *AlignAttr = AlignedAttr::Create(
-    Context, /* IsAlignmentExpr */ true,
-    CE, {},
-    AttributeCommonInfo::AS_GNU, AlignedAttr::GNU_aligned
-  );
+  if (AlignAttr == nullptr) {
+    ASTContext &Context = S.getASTContext();
+    llvm::APInt AlignNum{32, 4};
+    llvm::APSInt SignedAlignNum{AlignNum, false};
+    clang::APValue AlignNumValue{SignedAlignNum};
+    QualType Qual{Context.getIntTypeForBitwidth(32, 1)};
+    IntegerLiteral *IL = IntegerLiteral::Create(Context, AlignNum, Qual, SourceLocation());
+    ConstantExpr *CE = ConstantExpr::Create(Context, IL, AlignNumValue);
+    AlignAttr = AlignedAttr::Create(
+      Context, /* IsAlignmentExpr */ true,
+      CE, {},
+      AttributeCommonInfo::AS_GNU, AlignedAttr::GNU_aligned
+    );
+  }
   D->addAttr(AlignAttr);
-  //S.AddAlignedAttr(D);
 }
 } // anonymous namespace
 
 namespace clang {
 namespace align {
 void enforceFieldAlign(Sema &S, FieldDecl *FD, unsigned Align) {
-  llvm::outs() << __func__ << ": " << FD->getDeclName() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << __func__ << ": " << FD->getDeclName() << "\n");
 
   if (isSmallerThanAlign(S.getASTContext(), FD, Align))
     AddAlignAttr(S, FD, Align);
@@ -48,7 +53,7 @@ void enforceStackAlign(Sema &S, VarDecl *VD, unsigned Align) {
   if (!VD->isLocalVarDeclOrParm())
     return;
   
-  llvm::outs() << __func__ << ": " << VD->getDeclName() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << __func__ << ": " << VD->getDeclName() << "\n");
 
   if (isSmallerThanAlign(S.getASTContext(), VD, Align))
     AddAlignAttr(S, VD, Align);
@@ -58,7 +63,7 @@ void enforceGlobalAlign(Sema &S, VarDecl *VD, unsigned Align) {
   if (!VD->hasGlobalStorage())
     return;
 
-  llvm::outs() << __func__ << ": " << VD->getDeclName() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << __func__ << ": " << VD->getDeclName() << "\n");
 
   if (isSmallerThanAlign(S.getASTContext(), VD, Align))
     AddAlignAttr(S, VD, Align);
