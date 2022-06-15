@@ -10,9 +10,10 @@ namespace __dfisan {
 void ReportError(uptr Addr) {
   u16 *shadow_memory = (u16 *)MemToShadow(Addr);
   u16 ID = *shadow_memory;
-  //Decorator d;
-  //Printf("%s", d.Error());
+  Decorator d;
+  Printf("%s", d.Error());
   Report("ERROR: Invalid access at %p { ID(%d) at %p }\n", (void *)Addr, ID, (void *)shadow_memory);
+  Printf("%s", d.Default());
 }
 
 } // namespace __dfisan

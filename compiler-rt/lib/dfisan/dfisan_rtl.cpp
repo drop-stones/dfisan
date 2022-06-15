@@ -10,6 +10,7 @@
 #include "dfisan/dfisan_interface_internal.h"
 #include "dfisan/dfisan_internal.h"
 #include "dfisan/dfisan_mapping.h"
+#include "dfisan/dfisan_errors.h"
 
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
@@ -44,7 +45,7 @@ static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {
     NoErr |= checkRDT(Addr, ID);
   }
   if (NoErr == false) {
-    Report("Error occured!!\n");
+    __dfisan::ReportError(Addr);
     exit(1);
   }
   return NoErr;
@@ -151,6 +152,8 @@ static void DfisanInitInternal() {
 
   InitializeDfisanInterceptors();
   InitializeShadowMemory();
+
+  SetCommonFlagsDefaults();   // for Decorator
 
   dfisan_init_is_running = false;
   dfisan_inited = true;

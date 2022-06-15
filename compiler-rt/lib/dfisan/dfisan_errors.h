@@ -10,7 +10,7 @@ void ReportError(__sanitizer::uptr Addr);
 
 class Decorator : public __sanitizer::SanitizerCommonDecorator {
 public:
-  Decorator() : SanitizerCommonDecorator() {}
+  explicit Decorator() : SanitizerCommonDecorator() {}
   const char *Store() { return Blue(); }
   const char *Load()  { return Green(); }
 };

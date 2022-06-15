@@ -5,11 +5,15 @@ set(DFISAN_RTL_SOURCES
   dfisan_rtl.cpp
   dfisan_interceptors.cpp
   dfisan_shadow_setup.cpp
+  dfisan_errors.cpp
 )
 
 set(DFISAN_RTL_HEADERS
   dfisan_interceptors.h
   dfisan_interface_internal.h
+  dfisan_internal.h
+  dfisan_mapping.h
+  dfisan_errors.h
 )
 
 set(DFISAN_COMMON_CFLAGS ${SANITIZER_COMMON_CFLAGS})
@@ -29,6 +33,7 @@ foreach(arch ${DFISAN_SUPPORTED_ARCH})
             $<TARGET_OBJECTS:RTInterception.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+            $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
     ADDITIONAL_HEADERS ${DFISAN_RTL_HEADERS}
     CFLAGS ${DFISAN_CFLAGS}
     PARENT_TARGET dfisan
