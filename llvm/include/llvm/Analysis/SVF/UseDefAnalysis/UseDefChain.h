@@ -15,6 +15,9 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include "UseDefAnalysis/UseDefLogger.h"
+#include "UseDefAnalysis/UseDefUtils.h"
+
 namespace SVF {
 
 struct FieldOffset {
@@ -104,7 +107,7 @@ class UseDefChain {
 
 public:
   /// Constructor
-  UseDefChain() {}
+  UseDefChain(std::string ModuleName) : Logger(ModuleName) {}
 
   /// Destructor
   ~UseDefChain() {}
@@ -127,6 +130,11 @@ public:
   /// Get DefID
   DefID getDefID(const StoreSVFGNode *Def) const {
     return DefToInfo.at(Def).ID;
+  }
+
+  /// Get DefToInfo
+  DefInfoMap &getDefInfoMap() {
+    return DefToInfo;
   }
 
   /// Set to IsInstrumented.
@@ -184,6 +192,7 @@ private:
   DefInfoMap DefToInfo;
   FieldStoreToOffsetMap FieldStoreMap;   // Field-Store to FieldOffset
   SVFVarSet PaddingFieldSet;
+  UseDefLogger Logger;
 
   void setDefID(const StoreSVFGNode *Def);
 

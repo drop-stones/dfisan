@@ -247,6 +247,9 @@ void UseDefChain::idToUseDef(SVFIR *Pag) {
   }
 
   mergeMemcpyIDs(Pag);
+
+  // Log to sqlite3
+  Logger.logDefInfo(*this);
 }
 
 void UseDefChain::setDefID(const StoreSVFGNode *Def) {

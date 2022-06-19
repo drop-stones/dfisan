@@ -48,3 +48,15 @@ target_include_directories(LLVMSvf PRIVATE
     ${Z3_INCLUDE_DIR}
 )
 target_link_directories(LLVMSvf PRIVATE ${CMAKE_BINARY_DIR}/lib/Cudd)
+
+# sqlite3 settings
+find_package(SQLite3)
+target_include_directories(LLVMSvf PRIVATE
+    ${SQLite3_INCLUDE_DIRS}
+)
+target_link_libraries(LLVMSvf PRIVATE ${SQLite3_LIBRARIES})
+
+message("*********")
+message("SQLite3_INCLUDE_DIRS: " ${SQLite3_INCLUDE_DIRS})
+message("SQLite3_LIBRARIES: " ${SQLite3_LIBRARIES})
+message("*********")
