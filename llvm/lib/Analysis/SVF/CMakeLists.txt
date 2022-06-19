@@ -55,8 +55,3 @@ target_include_directories(LLVMSvf PRIVATE
     ${SQLite3_INCLUDE_DIRS}
 )
 target_link_libraries(LLVMSvf PRIVATE ${SQLite3_LIBRARIES})
-
-message("*********")
-message("SQLite3_INCLUDE_DIRS: " ${SQLite3_INCLUDE_DIRS})
-message("SQLite3_LIBRARIES: " ${SQLite3_LIBRARIES})
-message("*********")

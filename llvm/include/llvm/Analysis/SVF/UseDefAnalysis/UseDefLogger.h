@@ -13,21 +13,6 @@ class UseDefLogger {
 public:
   UseDefLogger(std::string ModuleName);
   ~UseDefLogger();
-/*
-   : DBFileName(ModuleName + ".sqlite3") {
-    if (sqlite3_open(DBFileName.c_str(), &DB) != SQLITE_OK) {
-      llvm::errs() << "Error: sqlite_open: Cannot open " << DBFileName << "\n";
-      exit(1);
-    }
-  }
-
-  ~UseDefLogger() {
-    if (sqlite3_close(DB) != SQLITE_OK) {
-      llvm::errs() << "Error: sqlite_close: Cannot close " << DBFileName << "\n";
-      exit(1);
-    }
-  }
-*/
 
   void logDefInfo(UseDefChain &UseDef);
 

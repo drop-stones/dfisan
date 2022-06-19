@@ -83,6 +83,6 @@ void UseDefLogger::logDefInfo(UseDefChain &UseDef) {
     sqlite3_finalize(SqliteStmt);
   */
 
-    LLVM_DEBUG(errs() << "StmtString: " << StmtString << "\n");
+    // LLVM_DEBUG(errs() << "StmtString: " << StmtString << "\n");
   }
 }
