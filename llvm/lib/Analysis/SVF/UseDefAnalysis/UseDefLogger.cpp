@@ -64,24 +64,26 @@ void UseDefLogger::logDefInfo(UseDefChain &UseDef) {
     // Prepare sqlite3 statement.
     std::string StmtString;
     raw_string_ostream StmtStream{StmtString};
+/*
     StmtStream << "INSERT OR IGNORE INTO " << DBTableName << " VALUES (" << DefID << ", " << Line << ", " << Column << ", \'" << Filename << "\')";
     if (sqlite3_exec(DB, StmtString.c_str(), nullptr, nullptr, &ErrMsg) != SQLITE_OK) {
       errs() << "Error: sqlite3_exec: " << ErrMsg << "\n";
       errs() << "StmtString: " << StmtString << "\n";
       exit(1);
     }
-  /*
+*/
+///*
     sqlite3_stmt *SqliteStmt;
     StmtStream << "INSERT OR IGNORE INTO " << DBTableName << " VALUES (?, ?, ?, ?)";
     sqlite3_prepare(DB, StmtString.c_str(), StmtString.length(), &SqliteStmt, nullptr);
     sqlite3_bind_int(SqliteStmt, 1, DefID);
     sqlite3_bind_int(SqliteStmt, 2, Line);
     sqlite3_bind_int(SqliteStmt, 3, Column);
-    sqlite3_bind_text(SqliteStmt, 4, Filename.str().c_str(), Filename.size(), SQLITE_STATIC);
+    sqlite3_bind_text64(SqliteStmt, 4, Filename.str().c_str(), Filename.size() + 1, SQLITE_TRANSIENT, SQLITE_UTF8);
     sqlite3_step(SqliteStmt);
     sqlite3_reset(SqliteStmt);
     sqlite3_finalize(SqliteStmt);
-  */
+//*/
 
     // LLVM_DEBUG(errs() << "StmtString: " << StmtString << "\n");
   }
