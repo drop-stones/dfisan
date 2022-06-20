@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "UseDefAnalysis/UseDefAnalysis.h"
+#include "UseDefAnalysis/UseDefUtils.h"
 #include "SVF-FE/SVFIRBuilder.h"
 #include "WPA/Andersen.h"
 
@@ -30,18 +31,6 @@ bool isDefUsingPtr(const StoreSVFGNode *Store) {
       return true;
     }
   }
-  return false;
-}
-
-/// Return true if the DEF statment is memcpy.
-bool isMemcpy(const StmtSVFGNode *Store) {
-  const auto *Inst = Store->getInst();
-  if (Inst == nullptr)
-    return false;
-  
-  if (llvm::isa<const llvm::MemCpyInst>(Inst))
-    return true;
-  
   return false;
 }
 
@@ -101,7 +90,7 @@ void UseDefAnalysis::analyze(SVFModule *M) {
       Worklist.push(ID);
       if (isDefUsingPtr(StoreNode))
         UseDef->insertDefUsingPtr(StoreNode);
-      if (isMemcpy(StoreNode))
+      if (isMemcpyOrMemset(StoreNode))
         UseDef->insertFieldStore(Svfg, StoreNode);
     }
   }

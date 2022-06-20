@@ -146,9 +146,13 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
-  } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
-    createDfiStoreFnForAggregateData(M, Builder, StoreNode, Memcpy->getNextNode());
+  } else if (llvm::isa<MemCpyInst>(Inst) || llvm::isa<MemSetInst>(Inst)) {
+    createDfiStoreFnForAggregateData(M, Builder, StoreNode, (Instruction *)Inst->getNextNode());
   }
+  //else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
+  //  createDfiStoreFnForAggregateData(M, Builder, StoreNode, Memcpy->getNextNode());
+  //} else if (MemSetInst *Memset = dyn_cast<MemSetInst>((Instruction *)(Inst))) {
+  //}
 }
 
 /// Insert a CHECK function before each load statement.
