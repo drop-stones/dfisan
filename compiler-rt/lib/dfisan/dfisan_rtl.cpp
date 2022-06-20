@@ -27,9 +27,9 @@ static inline void setRDT(uptr Addr, u16 ID) {
   *shadow_memory = ID;
   // Report("SET: %d at %p\n", ID, (void *)shadow_memory);
 }
-static inline void setRDT(uptr Addr, u16 ID, u8 Length) {
+static inline void setRDT(uptr Addr, u16 ID, u32 Length) {
   u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  for (u8 i = 0; i < Length; i++)
+  for (u32 i = 0; i < Length; i++)
     *(shadow_memory + i) = ID;
   // Report("SET: %d at %p - %p\n", ID, (void *)shadow_memory, (void *)(shadow_memory + Length - 1));
 }
