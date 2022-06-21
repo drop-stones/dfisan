@@ -14,6 +14,7 @@
 
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
+#include "sanitizer_common/sanitizer_stacktrace.h"
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -56,7 +57,6 @@ bool dfisan_init_is_running = false;
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_store_id_n(uptr StoreAddr, u32 Size, u16 DefID) {
-  //Report("INFO: Set DefID(%d) at %p\n", DefID, (void *)StoreAddr);
   setRDT(StoreAddr, DefID, ceil((double)Size / (double)4));
 }
 
@@ -94,8 +94,7 @@ void __dfisan_check_ids_n(uptr LoadAddr, u32 Size, u16 Argc, ...) {
   for (u8 i = 0; i < (u8)ceil((double)Size / (double)4); i++) {
     va_start(IDList, Argc);
     if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
-      va_start(IDList, Argc);
-      ReportInvalidUseError(LoadAddr, Argc, IDList);
+      REPORT_ERROR(LoadAddr, Argc, IDList);
     }
   }
   va_end(IDList);
@@ -107,8 +106,7 @@ void __dfisan_check_ids_1 (uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   va_start(IDList, Argc);
   if (checkRDT(AlignedAddr, Argc, IDList) == false) {
-    va_start(IDList, Argc);
-    ReportInvalidUseError(LoadAddr, Argc, IDList);
+    REPORT_ERROR(LoadAddr, Argc, IDList);
   }
   va_end(IDList);
 }
@@ -118,8 +116,7 @@ void __dfisan_check_ids_2 (uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   va_start(IDList, Argc);
   if (checkRDT(AlignedAddr, Argc, IDList) == false) {
-    va_start(IDList, Argc);
-    ReportInvalidUseError(LoadAddr, Argc, IDList);
+    REPORT_ERROR(LoadAddr, Argc, IDList);
   }
   va_end(IDList);
 }
@@ -128,8 +125,7 @@ void __dfisan_check_ids_4 (uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   va_start(IDList, Argc);
   if (checkRDT(LoadAddr, Argc, IDList) == false) {
-    va_start(IDList, Argc);
-    ReportInvalidUseError(LoadAddr, Argc, IDList);
+    REPORT_ERROR(LoadAddr, Argc, IDList);
   }
   va_end(IDList);
 }
@@ -140,8 +136,7 @@ void __dfisan_check_ids_8 (uptr LoadAddr, u16 Argc, ...) {
   for (u8 i = 0; i < 2; i++) {
     va_start(IDList, Argc);
     if (checkRDT(LoadAddr + 4, Argc, IDList) == false) {
-      va_start(IDList, Argc);
-      ReportInvalidUseError(LoadAddr, Argc, IDList);
+      REPORT_ERROR(LoadAddr, Argc, IDList);
     }
   }
 }
@@ -151,8 +146,7 @@ void __dfisan_check_ids_16(uptr LoadAddr, u16 Argc, ...) {
   for (u8 i = 0; i < 4; i++) {
     va_start(IDList, Argc);
     if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
-      va_start(IDList, Argc);
-      ReportInvalidUseError(LoadAddr, Argc, IDList);
+      REPORT_ERROR(LoadAddr, Argc, IDList);
     }
   }
   va_end(IDList);

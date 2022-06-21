@@ -14,13 +14,13 @@
 using namespace __sanitizer;
 
 INTERCEPTOR(void *, malloc, SIZE_T size) {
-  Report("%s: Intercept malloc(%lu)\n", __func__, (unsigned long)size);
+  // Report("%s: Intercept malloc(%lu)\n", __func__, (unsigned long)size);
   void *ptr = REAL(malloc)(size);
   return ptr;
 }
 
 INTERCEPTOR(void, free, void *ptr) {
-  Report("%s: Intercept free(%p)\n", __func__, ptr);
+  // Report("%s: Intercept free(%p)\n", __func__, ptr);
   REAL(free(ptr));
   return;
 }
