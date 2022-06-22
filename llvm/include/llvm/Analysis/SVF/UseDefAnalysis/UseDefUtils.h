@@ -8,6 +8,8 @@
 using namespace llvm;
 using namespace SVF;
 
+std::string removeSuffix(StringRef Filename);
+std::string removeSuffix(std::string Filename);
 std::string getModuleName(Module &M);
 std::string getModuleName(SVFModule *M);
 

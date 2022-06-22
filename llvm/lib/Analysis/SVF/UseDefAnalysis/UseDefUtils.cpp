@@ -1,7 +1,6 @@
 
 #include "UseDefAnalysis/UseDefUtils.h"
 
-namespace {
 std::string removeSuffix(StringRef Filename) {
   std::string Ret;
   if (Filename.endswith(".ll")) {
@@ -15,7 +14,11 @@ std::string removeSuffix(StringRef Filename) {
   }
   return Ret;
 }
-} // anonymous namespace
+
+std::string removeSuffix(std::string Filename) {
+  StringRef Ref{Filename};
+  return removeSuffix(Ref);
+}
 
 std::string getModuleName(Module &M) {
   StringRef ModuleIdentifier = M.getModuleIdentifier();

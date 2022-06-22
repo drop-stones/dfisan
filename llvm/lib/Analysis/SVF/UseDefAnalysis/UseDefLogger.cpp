@@ -8,11 +8,20 @@
 using namespace llvm;
 using namespace SVF;
 
-UseDefLogger::UseDefLogger(std::string ModuleName) : DBFileName(ModuleName + ".sqlite3") {
+static llvm::cl::opt<std::string> OutputFilename(
+  "output-filename",
+  cl::init("-"),
+  llvm::cl::desc("<output filename"),
+  llvm::cl::Optional
+);
+
+UseDefLogger::UseDefLogger(std::string ModuleName)
+  : DBFilename( (OutputFilename == "-" ? ModuleName : removeSuffix(OutputFilename)) + ".sqlite3") {
   if (DebugFlag == false || !isCurrentDebugType(DEBUG_TYPE))
     return;
-  if (sqlite3_open(DBFileName.c_str(), &DB) != SQLITE_OK) {
-    llvm::errs() << "Error: sqlite_open: Cannot open " << DBFileName << "\n";
+  LLVM_DEBUG(llvm::errs() << "DBFilename: " << DBFilename << "\n");
+  if (sqlite3_open(DBFilename.c_str(), &DB) != SQLITE_OK) {
+    llvm::errs() << "Error: sqlite_open: Cannot open " << DBFilename << "\n";
     exit(1);
   }
 }
@@ -21,7 +30,7 @@ UseDefLogger::~UseDefLogger() {
   if (DebugFlag == false || !isCurrentDebugType(DEBUG_TYPE))
     return;
   if (sqlite3_close(DB) != SQLITE_OK) {
-    llvm::errs() << "Error: sqlite_close: Cannot close " << DBFileName << "\n";
+    llvm::errs() << "Error: sqlite_close: Cannot close " << DBFilename << "\n";
     exit(1);
   }
 }

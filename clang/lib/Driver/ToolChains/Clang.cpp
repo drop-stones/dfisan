@@ -7143,6 +7143,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       CmdArgs.push_back("-o");
       CmdArgs.push_back(Output.getFilename());
+
+      // Add the output file name for middle end.
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-output-filename");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back(Output.getFilename());
     }
   } else {
     assert(Output.isNothing() && "Invalid output.");

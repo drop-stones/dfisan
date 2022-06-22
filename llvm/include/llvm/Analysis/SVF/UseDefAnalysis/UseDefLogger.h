@@ -18,7 +18,7 @@ public:
 
 private:
   const std::string DBTableName = "DefInfoTable";
-  const std::string DBFileName;
+  const std::string DBFilename;
   sqlite3 *DB;
 };
 
