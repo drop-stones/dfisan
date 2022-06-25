@@ -20,6 +20,8 @@ public:
   explicit Decorator() : SanitizerCommonDecorator() {}
   const char *Store() { return Blue(); }
   const char *Load()  { return Green(); }
+  const char *StackTrace() { return Cyan(); }
+  const char *DefInfo() { return Green(); }
 };
 
 } // namespace __dfisan
