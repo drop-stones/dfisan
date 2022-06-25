@@ -23,6 +23,9 @@ append_list_if(COMPILER_RT_HAS_FFREESTANDIG_FLAG -ffreestanding DFISAN_COMMON_CF
 # Static runtime library
 add_compiler_rt_component(dfisan)
 
+# LLVMSqlite3 settings
+get_target_property(LLVMSqlite3_INCLUDES LLVMSqlite3 INCLUDE_DIRECTORIES)
+
 foreach(arch ${DFISAN_SUPPORTED_ARCH})
   set(DFISAN_CFLAGS ${DFISAN_COMMON_CFLAGS})
   append_list_if(COMPILER_RT_HAS_FPIE_FLAG -fPIE DFISAN_CFLAGS)
@@ -34,10 +37,12 @@ foreach(arch ${DFISAN_SUPPORTED_ARCH})
             $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
+            $<TARGET_OBJECTS:LLVMSqlite3>
     ADDITIONAL_HEADERS ${DFISAN_RTL_HEADERS}
     CFLAGS ${DFISAN_CFLAGS}
     PARENT_TARGET dfisan
   )
+  target_include_directories(clang_rt.dfisan-${arch} PRIVATE ${LLVMSqlite3_INCLUDES})
 
   # Export symbols
   add_sanitizer_rt_symbols(clang_rt.dfisan
