@@ -12,6 +12,7 @@
 - [x] Global array of struct type
   - `struct S arr[8] = {...};`
   - 解決: SVFG構築後，グローバル変数の初期化・memcpy()によるローカル変数の初期化を表すStoreSVFGNodeをマージ
+- [x] sqlite3を用いたLogger + 詳細な実行時エラーメッセージ
 
 ## Bug fixes
 
@@ -33,12 +34,12 @@
 - [x] ポインタによるmemcpy()
   - 理由: `memcpy()`の引数がポインタ変数であり，型・サイズが推測できない場合に未対応
   - 解決: `getBaseType()`に修正
+- [x] Local変数の`memset()`による初期化
 
 ## TODO
 
 ### 必須事項
 
-- [ ] Local変数の`memset()`による初期化
 - [ ] Callee内のmemcpy()について，先頭要素のUse-Defのみ計算する
   - 理由: SVFG上では，Calleeに渡されるポインタ(先頭を指す)のみが追跡され，memcpyによる書き込みが現れる
   - 他の全てのメンバ変数へのDEFと判定したい
