@@ -48,6 +48,16 @@
   - 解決案: UseDef解析時，UseDefを結ぶ際にエイリアス関係にあるかどうかをチェック
 - [ ] 小規模リアル検体でテスト
 
+### Bugs
+
+- [ ] `calloc()`による初期化
+  - 理由: `calloc()`後に定義IDを割り当てていない
+- [ ] 構造体の値渡し in 関数
+  - 理由: LLVM IR上では以下のように記述される:
+    - `struct Vec2D {int; int; }` &rarr; `i64` といった型変換
+    - `struct move_s {int; ..., int; }` &rarr; `struct move_s* byval` といったポインタから値への変換
+      - &larr; SVFがポインタとしてそのまま解析してしまう
+
 ### 最適化
 
 - [ ] `const global`ノードへのチェック関数を削除
