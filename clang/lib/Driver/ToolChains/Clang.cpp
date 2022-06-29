@@ -7148,7 +7148,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-output-filename");
       CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back(Output.getFilename());
+      if (Arg *OutputOpt = Args.getLastArg(options::OPT_o))
+        CmdArgs.push_back(OutputOpt->getValue());
+      else
+        CmdArgs.push_back(Output.getFilename());
     }
   } else {
     assert(Output.isNothing() && "Invalid output.");
