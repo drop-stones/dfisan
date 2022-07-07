@@ -54,9 +54,12 @@ file (GLOB SOURCES
 
 	# dgllvmsdg
 	llvm/SystemDependenceGraph/*.cpp
+
+	# LLVM Passes
+	Passes/*.cpp
 )
 
-add_llvm_component_library(LLVMdg
+add_llvm_component_library(LLVMDg
 	${SOURCES}
 
 	LINK_COMPONENTS
@@ -66,11 +69,11 @@ add_llvm_component_library(LLVMdg
 	IRReader
 	Support
 )
-target_include_directories(LLVMdg PRIVATE
+target_include_directories(LLVMDg PRIVATE
 	${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
 )
 
 # sqlite3 settings
 get_target_property(LLVMSqlite3_INCLUDES LLVMSqlite3 INCLUDE_DIRECTORIES)
-target_include_directories(LLVMSvf PRIVATE ${LLVMSqlite3_INCLUDES})
-target_link_libraries(LLVMSvf PRIVATE LLVMSqlite3)
+target_include_directories(LLVMDg PRIVATE ${LLVMSqlite3_INCLUDES})
+target_link_libraries(LLVMDg PRIVATE LLVMSqlite3)
