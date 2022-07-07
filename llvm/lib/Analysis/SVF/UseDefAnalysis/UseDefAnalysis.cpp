@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "UseDefAnalysis/UseDefAnalysis.h"
+#include "UseDefAnalysis/UseDefUtils.h"
 #include "SVF-FE/SVFIRBuilder.h"
 #include "WPA/Andersen.h"
 
@@ -30,18 +31,6 @@ bool isDefUsingPtr(const StoreSVFGNode *Store) {
       return true;
     }
   }
-  return false;
-}
-
-/// Return true if the DEF statment is memcpy.
-bool isMemcpy(const StmtSVFGNode *Store) {
-  const auto *Inst = Store->getInst();
-  if (Inst == nullptr)
-    return false;
-  
-  if (llvm::isa<const llvm::MemCpyInst>(Inst))
-    return true;
-  
   return false;
 }
 
@@ -77,7 +66,7 @@ void UseDefAnalysis::initialize(SVFModule *M) {
 
   AndersenWaveDiff *Ander = AndersenWaveDiff::createAndersenWaveDiff(Pag);
   Svfg = SvfgBuilder.buildFullSVFG(Ander);
-  UseDef = new UseDefChain;
+  UseDef = new UseDefChain(getModuleName(M));
 }
 
 /// Start analysis.
@@ -86,7 +75,7 @@ void UseDefAnalysis::analyze(SVFModule *M) {
 
   // Create GlobalInitList.
   for (const auto *Iter : Svfg->getGlobalVFGNodes()) {
-    if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Iter)) {
+    if (const auto *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Iter)) {
       UseDef->insertGlobalInit(StoreNode);
       UseDef->insertFieldStore(Svfg, StoreNode);  // Insert if the value is global struct.
     }
@@ -97,11 +86,11 @@ void UseDefAnalysis::analyze(SVFModule *M) {
   for (const auto &Iter : *Svfg) {
     const NodeID ID = Iter.first;
     const SVFGNode *Node = Iter.second;
-    if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Node)) {
+    if (const auto *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Node)) {
       Worklist.push(ID);
       if (isDefUsingPtr(StoreNode))
         UseDef->insertDefUsingPtr(StoreNode);
-      if (isMemcpy(StoreNode))
+      if (isMemcpyOrMemset(StoreNode))
         UseDef->insertFieldStore(Svfg, StoreNode);
     }
   }
@@ -117,7 +106,7 @@ void UseDefAnalysis::analyze(SVFModule *M) {
     DefIDSet &Facts = NodeToDefs[ID];
 
     /// Add an Def Data-fact.
-    if (const auto *StoreNode = dyn_cast<StoreSVFGNode>(Node)) {
+    if (const auto *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Node)) {
       Facts.set(ID);
     }
 
@@ -133,13 +122,13 @@ void UseDefAnalysis::analyze(SVFModule *M) {
   // Create Use-Def map from analysis results.
   for (const auto &Iter : NodeToDefs) {
     const NodeID UseID = Iter.first;
-    if (const auto *UseNode = dyn_cast<LoadSVFGNode>(Svfg->getSVFGNode(UseID))) {
+    if (const auto *UseNode = SVFUtil::dyn_cast<LoadSVFGNode>(Svfg->getSVFGNode(UseID))) {
       if (UseDef->isPaddingArray(getSVFVar(Svfg, UseNode))) {
         LLVM_DEBUG(llvm::dbgs() << "Skip Use of padding array: " << UseNode->toString() << "\n");
         continue;
       }
       for (const NodeID DefID : Iter.second) {
-        if (const auto *DefNode = dyn_cast<StoreSVFGNode>(Svfg->getSVFGNode(DefID))) {
+        if (const auto *DefNode = SVFUtil::dyn_cast<StoreSVFGNode>(Svfg->getSVFGNode(DefID))) {
           if (UseDef->isPaddingArray(getSVFVar(Svfg, DefNode))) {
             LLVM_DEBUG(llvm::dbgs() << "Skip Def of padding array: " << DefNode->toString() << "\n");
             continue;

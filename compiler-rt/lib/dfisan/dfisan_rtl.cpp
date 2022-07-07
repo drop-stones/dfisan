@@ -14,6 +14,7 @@
 
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
+#include "sanitizer_common/sanitizer_stacktrace.h"
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -25,17 +26,17 @@ using namespace __sanitizer;
 static inline void setRDT(uptr Addr, u16 ID) {
   u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
   *shadow_memory = ID;
-  Report("SET: %d at %p\n", ID, (void *)shadow_memory);
+  // Report("SET: %d at %p\n", ID, (void *)shadow_memory);
 }
-static inline void setRDT(uptr Addr, u16 ID, u8 Length) {
+static inline void setRDT(uptr Addr, u16 ID, u32 Length) {
   u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  for (u8 i = 0; i < Length; i++)
+  for (u32 i = 0; i < Length; i++)
     *(shadow_memory + i) = ID;
-  Report("SET: %d at %p - %p\n", ID, (void *)shadow_memory, (void *)(shadow_memory + Length - 1));
+  // Report("SET: %d at %p - %p\n", ID, (void *)shadow_memory, (void *)(shadow_memory + Length - 1));
 }
 static inline bool checkRDT(uptr Addr, u16 ID) {
   u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  Report("CHECK: %d == %d at %p\n", ID, *shadow_memory, (void *)shadow_memory);
+  // Report("CHECK: %d == %d at %p\n", ID, *shadow_memory, (void *)shadow_memory);
   return *shadow_memory == ID;
 }
 static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {
@@ -43,10 +44,6 @@ static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {
   for (u16 i = 0; i < Argc; i++) {
     u16 ID = va_arg(IDList, u16);
     NoErr |= checkRDT(Addr, ID);
-  }
-  if (NoErr == false) {
-    __dfisan::ReportError(Addr);
-    exit(1);
   }
   return NoErr;
 }
@@ -60,7 +57,6 @@ bool dfisan_init_is_running = false;
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_store_id_n(uptr StoreAddr, u32 Size, u16 DefID) {
-  //Report("INFO: Set DefID(%d) at %p\n", DefID, (void *)StoreAddr);
   setRDT(StoreAddr, DefID, ceil((double)Size / (double)4));
 }
 
@@ -97,7 +93,9 @@ void __dfisan_check_ids_n(uptr LoadAddr, u32 Size, u16 Argc, ...) {
   va_list IDList;
   for (u8 i = 0; i < (u8)ceil((double)Size / (double)4); i++) {
     va_start(IDList, Argc);
-    checkRDT(LoadAddr + (i * 4), Argc, IDList);
+    if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
+      REPORT_ERROR(LoadAddr, Argc, IDList);
+    }
   }
   va_end(IDList);
 }
@@ -107,7 +105,9 @@ void __dfisan_check_ids_1 (uptr LoadAddr, u16 Argc, ...) {
   uptr AlignedAddr = AlignAddr(LoadAddr);
   va_list IDList;
   va_start(IDList, Argc);
-  checkRDT(AlignedAddr, Argc, IDList);
+  if (checkRDT(AlignedAddr, Argc, IDList) == false) {
+    REPORT_ERROR(LoadAddr, Argc, IDList);
+  }
   va_end(IDList);
 }
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
@@ -115,31 +115,39 @@ void __dfisan_check_ids_2 (uptr LoadAddr, u16 Argc, ...) {
   uptr AlignedAddr = AlignAddr(LoadAddr);
   va_list IDList;
   va_start(IDList, Argc);
-  checkRDT(AlignedAddr, Argc, IDList);
+  if (checkRDT(AlignedAddr, Argc, IDList) == false) {
+    REPORT_ERROR(LoadAddr, Argc, IDList);
+  }
   va_end(IDList);
 }
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids_4 (uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   va_start(IDList, Argc);
-  checkRDT(LoadAddr, Argc, IDList);
+  if (checkRDT(LoadAddr, Argc, IDList) == false) {
+    REPORT_ERROR(LoadAddr, Argc, IDList);
+  }
   va_end(IDList);
 }
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids_8 (uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   va_start(IDList, Argc);
-  checkRDT(LoadAddr, Argc, IDList);
-  va_start(IDList, Argc);
-  checkRDT(LoadAddr + 4, Argc, IDList);
-  va_end(IDList);
+  for (u8 i = 0; i < 2; i++) {
+    va_start(IDList, Argc);
+    if (checkRDT(LoadAddr + 4, Argc, IDList) == false) {
+      REPORT_ERROR(LoadAddr, Argc, IDList);
+    }
+  }
 }
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids_16(uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   for (u8 i = 0; i < 4; i++) {
     va_start(IDList, Argc);
-    checkRDT(LoadAddr + (i * 4), Argc, IDList);
+    if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
+      REPORT_ERROR(LoadAddr, Argc, IDList);
+    }
   }
   va_end(IDList);
 }

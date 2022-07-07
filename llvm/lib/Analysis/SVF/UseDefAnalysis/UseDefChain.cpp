@@ -187,7 +187,7 @@ void UseDefChain::insertFieldStore(const SVFG *Svfg, const StoreSVFGNode *Def) {
   LLVM_DEBUG(dbgs() << __func__ << ": " << Def->toString() << "\n");
   SVFIR *Pag = Svfg->getPAG();
 
-  // Get the destination node of memcpy.
+  // Get the destination node of memcpy or memset.
   const SVFGNode *DstNode = Svfg->getDefSVFGNode(Def->getPAGDstNode());
   if (const auto *GepNode = SVFUtil::dyn_cast<const GepSVFGNode>(DstNode)) {  // If field element
     const auto DefVars = GepNode->getDefSVFVars();
@@ -247,6 +247,9 @@ void UseDefChain::idToUseDef(SVFIR *Pag) {
   }
 
   mergeMemcpyIDs(Pag);
+
+  // Log to sqlite3
+  Logger.logDefInfo(*this);
 }
 
 void UseDefChain::setDefID(const StoreSVFGNode *Def) {

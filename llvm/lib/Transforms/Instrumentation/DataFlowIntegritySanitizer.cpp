@@ -67,10 +67,11 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
   VoidTy = Type::getVoidTy(Ctx);
   ArgTy  = Type::getInt16Ty(Ctx);
   Int8Ty = Type::getInt8Ty(Ctx);
+  Int32Ty = Type::getInt32Ty(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
-  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, ArgTy, ArgTy};
+  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int32Ty, ArgTy};
   FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
@@ -146,9 +147,13 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Bu
 
   if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
     createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
-  } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
-    createDfiStoreFnForAggregateData(M, Builder, StoreNode, Memcpy->getNextNode());
+  } else if (llvm::isa<MemCpyInst>(Inst) || llvm::isa<MemSetInst>(Inst)) {
+    createDfiStoreFnForAggregateData(M, Builder, StoreNode, (Instruction *)Inst->getNextNode());
   }
+  //else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
+  //  createDfiStoreFnForAggregateData(M, Builder, StoreNode, Memcpy->getNextNode());
+  //} else if (MemSetInst *Memset = dyn_cast<MemSetInst>((Instruction *)(Inst))) {
+  //}
 }
 
 /// Insert a CHECK function before each load statement.
@@ -170,7 +175,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Bu
 void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer) {
   Type *StoreTy = StorePointer->getType()->getNonOpaquePointerElementType();
   unsigned StoreSize = M.getDataLayout().getTypeStoreSize(StoreTy);
-  Value *StoreSizeVal = ConstantInt::get(ArgTy, StoreSize, false);
+  Value *StoreSizeVal = ConstantInt::get(Int32Ty, StoreSize, false);
   Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
   Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
 
@@ -188,7 +193,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Bu
   LLVM_DEBUG(dbgs() << "Cast from " << *Length << " to " << *ArgTy << "\n");
 
   Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
-  Value *StoreSizeVal = Builder.CreateIntCast(Length, ArgTy, false);
+  Value *StoreSizeVal = Builder.CreateIntCast(Length, Int32Ty, false);
   Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
 
   Builder.CreateCall(DfiStoreNFn, {StoreAddr, StoreSizeVal, DefID});

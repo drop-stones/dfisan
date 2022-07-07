@@ -4,15 +4,24 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_report_decorator.h"
 
+#include <stdarg.h>
+
+#define REPORT_ERROR(LoadAddr, Argc, IDList)  \
+  va_start(IDList, Argc);                     \
+  GET_CALLER_PC_BP;                           \
+  ReportInvalidUseError(LoadAddr, Argc, IDList, pc, bp)
+
 namespace __dfisan {
 
-void ReportError(__sanitizer::uptr Addr);
+void ReportInvalidUseError(__sanitizer::uptr LoadAddr, __sanitizer::u16 Argc, va_list IDList, __sanitizer::uptr pc, __sanitizer::uptr bp);
 
 class Decorator : public __sanitizer::SanitizerCommonDecorator {
 public:
   explicit Decorator() : SanitizerCommonDecorator() {}
   const char *Store() { return Blue(); }
   const char *Load()  { return Green(); }
+  const char *StackTrace() { return Cyan(); }
+  const char *DefInfo() { return Green(); }
 };
 
 } // namespace __dfisan

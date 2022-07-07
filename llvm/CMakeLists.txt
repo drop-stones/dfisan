@@ -1059,6 +1059,10 @@ add_subdirectory(utils/TableGen)
 
 add_subdirectory(include/llvm)
 
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../sqlite3
+  ${CMAKE_CURRENT_BINARY_DIR}/sqlite3
+)
+
 add_subdirectory(lib)
 
 if( LLVM_INCLUDE_UTILS )
