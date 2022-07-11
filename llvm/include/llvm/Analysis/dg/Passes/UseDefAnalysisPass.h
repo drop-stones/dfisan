@@ -11,20 +11,10 @@
 #define LLVM_ANALYSIS_DG_PASSES_USEDEFANALYSIS_PASS_H
 
 #include "llvm/IR/PassManager.h"
-
-namespace dg {
-class LLVMDependenceGraph;
-} // namespace dg
+#include "dg/llvm/LLVMDependenceGraph.h"
+#include "dg/llvm/LLVMDependenceGraphBuilder.h"
 
 namespace llvm {
-
-struct UseDefAnalysisResult {
-  // std::unique_ptr<dg::LLVMDependenceGraph> DG;
-  dg::LLVMDependenceGraph *DG;
-
-  UseDefAnalysisResult(dg::LLVMDependenceGraph *DG) : DG(DG) {}
-  // UseDefAnalysisResult(std::unique_ptr<dg::LLVMDependenceGraph> DG) : DG(std::move(DG)) {}
-};
 
 class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {
   friend AnalysisInfoMixin<UseDefAnalysisPass>;
@@ -32,7 +22,17 @@ class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {
   static AnalysisKey Key; 
 
 public:
-  using Result = UseDefAnalysisResult;
+  struct Result {
+    std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> Builder{nullptr};
+    std::unique_ptr<dg::LLVMDependenceGraph> DG{nullptr};
+
+    Result(std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> &&Builder, std::unique_ptr<dg::LLVMDependenceGraph> &&DG)
+      : Builder(std::move(Builder)), DG(std::move(DG)) {}
+    dg::llvmdg::LLVMDependenceGraphBuilder &getBuilder() { return *Builder.get(); }
+    dg::LLVMDependenceGraph &getDG() { return *DG.get(); }
+    // bool invalidate();
+  };
+  
   Result run(Module &M, ModuleAnalysisManager &MAM);
 };
 

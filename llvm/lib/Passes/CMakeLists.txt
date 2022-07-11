@@ -30,3 +30,8 @@ add_llvm_component_library(LLVMPasses
   # SVF
   Dg
   )
+
+add_definitions(-DENABLE_CFG)
+target_include_directories(LLVMPasses PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
+)

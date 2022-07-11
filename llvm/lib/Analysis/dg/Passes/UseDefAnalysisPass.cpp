@@ -19,21 +19,40 @@ using namespace dg;
 // Provide an explicit template instantiation for the static ID.
 AnalysisKey UseDefAnalysisPass::Key;
 
+void PrintUseDef(raw_ostream &OS, LLVMDependenceGraph &DG) {
+  auto *DDA = DG.getDDA();
+  for (const auto &Idx : DG) {
+    auto *Val = Idx.first;
+    auto *Node = Idx.second;
+    if (DDA->isUse(Val)) {
+      OS << "Use: " << *Val << "\n";
+      for (const auto *Def : DDA->getLLVMDefinitions(Val)) {
+        OS << " - Def: " << *Def << "\n";
+      }
+    } else if (DDA->isDef(Val)) {
+      // llvm::errs() << "Def: " << *Val << "\n";
+    }
+  }
+}
+
 UseDefAnalysisPass::Result
 UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  llvmdg::LLVMDependenceGraphBuilder Builder(&M);
-  auto DG = Builder.build();
+  std::unique_ptr<llvmdg::LLVMDependenceGraphBuilder> Builder = std::make_unique<llvmdg::LLVMDependenceGraphBuilder>(&M);
+  std::unique_ptr<dg::LLVMDependenceGraph> DG = Builder->build();
 
-  return { DG.release() };
+  UseDefAnalysisPass::Result Result { std::move(Builder), std::move(DG) };
+
+  return Result;
 }
 
 PreservedAnalyses
 UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   OS << "UseDefPrinterPass::print " << M.getName() << "\n";
-  auto Result = MAM.getResult<UseDefAnalysisPass>(M);
-  debug::LLVMDG2Dot Dumper(Result.DG);
-  Dumper.dump("dg.dot");
-  // Dumper.dump((M.getName() + ".dot").str().c_str());
+  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
+  auto &Builder = Result.getBuilder();
+  auto &DG = Result.getDG();
+
+  PrintUseDef(OS, DG);
 
   return PreservedAnalyses::all();
 }
