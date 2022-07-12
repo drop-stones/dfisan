@@ -8,15 +8,16 @@
 using namespace llvm;
 using namespace SVF;
 
-static llvm::cl::opt<std::string> OutputFilename(
-  "output-filename",
-  cl::init("-"),
-  llvm::cl::desc("<output filename"),
-  llvm::cl::Optional
-);
+// static llvm::cl::opt<std::string> OutputFilename(
+//   "output-filename",
+//   cl::init("-"),
+//   llvm::cl::desc("<output filename"),
+//   llvm::cl::Optional
+// );
 
 UseDefLogger::UseDefLogger(std::string ModuleName)
-  : DBFilename( (OutputFilename == "-" ? ModuleName : removeSuffix(OutputFilename)) + ".sqlite3") {
+  : DBFilename(ModuleName + ".sqlite3") {
+  // : DBFilename( (OutputFilename == "-" ? ModuleName : removeSuffix(OutputFilename)) + ".sqlite3") {
   if (DebugFlag == false || !isCurrentDebugType(DEBUG_TYPE))
     return;
   LLVM_DEBUG(llvm::errs() << "DBFilename: " << DBFilename << "\n");

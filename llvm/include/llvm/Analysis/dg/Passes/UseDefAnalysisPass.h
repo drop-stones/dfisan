@@ -13,6 +13,7 @@
 #include "llvm/IR/PassManager.h"
 #include "dg/llvm/LLVMDependenceGraph.h"
 #include "dg/llvm/LLVMDependenceGraphBuilder.h"
+#include "dg/Passes/UseDefBuilder.h"
 
 namespace llvm {
 
@@ -22,14 +23,14 @@ class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {
   static AnalysisKey Key; 
 
 public:
-  struct Result {
-    std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> Builder{nullptr};
-    std::unique_ptr<dg::LLVMDependenceGraph> DG{nullptr};
+  class Result {
+    std::unique_ptr<dg::UseDefBuilder> Builder{nullptr};
 
-    Result(std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> &&Builder, std::unique_ptr<dg::LLVMDependenceGraph> &&DG)
-      : Builder(std::move(Builder)), DG(std::move(DG)) {}
-    dg::llvmdg::LLVMDependenceGraphBuilder &getBuilder() { return *Builder.get(); }
-    dg::LLVMDependenceGraph &getDG() { return *DG.get(); }
+  public:
+    Result(std::unique_ptr<dg::UseDefBuilder> &&Builder) : Builder(std::move(Builder)) {}
+
+    dg::UseDefBuilder &getBuilder() { return *Builder.get(); }
+    dg::LLVMDependenceGraph *getDG() { return Builder->getDG(); }
     // bool invalidate();
   };
   

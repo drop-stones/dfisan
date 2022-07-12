@@ -13,17 +13,19 @@
 #include "dg/llvm/LLVMSlicer.h"
 #include "dg/llvm/LLVMDG2Dot.h"
 
+#include "dg/Passes/UseDefBuilder.h"
+
 using namespace llvm;
 using namespace dg;
 
 // Provide an explicit template instantiation for the static ID.
 AnalysisKey UseDefAnalysisPass::Key;
 
-void PrintUseDef(raw_ostream &OS, LLVMDependenceGraph &DG) {
-  auto *DDA = DG.getDDA();
-  for (const auto &Idx : DG) {
-    auto *Val = Idx.first;
-    auto *Node = Idx.second;
+void printUseDef(raw_ostream &OS, LLVMDependenceGraph *DG) {
+  auto *DDA = DG->getDDA();
+  for (const auto &Iter : *DG) {
+    auto *Val = Iter.first;
+    auto *Node = Iter.second;
     if (DDA->isUse(Val)) {
       OS << "Use: " << *Val << "\n";
       for (const auto *Def : DDA->getLLVMDefinitions(Val)) {
@@ -37,10 +39,11 @@ void PrintUseDef(raw_ostream &OS, LLVMDependenceGraph &DG) {
 
 UseDefAnalysisPass::Result
 UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  std::unique_ptr<llvmdg::LLVMDependenceGraphBuilder> Builder = std::make_unique<llvmdg::LLVMDependenceGraphBuilder>(&M);
-  std::unique_ptr<dg::LLVMDependenceGraph> DG = Builder->build();
+  std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
+  Builder->buildDG();
+  Builder->assignDefIDs();
 
-  UseDefAnalysisPass::Result Result { std::move(Builder), std::move(DG) };
+  UseDefAnalysisPass::Result Result { std::move(Builder) };
 
   return Result;
 }
@@ -50,9 +53,12 @@ UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   OS << "UseDefPrinterPass::print " << M.getName() << "\n";
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   auto &Builder = Result.getBuilder();
-  auto &DG = Result.getDG();
 
-  PrintUseDef(OS, DG);
+  Builder.printUseDef(OS);
+  Builder.printDefInfoMap(OS);
+
+  debug::LLVMDG2Dot Dumper(Builder.getDG());
+  Dumper.dump("dg.dot");
 
   return PreservedAnalyses::all();
 }
