@@ -2,56 +2,6 @@
 
 using namespace dg;
 
-/// Iterators
-UseDefBuilder::def_iterator &
-UseDefBuilder::def_iterator::operator++() {
-  do {
-    Iter++;
-    if (Iter == End)
-      break;
-  } while(!Builder.isDef(Iter->first));
-  return *this;
-}
-UseDefBuilder::def_iterator
-UseDefBuilder::def_iterator::operator++(int) {
-  auto Tmp = *this;
-  ++(*this);
-  return Tmp;
-}
-
-UseDefBuilder::use_iterator &
-UseDefBuilder::use_iterator::operator++() {
-  do {
-    Iter++;
-    if (Iter == End)
-      break;
-  } while(!Builder.isUse(Iter->first));
-  return *this;
-}
-UseDefBuilder::use_iterator
-UseDefBuilder::use_iterator::operator++(int) {
-  auto Tmp = *this;
-  ++(*this);
-  return Tmp;
-}
-
-UseDefBuilder::def_iterator
-UseDefBuilder::def_begin() {
-  return def_iterator(*this, DG->begin(), DG->end());
-}
-UseDefBuilder::def_iterator
-UseDefBuilder::def_end() {
-  return def_iterator(*this, DG->end(), DG->end());
-}
-UseDefBuilder::use_iterator
-UseDefBuilder::use_begin() {
-  return use_iterator(*this, DG->begin(), DG->end());
-}
-UseDefBuilder::use_iterator
-UseDefBuilder::use_end() {
-  return use_iterator(*this, DG->end(), DG->end());
-}
-
 bool
 UseDefBuilder::isDef(llvm::Value *Val) {
   return getDDA()->isDef(Val);
