@@ -21,22 +21,6 @@ using namespace dg;
 // Provide an explicit template instantiation for the static ID.
 AnalysisKey UseDefAnalysisPass::Key;
 
-void printUseDef(raw_ostream &OS, LLVMDependenceGraph *DG) {
-  auto *DDA = DG->getDDA();
-  for (const auto &Iter : *DG) {
-    auto *Val = Iter.first;
-    auto *Node = Iter.second;
-    if (DDA->isUse(Val)) {
-      OS << "Use: " << *Val << "\n";
-      for (const auto *Def : DDA->getLLVMDefinitions(Val)) {
-        OS << " - Def: " << *Def << "\n";
-      }
-    } else if (DDA->isDef(Val)) {
-      // llvm::errs() << "Def: " << *Val << "\n";
-    }
-  }
-}
-
 UseDefAnalysisPass::Result
 UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
