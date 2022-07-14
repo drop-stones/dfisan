@@ -47,25 +47,11 @@ private:
 
   void assignDefID(llvm::Value *Def);
 
-  // Iterator
-  class DefIterator : public ConditionalIterator<LLVMDependenceGraph::iterator, UseDefBuilder, llvm::Value *> {
-    using iterator = LLVMDependenceGraph::iterator;
-    using cond = bool (UseDefBuilder::*)(llvm::Value *);
-  public:
-    DefIterator(UseDefBuilder &B, cond Cond, iterator Begin, iterator End) : ConditionalIterator(B, Cond, Begin, End) {}
-  };
-  class UseIterator : public ConditionalIterator<LLVMDependenceGraph::iterator, UseDefBuilder, llvm::Value *> {
-    using iterator = LLVMDependenceGraph::iterator;
-    using cond = bool (UseDefBuilder::*)(llvm::Value *);
-  public:
-    UseIterator(UseDefBuilder &B, cond Cond, iterator Begin, iterator End) : ConditionalIterator(B, Cond, Begin, End) {}
-  };
-
 public:
-  DefIterator def_begin() { return DefIterator(*this, &UseDefBuilder::isDef, DG->begin(), DG->end()); }
-  DefIterator def_end()   { return DefIterator(*this, &UseDefBuilder::isDef, DG->end(),   DG->end()); }
-  UseIterator use_begin() { return UseIterator(*this, &UseDefBuilder::isUse, DG->begin(), DG->end()); }
-  UseIterator use_end()   { return UseIterator(*this, &UseDefBuilder::isUse, DG->end(),   DG->end()); }
+  LLVMNodeIterator def_begin() { return LLVMNodeIterator::begin(*this, &UseDefBuilder::isDef, getConstructedFunctions()); }
+  LLVMNodeIterator def_end()   { return LLVMNodeIterator::end(*this, &UseDefBuilder::isDef, getConstructedFunctions()); }
+  LLVMNodeIterator use_begin() { return LLVMNodeIterator::begin(*this, &UseDefBuilder::isUse, getConstructedFunctions()); }
+  LLVMNodeIterator use_end()   { return LLVMNodeIterator::end(*this, &UseDefBuilder::isUse, getConstructedFunctions()); }
 };
 
 } // namespace dg

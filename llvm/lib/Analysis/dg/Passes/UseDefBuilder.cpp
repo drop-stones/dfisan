@@ -1,4 +1,5 @@
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/llvm/LLVMDependenceGraph.h"
 
 using namespace dg;
 
@@ -14,7 +15,8 @@ UseDefBuilder::isUse(llvm::Value *Val) {
 void
 UseDefBuilder::assignDefIDs() {
   for (auto DI = def_begin(), DE = def_end(); DI != DE; DI++) {
-    auto *Def = DI->first;
+    auto *Def = (*DI)->getValue();
+    llvm::errs() << "Def: " << *Def << "\n";
     assert(isDef(Def));
     assignDefID(Def);
   }
@@ -45,7 +47,7 @@ void
 UseDefBuilder::printUseDef(llvm::raw_ostream &OS) {
   OS << __func__ << "\n";
   for (auto UI = use_begin(), UE = use_end(); UI != UE; UI++) {
-    auto *Use = UI->first;
+    auto *Use = (*UI)->getValue();
     OS << "Use: " << *Use << "\n";
     for (auto *Def : getDDA()->getLLVMDefinitions(Use)) {
       OS << " - DefID[" << getDefID(Def) << "]: " << *Def << "\n";
