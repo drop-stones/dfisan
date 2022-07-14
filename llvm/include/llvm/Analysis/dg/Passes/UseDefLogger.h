@@ -13,7 +13,7 @@ public:
   UseDefLogger(std::string ModuleName);
   ~UseDefLogger();
 
-  void logDefInfo(UseDefBuilder &Builder);
+  void logDefInfo(UseDefBuilder *Builder);
 
 private:
   const std::string DBTableName = "DefInfoTable";

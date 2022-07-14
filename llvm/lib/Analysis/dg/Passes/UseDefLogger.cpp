@@ -43,18 +43,18 @@ UseDefLogger::~UseDefLogger() {
 }
 
 void
-UseDefLogger::logDefInfo(UseDefBuilder &Builder) {
+UseDefLogger::logDefInfo(UseDefBuilder *Builder) {
   if (!isEnabled())
     return;
   
   char *ErrMsg;
   sqlite3_exec(DB, ("DROP TABLE IF EXISTS " + DBTableName).c_str(), nullptr, nullptr, &ErrMsg);
   sqlite3_exec(DB, ("CREATE TABLE " + DBTableName + " (DefID INTEGER , line INTEGER, column INTEGER, filename TEXT, UNIQUE(DefID, line, column, filename))").c_str(), nullptr, nullptr, &ErrMsg);
-  for (const auto &Iter : *Builder.getDG()) {
-    if (Builder.isDef(Iter.first))
+  for (const auto &Iter : *Builder->getDG()) {
+    if (Builder->isDef(Iter.first))
       continue;
     auto *Def = Iter.first;
-    DefID ID = Builder.getDefID(Def);
+    DefID ID = Builder->getDefID(Def);
 
     unsigned Line = 0, Column = 0;
     StringRef Filename;

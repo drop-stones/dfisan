@@ -40,6 +40,7 @@ public:
 
   void printUseDef(llvm::raw_ostream &OS);
   void printDefInfoMap(llvm::raw_ostream &OS);
+  void dump(llvm::raw_ostream &OS);
 
 private:
   std::unique_ptr<LLVMDependenceGraph> DG{nullptr};

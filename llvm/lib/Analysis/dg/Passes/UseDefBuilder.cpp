@@ -16,7 +16,6 @@ void
 UseDefBuilder::assignDefIDs() {
   for (auto DI = def_begin(), DE = def_end(); DI != DE; DI++) {
     auto *Def = (*DI)->getValue();
-    llvm::errs() << "Def: " << *Def << "\n";
     assert(isDef(Def));
     assignDefID(Def);
   }
@@ -63,5 +62,47 @@ UseDefBuilder::printDefInfoMap(llvm::raw_ostream &OS) {
     auto &DefInfo = Iter.second;
 
     OS << "DefID[" << DefInfo.ID << "]: " << *Val << "\n";
+  }
+}
+
+void
+UseDefBuilder::dump(llvm::raw_ostream &OS) {
+  OS << __func__ << "\n";
+  auto *DDA = getDDA();
+  for (auto DI = def_begin(); DI != def_end(); DI++) {
+    LLVMNode *DefNode = *DI;
+    llvm::Value *Def = DefNode->getValue();
+    dda::RWNode *WriteNode = DDA->getNode(Def);
+    OS << "Def: " << *Def << "\n";
+    OS << " - Define:\n";
+    for (auto &Define : WriteNode->getDefines()) {
+      OS << "\t- [off: " << Define.offset.offset << ", len: " << Define.len.offset << "]: " << *DDA->getValue(Define.target) << "\n";
+    }
+    OS << " - Overwrite:\n";
+    for (auto &Overwrite : WriteNode->getOverwrites()) {
+      OS << "\t- [off: " << Overwrite.offset.offset << ", len: " << Overwrite.len.offset << "]: " << *DDA->getValue(Overwrite.target) << "\n";
+    }
+    OS << " - Use:\n";
+    for (auto &Use : WriteNode->getUses()) {
+      OS << "\t- [off: " << Use.offset.offset << ", len: " << Use.len.offset << "]: " << *DDA->getValue(Use.target) << "\n";
+    }
+  }
+  for (auto UI = use_begin(); UI != use_end(); UI++) {
+    LLVMNode *UseNode = *UI;
+    llvm::Value *Use = UseNode->getValue();
+    dda::RWNode *ReadNode = DDA->getNode(Use);
+    OS << "Use: " << *Use << "\n";
+    OS << " - Define:\n";
+    for (auto &Define : ReadNode->getDefines()) {
+      OS << "\t- [off: " << Define.offset.offset << ", len: " << Define.len.offset << "]: " << *DDA->getValue(Define.target) << "\n";
+    }
+    OS << " - Overwrite:\n";
+    for (auto &Overwrite : ReadNode->getOverwrites()) {
+      OS << "\t- [off: " << Overwrite.offset.offset << ", len: " << Overwrite.len.offset << "]: " << *DDA->getValue(Overwrite.target) << "\n";
+    }
+    OS << " - Use:\n";
+    for (auto &Use : ReadNode->getUses()) {
+      OS << "\t- [off: " << Use.offset.offset << ", len: " << Use.len.offset << "]: " << *DDA->getValue(Use.target) << "\n";
+    }
   }
 }

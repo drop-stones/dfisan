@@ -36,13 +36,15 @@ PreservedAnalyses
 UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   OS << "UseDefPrinterPass::print " << M.getName() << "\n";
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  auto &Builder = Result.getBuilder();
+  auto *Builder = Result.getBuilder();
 
-  Builder.printUseDef(OS);
-  Builder.printDefInfoMap(OS);
+  Builder->printUseDef(OS);
+  Builder->printDefInfoMap(OS);
 
-  debug::LLVMDG2Dot Dumper(Builder.getDG());
+  debug::LLVMDG2Dot Dumper(Builder->getDG());
   Dumper.dump("dg.dot");
+
+  Builder->dump(OS);
 
   return PreservedAnalyses::all();
 }

@@ -29,7 +29,7 @@ public:
   public:
     Result(std::unique_ptr<dg::UseDefBuilder> &&Builder) : Builder(std::move(Builder)) {}
 
-    dg::UseDefBuilder &getBuilder() { return *Builder.get(); }
+    dg::UseDefBuilder *getBuilder() { return Builder.get(); }
     dg::LLVMDependenceGraph *getDG() { return Builder->getDG(); }
     // bool invalidate();
   };
