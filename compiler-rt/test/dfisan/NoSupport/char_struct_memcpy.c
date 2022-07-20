@@ -1,9 +1,10 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: %run %t
+// RUN: !%run %t
 //
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can ignore padding array in struct.
+// TODO: Support memcpy().
 
 struct S {
   char c0;

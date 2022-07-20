@@ -1,9 +1,10 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: %run %t
+// RUN: !%run %t
 //
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can support memset().
+// TODO: Support memset().
 
 #include <stdlib.h>
 

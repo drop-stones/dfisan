@@ -1,5 +1,5 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: %run %t
+// RUN: !%run %t
 //
 // REQUIRES: x86_64-target-arch
 
@@ -25,14 +25,14 @@ void copyS(struct S *dst, struct S *src) {
 
 int main(void) {
   struct S sfrom = { 'a', 100, 200, 300 };
-  struct S sto = {'b', 400, 500, 600};  // Error occured!!
-/*
-  //struct S sto;
-  struct S sto = {'b', 400, 500, 600};  // Error occured!!
+  // struct S sto = {'b', 400, 500, 600};  // Error occured!!
+///*
+  struct S sto;
+  // struct S sto = {'b', 400, 500, 600};  // Error occured!!
   copy(&sto, &sfrom, sizeof(struct S));
-*/
+//*/
   // No error
-  copyS(&sto, &sfrom);
+  //copyS(&sto, &sfrom);
   //memcpy(&sto, &sfrom, sizeof(struct S));
 
   sfrom.c;

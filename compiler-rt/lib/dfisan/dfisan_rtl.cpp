@@ -133,9 +133,9 @@ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids_8 (uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
   va_start(IDList, Argc);
-  for (u8 i = 0; i < 2; i++) {
+  for (uptr i = 0; i < 2; i++) {
     va_start(IDList, Argc);
-    if (checkRDT(LoadAddr + 4, Argc, IDList) == false) {
+    if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
       REPORT_ERROR(LoadAddr, Argc, IDList);
     }
   }
@@ -143,7 +143,7 @@ void __dfisan_check_ids_8 (uptr LoadAddr, u16 Argc, ...) {
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_check_ids_16(uptr LoadAddr, u16 Argc, ...) {
   va_list IDList;
-  for (u8 i = 0; i < 4; i++) {
+  for (uptr i = 0; i < 4; i++) {
     va_start(IDList, Argc);
     if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
       REPORT_ERROR(LoadAddr, Argc, IDList);

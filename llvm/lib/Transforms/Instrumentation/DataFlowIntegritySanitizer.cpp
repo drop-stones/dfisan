@@ -138,7 +138,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
     if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
       auto *StoreTarget = Store->getPointerOperand();
-      unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType());
+      unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
       createDfiStoreFn(UseDef->getDefID(Store), StoreTarget, Size, Store->getNextNode());
     } else if (llvm::isa<MemCpyInst>(DefInst) || llvm::isa<MemSetInst>(DefInst)) {
       // createDfiStoreFn()
@@ -155,7 +155,7 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, SmallVector<Val
   if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
     if (LoadInst *Load = dyn_cast<LoadInst>(UseInst)) {
       auto *LoadTarget = Load->getPointerOperand();
-      unsigned Size = M->getDataLayout().getTypeStoreSize(LoadTarget->getType());
+      unsigned Size = M->getDataLayout().getTypeStoreSize(LoadTarget->getType()->getNonOpaquePointerElementType());
       createDfiLoadFn(LoadTarget, Size, DefIDs, Load);
     }
   }
