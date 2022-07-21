@@ -35,6 +35,10 @@ public:
     return DG.get();
   }
 
+  const std::vector<dda::RWNode *> &getGlobals() {
+    return getDDA()->getGlobals();
+  }
+
   bool isDef(llvm::Value *Def);
   bool isUse(llvm::Value *Use);
 
@@ -56,6 +60,8 @@ public:
   LLVMNodeIterator def_end()   { return LLVMNodeIterator::end(*this, &UseDefBuilder::isDef, getConstructedFunctions()); }
   LLVMNodeIterator use_begin() { return LLVMNodeIterator::begin(*this, &UseDefBuilder::isUse, getConstructedFunctions()); }
   LLVMNodeIterator use_end()   { return LLVMNodeIterator::end(*this, &UseDefBuilder::isUse, getConstructedFunctions()); }
+  GlobalInitIterator glob_begin() { return GlobalInitIterator::begin(getGlobals()); }
+  GlobalInitIterator glob_end()   { return GlobalInitIterator::end(getGlobals()); }
 };
 
 } // namespace dg

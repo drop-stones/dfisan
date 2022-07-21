@@ -125,5 +125,10 @@ LLVMDataDependenceAnalysis::getLLVMDefinitions(llvm::Value *use) {
     return defs;
 }
 
+const std::vector<RWNode *> &
+LLVMDataDependenceAnalysis::getGlobals() {
+    return builder->getGlobals();
+}
+
 } // namespace dda
 } // namespace dg

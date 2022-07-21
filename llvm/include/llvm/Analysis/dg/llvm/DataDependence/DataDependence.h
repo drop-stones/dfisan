@@ -67,12 +67,13 @@ class LLVMDataDependenceAnalysis {
     const RWNode *getNode(const llvm::Value *val) const;
     const llvm::Value *getValue(const RWNode *node) const;
 
-    bool isUse(const llvm::Value *val) const {
+    virtual const std::vector<RWNode *> &getGlobals();
+    virtual bool isUse(const llvm::Value *val) const {
         const auto *nd = getNode(val);
         return nd && nd->isUse();
     }
 
-    bool isDef(const llvm::Value *val) const {
+    virtual bool isDef(const llvm::Value *val) const {
         const auto *nd = getNode(val);
         return nd && nd->isDef();
     }

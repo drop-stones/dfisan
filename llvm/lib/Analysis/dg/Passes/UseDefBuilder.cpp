@@ -14,6 +14,14 @@ UseDefBuilder::isUse(llvm::Value *Val) {
 
 void
 UseDefBuilder::assignDefIDs() {
+  // Assign DefID to global initializations.
+  for (auto GI = glob_begin(), GE = glob_end(); GI != GE; GI++) {
+    auto *GlobInit = (llvm::Value *)getDDA()->getValue(*GI);
+    assert(isDef(GlobInit));
+    assignDefID(GlobInit);
+  }
+
+  // Assign DefID to store instructions.
   for (auto DI = def_begin(), DE = def_end(); DI != DE; DI++) {
     auto *Def = (*DI)->getValue();
     assert(isDef(Def));
@@ -69,6 +77,10 @@ void
 UseDefBuilder::dump(llvm::raw_ostream &OS) {
   OS << __func__ << "\n";
   auto *DDA = getDDA();
+  for (auto GI = glob_begin(); GI != glob_end(); GI++) {
+    const llvm::Value *GlobalInit = DDA->getValue(*GI);
+    OS << "GlobalInit: " << *GlobalInit << "\n";
+  }
   for (auto DI = def_begin(); DI != def_end(); DI++) {
     LLVMNode *DefNode = *DI;
     llvm::Value *Def = DefNode->getValue();

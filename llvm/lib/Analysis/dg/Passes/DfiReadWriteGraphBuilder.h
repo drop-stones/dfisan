@@ -11,6 +11,9 @@ class DfiReadWriteGraphBuilder : public LLVMReadWriteGraphBuilder {
 private:
   NodesSeq<RWNode> createNode(const llvm::Value *) override;
 
+protected:
+  void buildSubgraph(const llvm::Function &F) override;
+
 public:
   DfiReadWriteGraphBuilder(const llvm::Module *M, dg::LLVMPointerAnalysis *PTA,
                            const LLVMDataDependenceAnalysisOptions &Opts)

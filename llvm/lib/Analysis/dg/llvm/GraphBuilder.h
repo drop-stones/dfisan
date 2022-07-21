@@ -133,7 +133,7 @@ class GraphBuilder {
         return bblock;
     }
 
-    void buildSubgraph(const llvm::Function &F) {
+    virtual void buildSubgraph(const llvm::Function &F) {
         using namespace llvm;
 
         DBG_SECTION_BEGIN(dg,

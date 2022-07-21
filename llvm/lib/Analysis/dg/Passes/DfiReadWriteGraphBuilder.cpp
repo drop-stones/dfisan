@@ -56,9 +56,11 @@ NodesSeq<RWNode> DfiReadWriteGraphBuilder::createNode(const llvm::Value *V) {
   using namespace llvm;
   if (isa<GlobalVariable>(V)) {
       // global variables are like allocations
-      // TODO: Add GlobalVariable Store Node
-      llvm::errs() << "GlobalVariable: " << *V << "\n";
-      return {&create(RWNodeType::GLOBAL)};
+      // and store initial values.
+      auto &GlobalNode = create(RWNodeType::GLOBAL);
+      DefSite Site{&GlobalNode};
+      GlobalNode.addDef(Site);
+      return {&GlobalNode};
   }
 
   const auto *I = dyn_cast<Instruction>(V);
@@ -91,6 +93,20 @@ NodesSeq<RWNode> DfiReadWriteGraphBuilder::createNode(const llvm::Value *V) {
   }
 
   return {};
+}
+
+void DfiReadWriteGraphBuilder::buildSubgraph(const llvm::Function &F) {
+    LLVMReadWriteGraphBuilder::buildSubgraph(F);
+
+    // Insert global variable initializations into entry of main.
+    if (F.getName() == "main") {
+        auto *Main = getSubgraph(&F);
+        auto *MainEntryBlock = Main->getBBlocks().begin()->get();
+        for (auto *GlobalNode : getGlobals()) {
+            if (GlobalNode->isDef())
+                MainEntryBlock->prepend(GlobalNode);
+        }
+    }
 }
 
 } // namespace dda

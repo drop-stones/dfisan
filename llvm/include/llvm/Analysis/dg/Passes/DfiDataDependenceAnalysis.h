@@ -16,6 +16,12 @@ public:
   DfiDataDependenceAnalysis(const llvm::Module *M, 
                             dg::LLVMPointerAnalysis *PTA,
                             LLVMDataDependenceAnalysisOptions Opts = {});
+  
+  // We can override isDef conditions.
+  bool isDef(const llvm::Value *Val) const override {
+    const auto *Node = getNode(Val);
+    return Node && Node->isDef();
+  }
 };
 
 } // namespace dda

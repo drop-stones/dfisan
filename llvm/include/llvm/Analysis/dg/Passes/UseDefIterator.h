@@ -3,6 +3,7 @@
 
 #include "llvm/IR/Value.h"
 #include "dg/llvm/LLVMDependenceGraph.h"
+#include "dg/ReadWriteGraph/RWNode.h"
 
 namespace dg {
 class UseDefBuilder;
@@ -109,6 +110,48 @@ private:
   LLVMDependenceGraphMapTy::const_iterator FuncIter;
   BBlocksMapTy::iterator BBIter;
   LLVMNodeListTy::iterator NodeIter;
+};
+
+class GlobalInitIterator {
+  using GlobalVecTy = const std::vector<dg::dda::RWNode *>;
+  using Iterator = GlobalVecTy::const_iterator;
+public:
+  static GlobalInitIterator begin(GlobalVecTy &GlobalVec) {
+    return GlobalInitIterator(GlobalVec, GlobalVec.begin());
+  }
+  static GlobalInitIterator end(GlobalVecTy &GlobalVec) {
+    return GlobalInitIterator(GlobalVec, GlobalVec.end());
+  }
+
+  GlobalInitIterator &operator++() {
+    do {
+      Iter++;
+    } while(!isEnd() && !isGlobalInit());
+    return *this;
+  }
+  GlobalInitIterator operator++(int) {
+    auto Ret = *this;
+    ++(*this);
+    return Ret;
+  }
+
+  Iterator::reference operator*() const { return *Iter; }
+  Iterator::pointer operator->() const { return &(*Iter); }
+  friend bool operator==(const GlobalInitIterator &Lhs, const GlobalInitIterator &Rhs) { return Lhs.Iter == Rhs.Iter; }
+  friend bool operator!=(const GlobalInitIterator &Lhs, const GlobalInitIterator &Rhs) { return !(Lhs == Rhs); }
+
+private:
+  GlobalInitIterator(GlobalVecTy &GlobalVec, Iterator Iter) : GlobalVec(GlobalVec), Iter(Iter) {}
+
+  bool isEnd() const {
+    return Iter == GlobalVec.end();
+  }
+  bool isGlobalInit() const {
+    return (*Iter)->isGlobal() && (*Iter)->isDef();
+  }
+
+  GlobalVecTy &GlobalVec;
+  Iterator Iter;
 };
 
 #endif
