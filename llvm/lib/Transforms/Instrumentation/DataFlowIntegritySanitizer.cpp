@@ -112,25 +112,10 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   appendToGlobalCtors(*M, Ctor, 1);
 
   // Insert DfiStoreFn for GlobalInit
-/*
-  for (const auto &GlobalInit : UseDef->getGlobalInitList()) {
-    const Value *Val = GlobalInit->getValue();
-    assert(Val != nullptr);
-    LLVM_DEBUG(dbgs() << "GlobalInit: " << *Val << "\n");
-    const auto DefVars = GlobalInit->getDefSVFVars();
-    for (const auto DefVarID : DefVars) {
-      if (UseDef->containsOffsetVector(GlobalInit)) {   // Global struct initialization
-        createDfiStoreFnForAggregateData(M, Builder, GlobalInit);
-      } else {  // Global primitive data initialization
-        const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
-        Value *StorePointer = (Value *)DstNode->getValue();
-        if (StorePointer == nullptr)  // True if string literal or struct init values
-          continue;
-        createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
-      }
-    }
+  for (auto GI = UseDef->glob_begin(); GI != UseDef->glob_end(); GI++) {
+    auto *GlobVal = (llvm::Value *)UseDef->getDDA()->getValue(*GI);
+    insertDfiStoreFn(GlobVal);
   }
-*/
 }
 
 /// Insert a DEF function after each store statement using pointer.
@@ -145,6 +130,9 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
     } else {
       // assert(false && "No support Def");
     }
+  } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
+    unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
+    createDfiStoreFn(UseDef->getDefID(GlobVar), GlobVar, Size, Builder->GetInsertBlock()->getTerminator());
   } else {
     // assert(false && "No support Def");
   }
