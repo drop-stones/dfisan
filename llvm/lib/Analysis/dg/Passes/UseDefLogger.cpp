@@ -17,13 +17,29 @@ static cl::opt<std::string> OutputFilename(
 namespace dg {
 namespace debug {
 
+std::string
+UseDefLogger::getModuleName(llvm::Module &M) {
+  StringRef ModuleID = M.getModuleIdentifier();
+  std::string ModuleName;
+  if (ModuleID.endswith(".ll")) {
+    ModuleName = ModuleID.drop_back(3).str();
+  } else if (ModuleID.endswith(".bc")) {
+    ModuleName = ModuleID.drop_back(3).str();
+  } else if (ModuleID.endswith(".c")) {
+    ModuleName = ModuleID.drop_back(2).str();
+  } else {
+    ModuleName = ModuleID.str();
+  }
+  return ModuleName;
+}
+
 bool
 UseDefLogger::isEnabled() {
   return DebugFlag == true && isCurrentDebugType(DEBUG_TYPE);
 }
 
-UseDefLogger::UseDefLogger(std::string ModuleName)
-  : DBFilename( (OutputFilename == "-" ? ModuleName : OutputFilename) + ".sqlite3") {
+UseDefLogger::UseDefLogger(llvm::Module &M)
+  : DBFilename( (OutputFilename == "-" ? getModuleName(M) : OutputFilename) + ".sqlite3") {
   if (!isEnabled())
     return;
   LLVM_DEBUG(llvm::errs() << "DBFilename: " << DBFilename << "\n");
@@ -50,15 +66,23 @@ UseDefLogger::logDefInfo(UseDefBuilder *Builder) {
   char *ErrMsg;
   sqlite3_exec(DB, ("DROP TABLE IF EXISTS " + DBTableName).c_str(), nullptr, nullptr, &ErrMsg);
   sqlite3_exec(DB, ("CREATE TABLE " + DBTableName + " (DefID INTEGER , line INTEGER, column INTEGER, filename TEXT, UNIQUE(DefID, line, column, filename))").c_str(), nullptr, nullptr, &ErrMsg);
-  for (const auto &Iter : *Builder->getDG()) {
-    if (Builder->isDef(Iter.first))
-      continue;
-    auto *Def = Iter.first;
+
+  // Log global variable initializations.
+  for (auto GI = Builder->glob_begin(); GI != Builder->glob_end(); GI++) {
+    auto *GlobVal = (llvm::Value *)Builder->getDDA()->getValue(*GI);
+    DefID ID = Builder->getDefID(GlobVal);
+    std::string Valname = GlobVal->getNameOrAsOperand();
+    StringRef Filename = Valname;
+    logSingleDefInfo(ID, Filename);
+  }
+
+  // Log store instructions.
+  for (auto DI = Builder->def_begin(); DI != Builder->def_end(); DI++) {
+    auto *Def = (*DI)->getValue();
     DefID ID = Builder->getDefID(Def);
 
     unsigned Line = 0, Column = 0;
     StringRef Filename;
-    std::string Valname;
     if (auto *Inst = llvm::dyn_cast<llvm::Instruction>(Def)) {
       auto &DebugLoc = Inst->getDebugLoc();
       if (DebugLoc) {
@@ -67,27 +91,28 @@ UseDefLogger::logDefInfo(UseDefBuilder *Builder) {
         Filename = DebugLoc->getScope()->getFilename();
       }
     } else {
-      if (Def != nullptr) {
-        Valname = Def->getNameOrAsOperand();
-        Filename = Valname;
-      }
+      assert(false && "No support value");
     }
-
-    // Prepare sqlite3 statement
-    std::string StmtString;
-    raw_string_ostream StmtStream{StmtString};
-
-    sqlite3_stmt *SqliteStmt;
-    StmtStream << "INSERT OR IGNORE INTO " << DBTableName << " VALUES (?, ?, ?, ?)";
-    sqlite3_prepare(DB, StmtString.c_str(), StmtString.length(), &SqliteStmt, nullptr);
-    sqlite3_bind_int(SqliteStmt, 1, ID);
-    sqlite3_bind_int(SqliteStmt, 2, Line);
-    sqlite3_bind_int(SqliteStmt, 3, Column);
-    sqlite3_bind_text64(SqliteStmt, 4, Filename.str().c_str(), Filename.size() + 1, SQLITE_TRANSIENT, SQLITE_UTF8);
-    sqlite3_step(SqliteStmt);
-    sqlite3_reset(SqliteStmt);
-    sqlite3_finalize(SqliteStmt);
+    logSingleDefInfo(ID, Filename, Line, Column);
   }
+}
+
+void
+UseDefLogger::logSingleDefInfo(DefID ID, llvm::StringRef &Filename, unsigned Line, unsigned Column) {
+  // Prepare sqlite3 statement
+  std::string StmtString;
+  raw_string_ostream StmtStream{StmtString};
+
+  sqlite3_stmt *SqliteStmt;
+  StmtStream << "INSERT OR IGNORE INTO " << DBTableName << " VALUES (?, ?, ?, ?)";
+  sqlite3_prepare(DB, StmtString.c_str(), StmtString.length(), &SqliteStmt, nullptr);
+  sqlite3_bind_int(SqliteStmt, 1, ID);
+  sqlite3_bind_int(SqliteStmt, 2, Line);
+  sqlite3_bind_int(SqliteStmt, 3, Column);
+  sqlite3_bind_text64(SqliteStmt, 4, Filename.str().c_str(), Filename.size() + 1, SQLITE_TRANSIENT, SQLITE_UTF8);
+  sqlite3_step(SqliteStmt);
+  sqlite3_reset(SqliteStmt);
+  sqlite3_finalize(SqliteStmt);
 }
 
 } // namespace debug

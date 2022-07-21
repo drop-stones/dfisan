@@ -20,7 +20,7 @@ namespace llvm {
 class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {
   friend AnalysisInfoMixin<UseDefAnalysisPass>;
 
-  static AnalysisKey Key; 
+  static AnalysisKey Key;
 
 public:
   class Result {

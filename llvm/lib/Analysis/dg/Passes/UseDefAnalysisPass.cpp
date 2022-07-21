@@ -14,6 +14,7 @@
 #include "dg/llvm/LLVMDG2Dot.h"
 
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/Passes/UseDefLogger.h"
 
 using namespace llvm;
 using namespace dg;
@@ -26,6 +27,9 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
   Builder->buildDG();
   Builder->assignDefIDs();
+
+  debug::UseDefLogger Logger{M};
+  Logger.logDefInfo(Builder.get());
 
   UseDefAnalysisPass::Result Result { std::move(Builder) };
 

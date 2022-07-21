@@ -10,7 +10,7 @@ namespace debug {
 
 class UseDefLogger {
 public:
-  UseDefLogger(std::string ModuleName);
+  UseDefLogger(llvm::Module &M);
   ~UseDefLogger();
 
   void logDefInfo(UseDefBuilder *Builder);
@@ -20,7 +20,9 @@ private:
   const std::string DBFilename;
   sqlite3 *DB;
 
+  std::string getModuleName(llvm::Module &M);
   inline bool isEnabled();
+  void logSingleDefInfo(DefID ID, llvm::StringRef &Filename, unsigned Line = 0, unsigned Column = 0); 
 };
 
 } // namespace debug
