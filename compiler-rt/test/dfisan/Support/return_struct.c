@@ -1,10 +1,9 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: !%run %t
+// RUN: %run %t
 //
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can manage a return value of struct.
-// TODO: Support memcpy().
 
 struct move_s {
   int from;

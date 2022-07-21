@@ -1,5 +1,5 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: ! %run %t
+// RUN: %run %t
 //
 // REQUIRES: x86_64-target-arch
 
@@ -12,8 +12,8 @@ struct Vec2D {
 
 // struct Vec2D -> i64
 void readVec2D(struct Vec2D v) {
-  v.x;  // Error
-  v.y;
+  v.x;  // OK
+  v.y;  // OK
 }
 
 int main(void) {

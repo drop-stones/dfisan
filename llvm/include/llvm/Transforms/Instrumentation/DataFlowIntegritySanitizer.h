@@ -19,7 +19,7 @@ private:
   FunctionCallee DfiInitFn, DfiStoreNFn, DfiLoadNFn,
                  DfiStore1Fn, DfiStore2Fn, DfiStore4Fn, DfiStore8Fn, DfiStore16Fn,
                  DfiLoad1Fn, DfiLoad2Fn, DfiLoad4Fn, DfiLoad8Fn, DfiLoad16Fn;
-  Type *VoidTy, *ArgTy, *PtrTy, *Int8Ty, *Int32Ty;
+  Type *VoidTy, *ArgTy, *PtrTy, *Int8Ty, *Int32Ty, *Int64Ty;
   dg::UseDefBuilder *UseDef;
   Module *M;
   std::unique_ptr<IRBuilder<>> Builder;
@@ -37,8 +37,8 @@ private:
   void insertDfiLoadFn(Value *Use, SmallVector<Value *, 8> &DefIDs);
 
   /// Create a function call to DfiStoreFn from llvm::Value.
-  void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size);
-  void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, Instruction *InsertPoint);
+  void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, Instruction *InsertPoint = nullptr);
+  void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, Value *SizeVal, Instruction *InsertPoint = nullptr);
 
   /// Create a function call to DfiLoadFn.
   void createDfiLoadFn(Value *LoadTarget, unsigned Size, SmallVector<Value *, 8> &DefIDs);

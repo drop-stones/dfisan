@@ -65,10 +65,11 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   ArgTy  = Type::getInt16Ty(Ctx);
   Int8Ty = Type::getInt8Ty(Ctx);
   Int32Ty = Type::getInt32Ty(Ctx);
+  Int64Ty = Type::getInt64Ty(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
-  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int32Ty, ArgTy};
+  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int64Ty, ArgTy};
   FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
@@ -125,9 +126,13 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
       auto *StoreTarget = Store->getPointerOperand();
       unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
       createDfiStoreFn(UseDef->getDefID(Store), StoreTarget, Size, Store->getNextNode());
-    } else if (llvm::isa<MemCpyInst>(DefInst) || llvm::isa<MemSetInst>(DefInst)) {
-      // createDfiStoreFn()
-    } else {
+    } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>(DefInst)) {
+      auto *StoreTarget = Memcpy->getOperand(0);
+      auto *SizeVal = Memcpy->getOperand(2);
+      llvm::errs() << "StoreTarget: " << *StoreTarget << "\n";
+      llvm::errs() << "SizeVal: " << *SizeVal <<"\n";
+      createDfiStoreFn(UseDef->getDefID(Memcpy), StoreTarget, SizeVal, Memcpy->getNextNode());
+    } else { // Memset
       // assert(false && "No support Def");
     }
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
@@ -150,8 +155,15 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, SmallVector<Val
 }
 
 /// Create a function call to DfiStoreFn.
-void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size) {
-  Value *SizeVal = ConstantInt::get(Int32Ty, Size, false);
+void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, Instruction *InsertPoint) {
+  Value *SizeVal = ConstantInt::get(Int64Ty, Size, false);
+  createDfiStoreFn(DefID, StoreTarget, SizeVal, InsertPoint);
+}
+
+void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, Value *SizeVal, Instruction *InsertPoint) {
+  if (InsertPoint != nullptr)
+    Builder->SetInsertPoint(InsertPoint);
+  unsigned Size = llvm::isa<ConstantInt>(SizeVal) ? llvm::cast<ConstantInt>(SizeVal)->getZExtValue() : 0;
   Value *StoreAddr = Builder->CreatePtrToInt(StoreTarget, PtrTy);
   Value *DefIDVal = ConstantInt::get(ArgTy, DefID);
 
@@ -163,11 +175,6 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
   case 16:  Builder->CreateCall(DfiStore16Fn,{StoreAddr, DefIDVal});  break;
   default:  Builder->CreateCall(DfiStoreNFn, {StoreAddr, SizeVal, DefIDVal});  break;
   }
-}
-
-void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, Instruction *InsertPoint) {
-  Builder->SetInsertPoint(InsertPoint);
-  createDfiStoreFn(DefID, StoreTarget, Size);
 }
 
 

@@ -56,7 +56,7 @@ bool dfisan_inited = false;
 bool dfisan_init_is_running = false;
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_n(uptr StoreAddr, u32 Size, u16 DefID) {
+void __dfisan_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
   setRDT(StoreAddr, DefID, ceil((double)Size / (double)4));
 }
 
@@ -89,7 +89,7 @@ void __dfisan_store_id_16(uptr StoreAddr, u16 DefID) {
 
 // TODO: va_arg cannot use `u16` (these values are converted to i32)
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_n(uptr LoadAddr, u32 Size, u16 Argc, ...) {
+void __dfisan_check_ids_n(uptr LoadAddr, u64 Size, u16 Argc, ...) {
   va_list IDList;
   for (u8 i = 0; i < (u8)ceil((double)Size / (double)4); i++) {
     va_start(IDList, Argc);

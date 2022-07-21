@@ -1,10 +1,9 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: !%run %t
+// RUN: %run %t
 //
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can support memcpy() by pointers.
-// TODO: Use-Def Analysis supports memcpy() by callee.
 
 #include <string.h>
 
