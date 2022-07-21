@@ -129,10 +129,12 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
     } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>(DefInst)) {
       auto *StoreTarget = Memcpy->getOperand(0);
       auto *SizeVal = Memcpy->getOperand(2);
-      llvm::errs() << "StoreTarget: " << *StoreTarget << "\n";
-      llvm::errs() << "SizeVal: " << *SizeVal <<"\n";
       createDfiStoreFn(UseDef->getDefID(Memcpy), StoreTarget, SizeVal, Memcpy->getNextNode());
-    } else { // Memset
+    } else if (MemSetInst *Memset = dyn_cast<MemSetInst>(DefInst)) {
+      auto *StoreTarget = Memset->getOperand(0);
+      auto *SizeVal = Memset->getOperand(2);
+      createDfiStoreFn(UseDef->getDefID(Memset), StoreTarget, SizeVal, Memset->getNextNode());
+    } else {
       // assert(false && "No support Def");
     }
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
