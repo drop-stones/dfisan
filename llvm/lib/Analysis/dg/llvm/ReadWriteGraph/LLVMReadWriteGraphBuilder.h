@@ -24,8 +24,12 @@
 namespace dg {
 namespace dda {
 
+class DfiReadWriteGraphBuilder;
+
 class LLVMReadWriteGraphBuilder
         : public GraphBuilder<RWNode, RWBBlock, RWSubgraph> {
+    friend DfiReadWriteGraphBuilder;
+
     const LLVMDataDependenceAnalysisOptions &_options;
     // points-to information
     dg::LLVMPointerAnalysis *PTA;

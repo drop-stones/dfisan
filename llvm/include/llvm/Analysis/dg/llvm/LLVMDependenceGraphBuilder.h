@@ -33,6 +33,8 @@ class Function;
 namespace dg {
 namespace llvmdg {
 
+class DfiDependenceGraphBuilder;
+
 struct LLVMDependenceGraphOptions {
     LLVMPointerAnalysisOptions PTAOptions{};
     LLVMDataDependenceAnalysisOptions DDAOptions{};
@@ -51,6 +53,8 @@ struct LLVMDependenceGraphOptions {
 };
 
 class LLVMDependenceGraphBuilder {
+    friend DfiDependenceGraphBuilder;
+
     llvm::Module *_M;
     const LLVMDependenceGraphOptions _options;
     std::unique_ptr<LLVMPointerAnalysis> _PTA{};

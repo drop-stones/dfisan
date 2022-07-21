@@ -19,8 +19,11 @@ namespace dg {
 namespace dda {
 
 class LLVMReadWriteGraphBuilder;
+class DfiDataDependenceAnalysis;
 
 class LLVMDataDependenceAnalysis {
+    friend DfiDataDependenceAnalysis;
+
     const llvm::Module *m;
     dg::LLVMPointerAnalysis *pta;
     const LLVMDataDependenceAnalysisOptions _options;
