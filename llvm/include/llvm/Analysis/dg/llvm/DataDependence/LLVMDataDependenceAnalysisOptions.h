@@ -6,6 +6,8 @@
 
 namespace dg {
 
+const unsigned RETURN = Offset::getUnknown().offset;
+
 struct LLVMDataDependenceAnalysisOptions : public LLVMAnalysisOptions,
                                            DataDependenceAnalysisOptions {
     bool threads{false};
@@ -46,6 +48,11 @@ struct LLVMDataDependenceAnalysisOptions : public LLVMAnalysisOptions,
         functionModelAddUse("strcpy", {1, Offset(0), Offset::getUnknown()});
         functionModelAddDef("strncpy", {0, Offset(0), 2});
         functionModelAddUse("strncpy", {1, Offset(0), 2});
+
+        ///
+        // Alloc functions
+        ///
+        functionModelAddDef("calloc", {RETURN, Offset(0), Offset::getUnknown()});
     };
 };
 

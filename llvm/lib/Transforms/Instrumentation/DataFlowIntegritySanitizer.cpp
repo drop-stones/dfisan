@@ -134,13 +134,25 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
       auto *StoreTarget = Memset->getOperand(0);
       auto *SizeVal = Memset->getOperand(2);
       createDfiStoreFn(UseDef->getDefID(Memset), StoreTarget, SizeVal, Memset->getNextNode());
+    } else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
+      auto *Callee = Call->getCalledFunction();
+      if (Callee->getName() == "calloc") {
+        llvm::errs() << "found calloc: " << *Call << "\n";
+        auto *Nmem = Call->getOperand(0);
+        auto *Size = Call->getOperand(1);
+        Builder->SetInsertPoint(Call->getNextNode());
+        auto *SizeVal = Builder->CreateNUWMul(Nmem, Size);
+        createDfiStoreFn(UseDef->getDefID(Call), Def, SizeVal);
+      }
     } else {
+      // llvm::errs() << "No support DefInst: " << *DefInst << "\n";
       // assert(false && "No support Def");
     }
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
     createDfiStoreFn(UseDef->getDefID(GlobVar), GlobVar, Size, Builder->GetInsertBlock()->getTerminator());
   } else {
+    // llvm::errs() << "No support Def: " << *Def << "\n";
     // assert(false && "No support Def");
   }
 }

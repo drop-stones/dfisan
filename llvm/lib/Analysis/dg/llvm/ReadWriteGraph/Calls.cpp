@@ -319,6 +319,15 @@ RWNode *LLVMReadWriteGraphBuilder::funcFromModel(const FunctionModel *model,
         }
     }
 
+    // Definitions of the return value.
+    if (model->handles(RETURN)) {
+        if (const auto *defines = model->defines(RETURN)) {
+            Offset from, to;
+            std::tie(from, to) = getFromTo(CInst, defines);
+            node->addDef(node, from, to);
+        }
+    }
+
     return node;
 }
 RWNode *LLVMReadWriteGraphBuilder::createCallToUndefinedFunction(
