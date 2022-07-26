@@ -338,7 +338,10 @@ RWNode *LLVMReadWriteGraphBuilder::funcFromModel(const FunctionModel *model,
         if (const auto *defines = model->defines(RETURN)) {
             Offset from, to;
             std::tie(from, to) = getFromTo(CInst, defines);
-            node->addDef(node, from, to);
+            for (const auto &ptr : PTA->getLLVMPointsTo(CInst)) {
+                RWNode *target = getOperand(ptr.value);
+                node->addDef(target, ptr.offset + from, ptr.offset + to);
+            }
         }
     }
 

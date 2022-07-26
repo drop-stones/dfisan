@@ -56,7 +56,6 @@ struct LLVMDataDependenceAnalysisOptions : public LLVMAnalysisOptions,
         ///
         // Alloc functions
         ///
-        functionModelAddDef("calloc", {RETURN, Offset(0), Offset::getUnknown()});
     };
 };
 
