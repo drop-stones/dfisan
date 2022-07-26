@@ -137,12 +137,15 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
     } else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
       auto *Callee = Call->getCalledFunction();
       if (Callee->getName() == "calloc") {
-        llvm::errs() << "found calloc: " << *Call << "\n";
         auto *Nmem = Call->getOperand(0);
         auto *Size = Call->getOperand(1);
         Builder->SetInsertPoint(Call->getNextNode());
         auto *SizeVal = Builder->CreateNUWMul(Nmem, Size);
         createDfiStoreFn(UseDef->getDefID(Call), Def, SizeVal);
+      } else if (Callee->getName() == "fgets") {
+        auto *StoreTarget = Call->getOperand(0);
+        auto *SizeVal = Call->getOperand(1);
+        createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
       }
     } else {
       // llvm::errs() << "No support DefInst: " << *DefInst << "\n";
@@ -178,6 +181,13 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
   if (InsertPoint != nullptr)
     Builder->SetInsertPoint(InsertPoint);
   unsigned Size = llvm::isa<ConstantInt>(SizeVal) ? llvm::cast<ConstantInt>(SizeVal)->getZExtValue() : 0;
+  Value *SizeArg = SizeVal;
+  if (SizeVal->getType() != Int64Ty) {
+    if (llvm::isa<ConstantInt>(SizeVal))
+      SizeArg = ConstantInt::get(Int64Ty, Size);
+    else
+      SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
+  }
   Value *StoreAddr = Builder->CreatePtrToInt(StoreTarget, PtrTy);
   Value *DefIDVal = ConstantInt::get(ArgTy, DefID);
 
@@ -187,7 +197,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
   case 4:   Builder->CreateCall(DfiStore4Fn, {StoreAddr, DefIDVal});  break;
   case 8:   Builder->CreateCall(DfiStore8Fn, {StoreAddr, DefIDVal});  break;
   case 16:  Builder->CreateCall(DfiStore16Fn,{StoreAddr, DefIDVal});  break;
-  default:  Builder->CreateCall(DfiStoreNFn, {StoreAddr, SizeVal, DefIDVal});  break;
+  default:  Builder->CreateCall(DfiStoreNFn, {StoreAddr, SizeArg, DefIDVal});  break;
   }
 }
 

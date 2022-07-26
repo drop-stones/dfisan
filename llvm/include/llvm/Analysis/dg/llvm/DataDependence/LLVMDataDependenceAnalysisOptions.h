@@ -49,6 +49,8 @@ struct LLVMDataDependenceAnalysisOptions : public LLVMAnalysisOptions,
         functionModelAddDef("strncpy", {0, Offset(0), 2});
         functionModelAddUse("strncpy", {1, Offset(0), 2});
 
+        functionModelAddDef("fgets", {0, Offset(0), 1});
+
         ///
         // Alloc functions
         ///
