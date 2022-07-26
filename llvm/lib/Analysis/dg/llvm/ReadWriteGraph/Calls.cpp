@@ -319,6 +319,20 @@ RWNode *LLVMReadWriteGraphBuilder::funcFromModel(const FunctionModel *model,
         }
     }
 
+    // Definitions of vararg
+    if (model->handles(VARARG)) {
+        Offset start, no_use;
+        std::tie(start, no_use) = getFromTo(CInst, model->defines(VARARG));
+        for (unsigned int i = start.offset; i < llvmutils::getNumArgOperands(CInst); i++) {
+            auto const *llvmOp = CInst->getArgOperand(i);
+            auto pts = PTA->getLLVMPointsTo(llvmOp);
+            for (const auto &ptr : pts) {
+                RWNode *target = getOperand(ptr.value);
+                node->addDef(target, ptr.offset, Offset::getUnknown());
+            }
+        }
+    }
+
     // Definitions of the return value.
     if (model->handles(RETURN)) {
         if (const auto *defines = model->defines(RETURN)) {

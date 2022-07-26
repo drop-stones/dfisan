@@ -146,6 +146,14 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
         auto *StoreTarget = Call->getOperand(0);
         auto *SizeVal = Call->getOperand(1);
         createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+      } else if (Callee->getName() == "__isoc99_sscanf") {
+        llvm::errs() << "Instrument " << Callee->getName() << "\n";
+        for (unsigned Idx = 2; Idx < Call->arg_size(); Idx++) {
+          auto *StoreTarget = Call->getOperand(Idx);
+          unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
+          llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << Size << "\n";
+          createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, Size, Call->getNextNode());
+        }
       }
     } else {
       // llvm::errs() << "No support DefInst: " << *DefInst << "\n";
