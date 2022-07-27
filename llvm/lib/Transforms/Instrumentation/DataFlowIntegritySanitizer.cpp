@@ -49,6 +49,9 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
     for (auto *Def : UseDef->getDDA()->getLLVMDefinitions(Use)) {
       Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
       DefIDs.push_back(DefID);
+
+      if (UseDef->getDefID(Def) == 503)
+        llvm::errs() << "Found DefID=503: " << *Use << "\n";
     }
     insertDfiLoadFn(Use, DefIDs);
   }
@@ -147,13 +150,17 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
         auto *SizeVal = Call->getOperand(1);
         createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
       } else if (Callee->getName() == "__isoc99_sscanf") {
-        llvm::errs() << "Instrument " << Callee->getName() << "\n";
         for (unsigned Idx = 2; Idx < Call->arg_size(); Idx++) {
           auto *StoreTarget = Call->getOperand(Idx);
           unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-          llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << Size << "\n";
           createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, Size, Call->getNextNode());
         }
+      } else if (Callee->getName() == "read") {
+        auto *StoreTarget = Call->getOperand(1);
+        auto *SizeVal = Def;
+        llvm::errs() << "Instrument " << Callee->getName() << "\n";
+        llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << *SizeVal << "\n";
+        createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
       }
     } else {
       // llvm::errs() << "No support DefInst: " << *DefInst << "\n";

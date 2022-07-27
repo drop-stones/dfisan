@@ -50,6 +50,7 @@ struct LLVMDataDependenceAnalysisOptions : public LLVMAnalysisOptions,
         functionModelAddDef("strncpy", {0, Offset(0), 2});
         functionModelAddUse("strncpy", {1, Offset(0), 2});
 
+        functionModelAddDef("read", {1, Offset(0), 2});
         functionModelAddDef("fgets", {0, Offset(0), 1});
         functionModelAddDef("__isoc99_sscanf", {VARARG, Offset(2), Offset::getUnknown()});
 
