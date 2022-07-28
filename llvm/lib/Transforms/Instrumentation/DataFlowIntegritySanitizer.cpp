@@ -3,13 +3,13 @@
 #include "llvm/Transforms/Instrumentation/DataFlowIntegritySanitizer.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"  /* appendToUsed */
 #include "llvm/Support/Debug.h"
-#include "UseDefAnalysis/UseDefAnalysisPass.h"
-#include "UseDefAnalysis/UseDefChain.h"
+
+#include "dg/Passes/UseDefAnalysisPass.h"
+#include "dg/Passes/UseDefBuilder.h"
 
 #define DEBUG_TYPE "dfi-instrument"
 
 using namespace llvm;
-using namespace SVF;
 
 constexpr char DfisanModuleCtorName[] = "dfisan.module_ctor";
 constexpr char DfisanInitFnName[]     = "__dfisan_init";
@@ -32,207 +32,225 @@ constexpr char DfisanLoad16FnName[]      = "__dfisan_check_ids_16";
 
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  initializeSanitizerFuncs(M);
-
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  Svfg = Result.Svfg;
-  UseDef = Result.UseDef;
-  LLVM_DEBUG(Svfg->dump("usedef-svfg"));
+  UseDef = Result.getBuilder();
+  this->M = &M;
+  Builder = std::make_unique<IRBuilder<>>(M.getContext());
 
-  IRBuilder<> Builder{M.getContext()};
-  insertDfiInitFn(M, Builder);
+  initializeSanitizerFuncs();
+  insertDfiInitFn();
 
-  for (const auto *DefUsingPtr : UseDef->getDefUsingPtrList()) {
-    insertDfiStoreFn(M, Builder, DefUsingPtr);
+  for (auto DI = UseDef->def_begin(), DE = UseDef->def_end(); DI != DE; DI++) {
+    insertDfiStoreFn((*DI)->getValue());
   }
-  for (const auto &Iter : *UseDef) {
-    const LoadSVFGNode *Use = Iter.first;
+  for (auto UI = UseDef->use_begin(), UE = UseDef->use_end(); UI != UE; UI++) {
+    auto *Use = (*UI)->getValue();
     SmallVector<Value *, 8> DefIDs;
-    for (const auto *Def : Iter.second) {
+    for (auto *Def : UseDef->getDDA()->getLLVMDefinitions(Use)) {
       Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
       DefIDs.push_back(DefID);
-      insertDfiStoreFn(M, Builder, Def);
+
+      if (UseDef->getDefID(Def) == 503)
+        llvm::errs() << "Found DefID=503: " << *Use << "\n";
     }
-    insertDfiLoadFn(M, Builder, Use, DefIDs);
+    insertDfiLoadFn(Use, DefIDs);
   }
 
   return PreservedAnalyses::none();
 }
 
-void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs(Module &M) {
-  LLVMContext &Ctx = M.getContext();
+void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
+  LLVMContext &Ctx = M->getContext();
 
-  int LongSize = M.getDataLayout().getPointerSizeInBits();
+  int LongSize = M->getDataLayout().getPointerSizeInBits();
   PtrTy  = Type::getIntNTy(Ctx, LongSize);
   VoidTy = Type::getVoidTy(Ctx);
   ArgTy  = Type::getInt16Ty(Ctx);
   Int8Ty = Type::getInt8Ty(Ctx);
   Int32Ty = Type::getInt32Ty(Ctx);
+  Int64Ty = Type::getInt64Ty(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
-  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int32Ty, ArgTy};
+  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int64Ty, ArgTy};
   FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
 
-  DfiInitFn  = M.getOrInsertFunction(DfisanInitFnName, VoidTy);
-  DfiStoreNFn = M.getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
-  DfiLoadNFn  = M.getOrInsertFunction(DfisanLoadNFnName, LoadFnTy); // VarArg Function
+  DfiInitFn  = M->getOrInsertFunction(DfisanInitFnName, VoidTy);
+  DfiStoreNFn = M->getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
+  DfiLoadNFn  = M->getOrInsertFunction(DfisanLoadNFnName, LoadFnTy); // VarArg Function
 
-  DfiStore1Fn = M.getOrInsertFunction(DfisanStore1FnName, StoreFnTy);
-  DfiStore2Fn = M.getOrInsertFunction(DfisanStore2FnName, StoreFnTy);
-  DfiStore4Fn = M.getOrInsertFunction(DfisanStore4FnName, StoreFnTy);
-  DfiStore8Fn = M.getOrInsertFunction(DfisanStore8FnName, StoreFnTy);
-  DfiStore16Fn = M.getOrInsertFunction(DfisanStore16FnName, StoreFnTy);
+  DfiStore1Fn = M->getOrInsertFunction(DfisanStore1FnName, StoreFnTy);
+  DfiStore2Fn = M->getOrInsertFunction(DfisanStore2FnName, StoreFnTy);
+  DfiStore4Fn = M->getOrInsertFunction(DfisanStore4FnName, StoreFnTy);
+  DfiStore8Fn = M->getOrInsertFunction(DfisanStore8FnName, StoreFnTy);
+  DfiStore16Fn = M->getOrInsertFunction(DfisanStore16FnName, StoreFnTy);
 
-  DfiLoad1Fn = M.getOrInsertFunction(DfisanLoad1FnName, LoadFnTy);
-  DfiLoad2Fn = M.getOrInsertFunction(DfisanLoad2FnName, LoadFnTy);
-  DfiLoad4Fn = M.getOrInsertFunction(DfisanLoad4FnName, LoadFnTy);
-  DfiLoad8Fn = M.getOrInsertFunction(DfisanLoad8FnName, LoadFnTy);
-  DfiLoad16Fn = M.getOrInsertFunction(DfisanLoad16FnName, LoadFnTy);
+  DfiLoad1Fn = M->getOrInsertFunction(DfisanLoad1FnName, LoadFnTy);
+  DfiLoad2Fn = M->getOrInsertFunction(DfisanLoad2FnName, LoadFnTy);
+  DfiLoad4Fn = M->getOrInsertFunction(DfisanLoad4FnName, LoadFnTy);
+  DfiLoad8Fn = M->getOrInsertFunction(DfisanLoad8FnName, LoadFnTy);
+  DfiLoad16Fn = M->getOrInsertFunction(DfisanLoad16FnName, LoadFnTy);
 }
 
 /// Insert a constructor function in comdat
-void DataFlowIntegritySanitizerPass::insertDfiInitFn(Module &M, IRBuilder<> &Builder) {
+void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
 
   // Create Sanitizer Ctor
   Function *Ctor = Function::createWithDefaultAttr(
     FunctionType::get(VoidTy, false),
-    GlobalValue::InternalLinkage, 0, DfisanModuleCtorName, &M);
+    GlobalValue::InternalLinkage, 0, DfisanModuleCtorName, M);
   Ctor->addFnAttr(Attribute::NoUnwind);
-  BasicBlock *CtorBB = BasicBlock::Create(M.getContext(), "", Ctor);
-  ReturnInst::Create(M.getContext(), CtorBB);
+  BasicBlock *CtorBB = BasicBlock::Create(M->getContext(), "", Ctor);
+  ReturnInst::Create(M->getContext(), CtorBB);
 
   // Insert Init Function
-  Builder.SetInsertPoint(Ctor->getEntryBlock().getTerminator());
-  Builder.CreateCall(DfiInitFn, {});
+  Builder->SetInsertPoint(Ctor->getEntryBlock().getTerminator());
+  Builder->CreateCall(DfiInitFn, {});
 
   // Ensure Ctor cannot be discarded, even if in a comdat.
-  appendToUsed(M, {Ctor});
+  appendToUsed(*M, {Ctor});
   // Put the constructor in GlobalCtors
-  appendToGlobalCtors(M, Ctor, 1);
+  appendToGlobalCtors(*M, Ctor, 1);
 
   // Insert DfiStoreFn for GlobalInit
-  for (const auto &GlobalInit : UseDef->getGlobalInitList()) {
-    const Value *Val = GlobalInit->getValue();
-    assert(Val != nullptr);
-    LLVM_DEBUG(dbgs() << "GlobalInit: " << *Val << "\n");
-    const auto DefVars = GlobalInit->getDefSVFVars();
-    for (const auto DefVarID : DefVars) {
-      if (UseDef->containsOffsetVector(GlobalInit)) {   // Global struct initialization
-        createDfiStoreFnForAggregateData(M, Builder, GlobalInit);
-      } else {  // Global primitive data initialization
-        const auto *DstNode = Svfg->getPAG()->getObject(DefVarID);
-        Value *StorePointer = (Value *)DstNode->getValue();
-        if (StorePointer == nullptr)  // True if string literal or struct init values
-          continue;
-        createDfiStoreFn(M, Builder, GlobalInit, StorePointer, Builder.GetInsertBlock()->getTerminator());
-      }
-    }
+  for (auto GI = UseDef->glob_begin(); GI != UseDef->glob_end(); GI++) {
+    auto *GlobVal = (llvm::Value *)UseDef->getDDA()->getValue(*GI);
+    insertDfiStoreFn(GlobVal);
   }
 }
 
 /// Insert a DEF function after each store statement using pointer.
-void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Module &M, IRBuilder<> &Builder, const StoreSVFGNode *StoreNode) {
-  const Instruction *Inst = StoreNode->getInst();
-  if (Inst == nullptr)
-    return;
-
-  // Skip if the insertion is not the first time.
-  if (UseDef->isInstrumented(StoreNode))
-    return;
-  UseDef->setInstrumented(StoreNode);
-
-  if (StoreInst *Store = dyn_cast<StoreInst>((Instruction *)Inst)) {
-    createDfiStoreFn(M, Builder, StoreNode, Store->getPointerOperand(), Store->getNextNode());
-  } else if (llvm::isa<MemCpyInst>(Inst) || llvm::isa<MemSetInst>(Inst)) {
-    createDfiStoreFnForAggregateData(M, Builder, StoreNode, (Instruction *)Inst->getNextNode());
+void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
+  if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
+    if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
+      auto *StoreTarget = Store->getPointerOperand();
+      unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
+      createDfiStoreFn(UseDef->getDefID(Store), StoreTarget, Size, Store->getNextNode());
+    } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>(DefInst)) {
+      auto *StoreTarget = Memcpy->getOperand(0);
+      auto *SizeVal = Memcpy->getOperand(2);
+      createDfiStoreFn(UseDef->getDefID(Memcpy), StoreTarget, SizeVal, Memcpy->getNextNode());
+    } else if (MemSetInst *Memset = dyn_cast<MemSetInst>(DefInst)) {
+      auto *StoreTarget = Memset->getOperand(0);
+      auto *SizeVal = Memset->getOperand(2);
+      createDfiStoreFn(UseDef->getDefID(Memset), StoreTarget, SizeVal, Memset->getNextNode());
+    } else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
+      auto *Callee = Call->getCalledFunction();
+      if (Callee->getName() == "calloc") {
+        auto *Nmem = Call->getOperand(0);
+        auto *Size = Call->getOperand(1);
+        Builder->SetInsertPoint(Call->getNextNode());
+        auto *SizeVal = Builder->CreateNUWMul(Nmem, Size);
+        createDfiStoreFn(UseDef->getDefID(Call), Def, SizeVal);
+      } else if (Callee->getName() == "fgets") {
+        auto *StoreTarget = Call->getOperand(0);
+        auto *SizeVal = Call->getOperand(1);
+        createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+      } else if (Callee->getName() == "__isoc99_sscanf") {
+        for (unsigned Idx = 2; Idx < Call->arg_size(); Idx++) {
+          auto *StoreTarget = Call->getOperand(Idx);
+          unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
+          createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, Size, Call->getNextNode());
+        }
+      } else if (Callee->getName() == "read") {
+        auto *StoreTarget = Call->getOperand(1);
+        auto *SizeVal = Def;
+        llvm::errs() << "Instrument " << Callee->getName() << "\n";
+        llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << *SizeVal << "\n";
+        createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+      }
+    } else {
+      // llvm::errs() << "No support DefInst: " << *DefInst << "\n";
+      // assert(false && "No support Def");
+    }
+  } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
+    unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
+    createDfiStoreFn(UseDef->getDefID(GlobVar), GlobVar, Size, Builder->GetInsertBlock()->getTerminator());
+  } else {
+    // llvm::errs() << "No support Def: " << *Def << "\n";
+    // assert(false && "No support Def");
   }
-  //else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>((Instruction *)(Inst))) {
-  //  createDfiStoreFnForAggregateData(M, Builder, StoreNode, Memcpy->getNextNode());
-  //} else if (MemSetInst *Memset = dyn_cast<MemSetInst>((Instruction *)(Inst))) {
-  //}
 }
 
 /// Insert a CHECK function before each load statement.
-void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Module &M, IRBuilder<> &Builder, const LoadSVFGNode *LoadNode, SmallVector<Value *, 8> &DefIDs) {
-  // Check whether the insertion is first time.
-
-  const Instruction *Inst = LoadNode->getInst();
-  if (LoadInst *Load = dyn_cast<LoadInst>((Instruction *)Inst)) {
-    createDfiLoadFn(M, Builder, LoadNode, Load->getPointerOperand(), Load, DefIDs);
+void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, SmallVector<Value *, 8> &DefIDs) {
+  if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
+    if (LoadInst *Load = dyn_cast<LoadInst>(UseInst)) {
+      auto *LoadTarget = Load->getPointerOperand();
+      unsigned Size = M->getDataLayout().getTypeStoreSize(LoadTarget->getType()->getNonOpaquePointerElementType());
+      createDfiLoadFn(LoadTarget, Size, DefIDs, Load);
+    }
   }
 }
 
 /// Create a function call to DfiStoreFn.
-void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer, Instruction *InsertPoint) {
-  Builder.SetInsertPoint(InsertPoint);
-  createDfiStoreFn(M, Builder, StoreNode, StorePointer);
+void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, Instruction *InsertPoint) {
+  Value *SizeVal = ConstantInt::get(Int64Ty, Size, false);
+  createDfiStoreFn(DefID, StoreTarget, SizeVal, InsertPoint);
 }
 
-void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer) {
-  Type *StoreTy = StorePointer->getType()->getNonOpaquePointerElementType();
-  unsigned StoreSize = M.getDataLayout().getTypeStoreSize(StoreTy);
-  Value *StoreSizeVal = ConstantInt::get(Int32Ty, StoreSize, false);
-  Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
-  Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
+void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, Value *SizeVal, Instruction *InsertPoint) {
+  if (InsertPoint != nullptr)
+    Builder->SetInsertPoint(InsertPoint);
+  unsigned Size = llvm::isa<ConstantInt>(SizeVal) ? llvm::cast<ConstantInt>(SizeVal)->getZExtValue() : 0;
+  Value *SizeArg = SizeVal;
+  if (SizeVal->getType() != Int64Ty) {
+    if (llvm::isa<ConstantInt>(SizeVal))
+      SizeArg = ConstantInt::get(Int64Ty, Size);
+    else
+      SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
+  }
+  Value *StoreAddr = Builder->CreatePtrToInt(StoreTarget, PtrTy);
+  Value *DefIDVal = ConstantInt::get(ArgTy, DefID);
 
-  switch(StoreSize) {
-  case 1:   Builder.CreateCall(DfiStore1Fn, {StoreAddr, DefID});  break;
-  case 2:   Builder.CreateCall(DfiStore2Fn, {StoreAddr, DefID});  break;
-  case 4:   Builder.CreateCall(DfiStore4Fn, {StoreAddr, DefID});  break;
-  case 8:   Builder.CreateCall(DfiStore8Fn, {StoreAddr, DefID});  break;
-  case 16:  Builder.CreateCall(DfiStore16Fn,{StoreAddr, DefID});  break;
-  default:  Builder.CreateCall(DfiStoreNFn, {StoreAddr, StoreSizeVal, DefID});  break;
+  switch(Size) {
+  case 1:   Builder->CreateCall(DfiStore1Fn, {StoreAddr, DefIDVal});  break;
+  case 2:   Builder->CreateCall(DfiStore2Fn, {StoreAddr, DefIDVal});  break;
+  case 4:   Builder->CreateCall(DfiStore4Fn, {StoreAddr, DefIDVal});  break;
+  case 8:   Builder->CreateCall(DfiStore8Fn, {StoreAddr, DefIDVal});  break;
+  case 16:  Builder->CreateCall(DfiStore16Fn,{StoreAddr, DefIDVal});  break;
+  default:  Builder->CreateCall(DfiStoreNFn, {StoreAddr, SizeArg, DefIDVal});  break;
   }
 }
 
-void DataFlowIntegritySanitizerPass::createDfiStoreFn(Module &M, IRBuilder<> &Builder, const SVF::StoreVFGNode *StoreNode, Value *StorePointer, Value *Length) {
-  LLVM_DEBUG(dbgs() << "Cast from " << *Length << " to " << *ArgTy << "\n");
-
-  Value *StoreAddr = Builder.CreatePtrToInt(StorePointer, PtrTy);
-  Value *StoreSizeVal = Builder.CreateIntCast(Length, Int32Ty, false);
-  Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(StoreNode), false);
-
-  Builder.CreateCall(DfiStoreNFn, {StoreAddr, StoreSizeVal, DefID});
-}
 
 /// Create a function call to DfiLoadFn.
-void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, Instruction *InsertPoint, SmallVector<Value *, 8> &DefIDs) {
-  Builder.SetInsertPoint(InsertPoint);
-  createDfiLoadFn(M, Builder, LoadNode, LoadPointer, DefIDs);
-}
-
-void DataFlowIntegritySanitizerPass::createDfiLoadFn(Module &M, IRBuilder<> &Builder, const SVF::LoadVFGNode *LoadNode, Value *LoadPointer, SmallVector<Value *, 8> &DefIDs) {
-  Type  *LoadTy = LoadPointer->getType()->getNonOpaquePointerElementType();
-  unsigned LoadSize = M.getDataLayout().getTypeStoreSize(LoadTy);
-  Value *LoadSizeVal = ConstantInt::get(ArgTy, LoadSize, false);
-  Value *LoadAddr = Builder.CreatePtrToInt(LoadPointer, PtrTy); // Cast 'i32 **' to 'i64'
-  //Value *UseID = ConstantInt::get(ArgTy, LoadNode->getId(), false);
-  Value *Argc  = ConstantInt::get(ArgTy, DefIDs.size(), false);
+void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, unsigned Size, SmallVector<Value *, 8> &DefIDs) {
+  Value *SizeVal = ConstantInt::get(ArgTy, Size, false);
+  Value *LoadAddr = Builder->CreatePtrToInt(LoadTarget, PtrTy);
+  Value *Argc = ConstantInt::get(ArgTy, DefIDs.size(), false);
 
   SmallVector<Value *, 8> Args{LoadAddr, Argc};
   Args.append(DefIDs);
 
-  switch(LoadSize) {
-  case 1:   Builder.CreateCall(DfiLoad1Fn, Args);   break;
-  case 2:   Builder.CreateCall(DfiLoad2Fn, Args);   break;
-  case 4:   Builder.CreateCall(DfiLoad4Fn, Args);   break;
-  case 8:   Builder.CreateCall(DfiLoad8Fn, Args);   break;
-  case 16:  Builder.CreateCall(DfiLoad16Fn,Args);   break;
+  switch(Size) {
+  case 1:   Builder->CreateCall(DfiLoad1Fn, Args);   break;
+  case 2:   Builder->CreateCall(DfiLoad2Fn, Args);   break;
+  case 4:   Builder->CreateCall(DfiLoad4Fn, Args);   break;
+  case 8:   Builder->CreateCall(DfiLoad8Fn, Args);   break;
+  case 16:  Builder->CreateCall(DfiLoad16Fn,Args);   break;
   default:  auto *Iter = Args.begin() + 1;
-            Args.insert(Iter, LoadSizeVal);
-            Builder.CreateCall(DfiLoadNFn, Args);   break;
+            Args.insert(Iter, SizeVal);
+            Builder->CreateCall(DfiLoadNFn, Args);   break;
   }
 }
 
-void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Module &M, llvm::IRBuilder<> &Builder, const StoreVFGNode *StoreNode, Instruction *InsertPoint) {
+void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, unsigned Size, SmallVector<Value *, 8> &DefIDs, Instruction *InsertPoint) {
+  Builder->SetInsertPoint(InsertPoint);
+  createDfiLoadFn(LoadTarget, Size, DefIDs);
+}
+
+/*
+void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Value *Store, Instruction *InsertPoint) {
   Builder.SetInsertPoint(InsertPoint);
   createDfiStoreFnForAggregateData(M, Builder, StoreNode);
 }
+*/
 
+/*
 void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Module &M, llvm::IRBuilder<> &Builder, const StoreVFGNode *StoreNode) {
   const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
   assert(OffsetVec.size() != 0);
@@ -264,7 +282,7 @@ DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, cons
     CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
   }
   return CurVal;
-/*
+///*
   const auto *Head = OffsetVec[0];
   Value *CurVal = (Value *)Head->Base;
   if (const auto *StructOff = dyn_cast<StructOffset>(Head)) {
@@ -286,5 +304,5 @@ DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, cons
       CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
     }
   }
-*/
 }
+*/

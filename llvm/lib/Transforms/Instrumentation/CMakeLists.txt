@@ -22,7 +22,6 @@ add_llvm_component_library(LLVMInstrumentation
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms
-  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis/SVF
 
   DEPENDS
   intrinsics_gen
@@ -34,9 +33,11 @@ add_llvm_component_library(LLVMInstrumentation
   Support
   TransformUtils
   ProfileData
-  Svf
+  # Svf
+  Dg
   )
 
+add_definitions(-DENABLE_CFG)
 target_include_directories(LLVMInstrumentation PRIVATE
-  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis/SVF
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
 )

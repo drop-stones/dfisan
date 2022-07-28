@@ -27,5 +27,11 @@ add_llvm_component_library(LLVMPasses
   TransformUtils
   Vectorize
   Instrumentation
-  SVF
+  # SVF
+  Dg
   )
+
+add_definitions(-DENABLE_CFG)
+target_include_directories(LLVMPasses PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
+)

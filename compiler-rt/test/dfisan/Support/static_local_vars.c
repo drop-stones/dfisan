@@ -4,7 +4,6 @@
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can manage static local variables correctly.
-// TODO: Usedef analysis of static local variables are very inefficient.
 
 struct S {
   int i;

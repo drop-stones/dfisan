@@ -13982,6 +13982,11 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   if (getLangOpts().OpenCL)
     deduceOpenCLAddressSpace(New);
 
+  if (!getLangOpts().CPlusPlus &&
+      getLangOpts().StackAlign != 0) {
+    align::enforceStackAlign(*this, New, getLangOpts().StackAlign);
+  }
+
   return New;
 }
 

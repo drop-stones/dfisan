@@ -4,7 +4,6 @@
 // REQUIRES: x86_64-target-arch
 
 // Tests that dfisan can support memcpy() by pointers.
-// TODO: Use-Def Analysis supports memcpy() by callee.
 
 #include <string.h>
 
@@ -25,15 +24,8 @@ void copyS(struct S *dst, struct S *src) {
 
 int main(void) {
   struct S sfrom = { 'a', 100, 200, 300 };
-  struct S sto = {'b', 400, 500, 600};  // Error occured!!
-/*
-  //struct S sto;
-  struct S sto = {'b', 400, 500, 600};  // Error occured!!
+  struct S sto;
   copy(&sto, &sfrom, sizeof(struct S));
-*/
-  // No error
-  copyS(&sto, &sfrom);
-  //memcpy(&sto, &sfrom, sizeof(struct S));
 
   sfrom.c;
   sfrom.s;
@@ -47,7 +39,6 @@ int main(void) {
   char arrfrom[8] = "Bob";
   char arrto[8];
   copy(arrto, arrfrom, sizeof(char) * 8);
-  //memcpy(arrto, arrfrom, sizeof(char) * 8);
 
   arrfrom[0];
   arrfrom[1];
