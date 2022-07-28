@@ -167,16 +167,20 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
         llvm::errs() << "Instrument " << Callee->getName() << "\n";
         llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << *SizeVal << "\n";
         createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+      } else {
+        llvm::errs() << "No support Def function: " << Callee->getName() << "\n";
       }
+    } else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Def)) {
+      // Do nothing
     } else {
-      // llvm::errs() << "No support DefInst: " << *DefInst << "\n";
+      llvm::errs() << "No support DefInst: " << *DefInst << "\n";
       // assert(false && "No support Def");
     }
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
     createDfiStoreFn(UseDef->getDefID(GlobVar), GlobVar, Size, Builder->GetInsertBlock()->getTerminator());
   } else {
-    // llvm::errs() << "No support Def: " << *Def << "\n";
+    llvm::errs() << "No support Def: " << *Def << "\n";
     // assert(false && "No support Def");
   }
 }

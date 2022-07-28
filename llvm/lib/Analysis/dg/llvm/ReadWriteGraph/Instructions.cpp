@@ -114,8 +114,13 @@ RWNode *LLVMReadWriteGraphBuilder::createDynAlloc(const llvm::Instruction *Inst,
     node.setSize(size);
 
     // Definitions by calloc
-    if (type == AllocationFunction::CALLOC)
-        node.addDef({&node, 0, size}, true);
+    if (type == AllocationFunction::CALLOC) {
+        if (size != 0) {
+            node.addDef(&node, 0, size, true);
+        } else {
+            node.addDef(&node, 0, Offset::getUnknown(), true);
+        }
+    }
 
     return &node;
 }
