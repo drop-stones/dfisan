@@ -245,8 +245,6 @@ RWNode *LLVMReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
 
     auto defSites = mapPointers(Inst, Inst->getOperand(0), size);
     for (const auto &ds : defSites) {
-        if (ds == UNKNOWN_MEMORY)   // skip argv[]
-            continue;
         node.addUse(ds);
     }
 

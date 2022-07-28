@@ -36,6 +36,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   UseDef = Result.getBuilder();
   this->M = &M;
   Builder = std::make_unique<IRBuilder<>>(M.getContext());
+  const auto *DDA = UseDef->getDDA();
 
   initializeSanitizerFuncs();
   insertDfiInitFn();
@@ -45,13 +46,18 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
   for (auto UI = UseDef->use_begin(), UE = UseDef->use_end(); UI != UE; UI++) {
     auto *Use = (*UI)->getValue();
+
+    // Skip unknown value uses (e.g., argv[]).
+    const auto &UseSites = DDA->getNode(Use)->getUses();
+    if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
+      llvm::errs() << "Skip Use: " << *Use << "\n";
+      continue;
+    }
+
     SmallVector<Value *, 8> DefIDs;
     for (auto *Def : UseDef->getDDA()->getLLVMDefinitions(Use)) {
       Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
       DefIDs.push_back(DefID);
-
-      if (UseDef->getDefID(Def) == 503)
-        llvm::errs() << "Found DefID=503: " << *Use << "\n";
     }
     insertDfiLoadFn(Use, DefIDs);
   }
