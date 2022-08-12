@@ -106,7 +106,12 @@ void PrintDefIDs(u16 Argc, va_list IDList) {
   Printf(" }\n");
 }
 
+
 void ReportInvalidUseError(uptr LoadAddr, u16 Argc, va_list IDList, uptr pc, uptr bp) {
+  // static u64 ErrorCount = 0;
+  // Printf("Error: count=%llu\n", ++ErrorCount);
+  // return;
+
   u16 *shadow_memory = (u16 *)MemToShadow(LoadAddr);
   u16 InvalidID = *shadow_memory;
   Decorator d;
