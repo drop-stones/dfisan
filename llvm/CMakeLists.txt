@@ -1062,6 +1062,9 @@ add_subdirectory(include/llvm)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../sqlite3
   ${CMAKE_CURRENT_BINARY_DIR}/sqlite3
 )
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../SVF
+  ${CMAKE_CURRENT_BINARY_DIR}/SVF
+)
 
 add_subdirectory(lib)
 
