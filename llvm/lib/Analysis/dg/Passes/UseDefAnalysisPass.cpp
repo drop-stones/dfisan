@@ -15,6 +15,7 @@
 
 #include "dg/Passes/UseDefBuilder.h"
 #include "dg/Passes/UseDefLogger.h"
+#include "dg/Passes/DfiUtils.h"
 
 using namespace llvm;
 using namespace dg;
@@ -31,6 +32,13 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   debug::UseDefLogger Logger{M};
   Logger.logDefInfo(Builder.get());
 
+  auto *DDA = Builder->getDDA();
+  auto *RWGraph = DDA->getGraph();
+  if (RWGraph->size() > 60827) {
+    printRWNode(DDA, RWGraph->getNode(60827));
+    printRWNode(DDA, RWGraph->getNode(60819));
+  }
+
   UseDefAnalysisPass::Result Result { std::move(Builder) };
 
   return Result;
@@ -42,13 +50,12 @@ UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   auto *Builder = Result.getBuilder();
 
-  Builder->printUseDef(OS);
-  Builder->printDefInfoMap(OS);
-
   debug::LLVMDG2Dot Dumper(Builder->getDG());
   Dumper.dump("dg.dot");
 
-  Builder->dump(OS);
+  Builder->printUseDef(OS);
+  // Builder->printDefInfoMap(OS);
+  // Builder->dump(OS);
 
   return PreservedAnalyses::all();
 }

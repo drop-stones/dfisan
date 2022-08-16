@@ -19,10 +19,10 @@ namespace dg {
 namespace dda {
 
 class LLVMReadWriteGraphBuilder;
-class DfiDataDependenceAnalysis;
+class DfiLLVMDataDependenceAnalysis;
 
 class LLVMDataDependenceAnalysis {
-    friend DfiDataDependenceAnalysis;
+    friend DfiLLVMDataDependenceAnalysis;
 
     const llvm::Module *m;
     dg::LLVMPointerAnalysis *pta;
@@ -31,7 +31,7 @@ class LLVMDataDependenceAnalysis {
     std::unique_ptr<DataDependenceAnalysis> DDA{nullptr};
 
     LLVMReadWriteGraphBuilder *createBuilder();
-    DataDependenceAnalysis *createDDA();
+    virtual DataDependenceAnalysis *createDDA();
 
   public:
     LLVMDataDependenceAnalysis(const llvm::Module *m,

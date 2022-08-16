@@ -1,27 +1,17 @@
 #ifndef LLVM_ANALYSIS_DG_PASSES_DFIDATADEPENDENCEANALYSIS_H
 #define LLVM_ANALYSIS_DG_PASSES_DFIDATADEPENDENCEANALYSIS_H
 
-#include "dg/llvm/DataDependence/DataDependence.h"
+#include "dg/DataDependence/DataDependence.h"
+#include "dg/Passes/DfiMemorySSA.h"
+#include "llvm/ReadWriteGraph/LLVMReadWriteGraphBuilder.h"
 
 namespace dg {
 namespace dda {
 
-class DfiReadWriteGraphBuilder;
-
-class DfiDataDependenceAnalysis : public LLVMDataDependenceAnalysis {
-private:
-  LLVMReadWriteGraphBuilder *createBuilder();
-
+class DfiDataDependenceAnalysis : public DataDependenceAnalysis {
 public:
-  DfiDataDependenceAnalysis(const llvm::Module *M, 
-                            dg::LLVMPointerAnalysis *PTA,
-                            LLVMDataDependenceAnalysisOptions Opts = {});
-  
-  // We can override isDef conditions.
-  bool isDef(const llvm::Value *Val) const override {
-    const auto *Node = getNode(Val);
-    return Node && Node->isDef();
-  }
+  DfiDataDependenceAnalysis(ReadWriteGraph &&Graph, const DataDependenceAnalysisOptions &Opts, LLVMReadWriteGraphBuilder *RWBuilder)
+    : DataDependenceAnalysis(new DfiMemorySSATransformation(std::move(Graph), Opts, RWBuilder), Opts) {}
 };
 
 } // namespace dda

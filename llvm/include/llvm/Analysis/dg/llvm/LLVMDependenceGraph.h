@@ -20,6 +20,7 @@ class Function;
 namespace dg {
 
 class LLVMPointerAnalysis;
+class DfiLLVMDependenceGraph;
 
 // namespace llvmdg {
 // class LLVMControlDependenceAnalysis;
@@ -41,6 +42,8 @@ using LLVMBBlock = dg::BBlock<LLVMNode>;
 //  -- LLVMDependenceGraph
 /// ------------------------------------------------------------------
 class LLVMDependenceGraph : public DependenceGraph<LLVMNode> {
+   friend DfiLLVMDependenceGraph;
+
     // our artificial unified exit block
     std::unique_ptr<LLVMBBlock> unifiedExitBB{};
     llvm::Function *entryFunction{nullptr};
@@ -139,7 +142,7 @@ class LLVMDependenceGraph : public DependenceGraph<LLVMNode> {
 
     LLVMNode *findNode(llvm::Value *value) const;
 
-    void addDefUseEdges(bool preserveDbg = true);
+    virtual void addDefUseEdges(bool preserveDbg = true);
     void computeInterferenceDependentEdges(ControlFlowGraph *controlFlowGraph);
     static void computeForkJoinDependencies(ControlFlowGraph *controlFlowGraph);
     static void computeCriticalSections(ControlFlowGraph *controlFlowGraph);

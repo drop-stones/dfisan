@@ -5,7 +5,7 @@
 #include "dg/llvm/LLVMDependenceGraph.h"
 #include "dg/llvm/LLVMDependenceGraphBuilder.h"
 #include "dg/Passes/UseDefIterator.h"
-#include "dg/Passes/DfiDependenceGraphBuilder.h"
+#include "dg/Passes/DfiLLVMDependenceGraphBuilder.h"
 
 namespace dg {
 
@@ -20,12 +20,12 @@ struct DefInfo {
 using DefInfoMap = std::unordered_map<llvm::Value *, DefInfo>;
 
 class UseDefBuilder {
-  std::unique_ptr<llvmdg::DfiDependenceGraphBuilder> DgBuilder{nullptr};
+  std::unique_ptr<llvmdg::DfiLLVMDependenceGraphBuilder> DgBuilder{nullptr};
 public:
   UseDefBuilder(llvm::Module *M)
     : UseDefBuilder(M, {}) {}
   UseDefBuilder(llvm::Module *M, const llvmdg::LLVMDependenceGraphOptions &Opts)
-    : DgBuilder(new llvmdg::DfiDependenceGraphBuilder(M, Opts)) {}
+    : DgBuilder(new llvmdg::DfiLLVMDependenceGraphBuilder(M, Opts)) {}
   
   LLVMDependenceGraph *getDG() { return DG.get(); }
   LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
