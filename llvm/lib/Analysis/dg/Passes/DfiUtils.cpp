@@ -102,4 +102,15 @@ void printRWNodeVector(std::vector<dda::RWNode *> &Nodes, const dda::LLVMReadWri
   }
 }
 
+void printRWBBlock(dda::RWBBlock *Block, const dda::LLVMReadWriteGraphBuilder *RWBuilder) {
+  llvm::errs() << "Block(" << Block->getID() << ")\n";
+  for (auto *Node : Block->getNodes()) {
+      llvm::errs() << " - Node(" << Node->getID() << "): ";
+      if (RWBuilder->getValue(Node) != nullptr)
+        llvm::errs() << *RWBuilder->getValue(Node) << "\n";
+      else
+        llvm::errs() << "no value\n";
+  }
+}
+
 } // namespace dg

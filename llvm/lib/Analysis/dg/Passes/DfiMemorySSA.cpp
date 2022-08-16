@@ -23,20 +23,12 @@ DfiMemorySSATransformation::findDefinitions(RWNode *node, const DefSite &ds) {
 std::vector<RWNode *>
 DfiMemorySSATransformation::findDefinitions(RWNode *node) {
   LLVM_DEBUG(llvm::errs() << "DfiMemorySSATransformation::" << __func__ << " with RWNode(" << node->getID() << ")\n");
+  return MemorySSATransformation::findDefinitions(node);
+/*
   std::vector<RWNode *> ret;
   if (node->getID() == 1051 || node->getID() == 1053 || node->getID() == 1055) {
     addCurrentDebugType(DEBUG_TYPE);
-    node->getBBlock()->dump();
-    LLVM_DEBUG(llvm::errs() << "Block(" << node->getBBlock()->getID() << ")\n");
-    LLVM_DEBUG(
-      for (auto *Node : node->getBBlock()->getNodes()) {
-          llvm::errs() << " - Node(" << Node->getID() << "): ";
-          if (RWBuilder->getValue(Node) != nullptr)
-            llvm::errs() << *RWBuilder->getValue(Node) << "\n";
-          else
-            llvm::errs() << "no value\n";
-      }
-    );
+    LLVM_DEBUG(printRWBBlock(node->getBBlock(), RWBuilder));
     ret = MemorySSATransformation::findDefinitions(node);
     LLVM_DEBUG(
       llvm::errs() << node->getID() << ": ";
@@ -48,6 +40,7 @@ DfiMemorySSATransformation::findDefinitions(RWNode *node) {
   }
 
   return ret;
+*/
 }
 
 void DfiMemorySSATransformation::addUncoveredFromPredecessors(
@@ -77,11 +70,14 @@ DfiMemorySSATransformation::createPhi(Definitions &D, const DefSite &ds, RWNodeT
 
 Definitions &DfiMemorySSATransformation::getBBlockDefinitions(RWBBlock *b, const DefSite *ds) {
   LLVM_DEBUG(llvm::errs() << "DfiMemorySSATransformation::" << __func__ << "\n");
-  if (getBBlockInfo(b).isCallBlock()) {
-    LLVM_DEBUG(llvm::errs() << " - isCallBlock\n");
-  } else {
-    LLVM_DEBUG(llvm::errs() << " - is not CallBlock\n");
-  }
+  LLVM_DEBUG(
+    if (getBBlockInfo(b).isCallBlock()) {
+      llvm::errs() << " - isCallBlock\n";
+    } else {
+      llvm::errs() << " - is not CallBlock\n";
+    }
+  );
+  LLVM_DEBUG(printRWBBlock(b, RWBuilder));
   return MemorySSATransformation::getBBlockDefinitions(b, ds);
 }
 

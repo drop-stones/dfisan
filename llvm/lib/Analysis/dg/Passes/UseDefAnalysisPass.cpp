@@ -25,19 +25,16 @@ AnalysisKey UseDefAnalysisPass::Key;
 
 UseDefAnalysisPass::Result
 UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
+  /// Error at assert(entryNode) in dda::LLVMDefUseAnalysis::addDataDependencies().
+  // llvmdg::LLVMDependenceGraphOptions Opts;
+  // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::svf;
+  // std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, Opts);
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
   Builder->buildDG();
   Builder->assignDefIDs();
 
   debug::UseDefLogger Logger{M};
   Logger.logDefInfo(Builder.get());
-
-  auto *DDA = Builder->getDDA();
-  auto *RWGraph = DDA->getGraph();
-  if (RWGraph->size() > 60827) {
-    printRWNode(DDA, RWGraph->getNode(60827));
-    printRWNode(DDA, RWGraph->getNode(60819));
-  }
 
   UseDefAnalysisPass::Result Result { std::move(Builder) };
 

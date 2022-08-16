@@ -6,6 +6,7 @@
 
 #include "dg/Passes/UseDefAnalysisPass.h"
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/Passes/DfiUtils.h"
 
 #define DEBUG_TYPE "dfi-instrument"
 
@@ -252,67 +253,3 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, unsigned
   Builder->SetInsertPoint(InsertPoint);
   createDfiLoadFn(LoadTarget, Size, DefIDs);
 }
-
-/*
-void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Value *Store, Instruction *InsertPoint) {
-  Builder.SetInsertPoint(InsertPoint);
-  createDfiStoreFnForAggregateData(M, Builder, StoreNode);
-}
-*/
-
-/*
-void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Module &M, llvm::IRBuilder<> &Builder, const StoreVFGNode *StoreNode) {
-  const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
-  assert(OffsetVec.size() != 0);
-  if (llvm::isa<StructOffset>(OffsetVec[0])) {
-    Value *FieldAddr = createStructGep(Builder, StoreNode, OffsetVec);
-    createDfiStoreFn(M, Builder, StoreNode, FieldAddr);
-  } else if (llvm::isa<ArrayOffset>(OffsetVec[0])) {
-    Value *ArrayAddr = (Value *)OffsetVec[0]->Base;
-    createDfiStoreFn(M, Builder, StoreNode, ArrayAddr);
-  } else if (llvm::isa<PointerOffset>(OffsetVec[0])) {
-    // TODO
-    PointerOffset *Offset = llvm::dyn_cast<PointerOffset>(OffsetVec[0]);
-    Value *BaseAddr = (Value *)Offset->Base;
-    Value *Length = (Value *)Offset->Length;
-    createDfiStoreFn(M, Builder, StoreNode, BaseAddr, Length);
-  } else {
-    assert(false && "Invalid Offset Type!!");
-  }
-}
-
-Value *
-DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode, const std::vector<struct FieldOffset *> &OffsetVec) {
-  assert(OffsetVec.size() != 0 && llvm::isa<StructOffset>(OffsetVec[0]));
-  Value *CurVal = (Value *)OffsetVec[0]->Base;
-  for (const auto *Offset : OffsetVec) {
-    const auto *StructOff = llvm::dyn_cast<StructOffset>(Offset);
-    LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
-    LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
-    CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
-  }
-  return CurVal;
-///*
-  const auto *Head = OffsetVec[0];
-  Value *CurVal = (Value *)Head->Base;
-  if (const auto *StructOff = dyn_cast<StructOffset>(Head)) {
-    for (auto *Offset : OffsetVec) {
-      const auto *EleStructOff = dyn_cast<StructOffset>(Offset);
-      LLVM_DEBUG(dbgs() << "Type: " << *EleStructOff->StructTy << "\n");
-      LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
-      CurVal = Builder.CreateStructGEP((Type *)EleStructOff->StructTy, CurVal, EleStructOff->Offset);
-    }
-  } else if (const auto *ArrayOff = dyn_cast<ArrayOffset>(Head)) {
-    // do nothing
-  } else if (const auto *PointerOff = dyn_cast<PointerOffset>(Head)) {
-    // cast to [i8 * Length]
-  }
-  for (auto *Offset : OffsetVec) {
-    if (auto *StructOff = dyn_cast<StructOffset>(Offset)) {
-      LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
-      LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
-      CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
-    }
-  }
-}
-*/

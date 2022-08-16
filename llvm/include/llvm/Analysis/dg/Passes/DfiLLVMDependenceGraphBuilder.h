@@ -14,6 +14,7 @@ public:
     : LLVMDependenceGraphBuilder(M, Opts) {
     _DDA.reset(new dda::DfiLLVMDataDependenceAnalysis(M, _PTA.get(), _options.DDAOptions));
     _dg.reset(new DfiLLVMDependenceGraph(Opts.threads));
+    llvm::errs() << "BuildType: " << ((Opts.PTAOptions.isSVF()) ? "SVF" : "DG") << "\n";
   }
 };
 
