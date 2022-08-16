@@ -52,6 +52,9 @@ void setCurrentDebugType(const char *Type);
 ///
 void setCurrentDebugTypes(const char **Types, unsigned Count);
 
+void addCurrentDebugType(const char *Type);
+void popCurrentDebugType(const char *Type);
+
 /// DEBUG_WITH_TYPE macro - This macro should be used by passes to emit debug
 /// information.  In the '-debug' option is specified on the commandline, and if
 /// this is a debug build, then the code specified as the option to the macro

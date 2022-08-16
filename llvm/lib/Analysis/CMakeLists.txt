@@ -162,5 +162,5 @@ add_llvm_component_library(LLVMAnalysis
   Support
   )
 
-add_subdirectory(SVF)
+# add_subdirectory(SVF)
 add_subdirectory(dg)

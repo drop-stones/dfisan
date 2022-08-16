@@ -10,6 +10,7 @@ namespace dda {
 class DfiReadWriteGraphBuilder : public LLVMReadWriteGraphBuilder {
 private:
   NodesSeq<RWNode> createNode(const llvm::Value *) override;
+  RWNode *createLoad(const llvm::Instruction *Inst);
 
 protected:
   void buildSubgraph(const llvm::Function &F) override;

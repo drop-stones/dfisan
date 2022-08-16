@@ -21,8 +21,11 @@ namespace dg {
 
 class LLVMDependenceGraph;
 class LLVMNode;
+class DfiDefUseAnalysis;
 
 class LLVMDefUseAnalysis : public legacy::DataFlowAnalysis<LLVMNode> {
+    friend DfiDefUseAnalysis;
+
     LLVMDependenceGraph *dg;
     LLVMDataDependenceAnalysis *RD;
     LLVMPointerAnalysis *PTA;
@@ -37,9 +40,10 @@ class LLVMDefUseAnalysis : public legacy::DataFlowAnalysis<LLVMNode> {
     /* virtual */
     bool runOnNode(LLVMNode *node, LLVMNode *prev) override;
 
-  private:
-    void addDataDependencies(LLVMNode *node);
+  protected:
+    virtual void addDataDependencies(LLVMNode *node);
 
+  private:
     void handleLoadInst(llvm::LoadInst *, LLVMNode *);
     void handleCallInst(LLVMNode *);
     void handleInlineAsm(LLVMNode *callNode);

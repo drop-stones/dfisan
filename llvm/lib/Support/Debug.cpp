@@ -76,6 +76,13 @@ void setCurrentDebugTypes(const char **Types, unsigned Count) {
   for (size_t T = 0; T < Count; ++T)
     CurrentDebugType->push_back(Types[T]);
 }
+
+void addCurrentDebugType(const char *Type) {
+  CurrentDebugType->push_back(Type);
+}
+void popCurrentDebugType(const char *Type) {
+  CurrentDebugType->pop_back();
+}
 } // namespace llvm
 
 // All Debug.h functionality is a no-op in NDEBUG mode.

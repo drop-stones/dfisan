@@ -114,8 +114,13 @@ RWNode *LLVMReadWriteGraphBuilder::createDynAlloc(const llvm::Instruction *Inst,
     node.setSize(size);
 
     // Definitions by calloc
-    if (type == AllocationFunction::CALLOC)
-        node.addDef({&node, 0, size}, true);
+    if (type == AllocationFunction::CALLOC) {
+        if (size != 0) {
+            node.addDef(&node, 0, size, false);
+        } else {
+            node.addDef(&node, 0, Offset::getUnknown(), false);
+        }
+    }
 
     return &node;
 }
@@ -245,8 +250,6 @@ RWNode *LLVMReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
 
     auto defSites = mapPointers(Inst, Inst->getOperand(0), size);
     for (const auto &ds : defSites) {
-        if (ds == UNKNOWN_MEMORY)   // skip argv[]
-            continue;
         node.addUse(ds);
     }
 

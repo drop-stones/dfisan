@@ -6,6 +6,7 @@
 
 #include "dg/Passes/UseDefAnalysisPass.h"
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/Passes/DfiUtils.h"
 
 #define DEBUG_TYPE "dfi-instrument"
 
@@ -36,6 +37,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   UseDef = Result.getBuilder();
   this->M = &M;
   Builder = std::make_unique<IRBuilder<>>(M.getContext());
+  const auto *DDA = UseDef->getDDA();
 
   initializeSanitizerFuncs();
   insertDfiInitFn();
@@ -45,13 +47,18 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
   for (auto UI = UseDef->use_begin(), UE = UseDef->use_end(); UI != UE; UI++) {
     auto *Use = (*UI)->getValue();
+
+    // Skip unknown value uses (e.g., argv[]).
+    const auto &UseSites = DDA->getNode(Use)->getUses();
+    if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
+      llvm::errs() << "Skip Use: " << *Use << "\n";
+      continue;
+    }
+
     SmallVector<Value *, 8> DefIDs;
     for (auto *Def : UseDef->getDDA()->getLLVMDefinitions(Use)) {
       Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
       DefIDs.push_back(DefID);
-
-      if (UseDef->getDefID(Def) == 503)
-        llvm::errs() << "Found DefID=503: " << *Use << "\n";
     }
     insertDfiLoadFn(Use, DefIDs);
   }
@@ -161,16 +168,20 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
         llvm::errs() << "Instrument " << Callee->getName() << "\n";
         llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << *SizeVal << "\n";
         createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+      } else {
+        llvm::errs() << "No support Def function: " << Callee->getName() << "\n";
       }
+    } else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Def)) {
+      // Do nothing
     } else {
-      // llvm::errs() << "No support DefInst: " << *DefInst << "\n";
+      llvm::errs() << "No support DefInst: " << *DefInst << "\n";
       // assert(false && "No support Def");
     }
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
     createDfiStoreFn(UseDef->getDefID(GlobVar), GlobVar, Size, Builder->GetInsertBlock()->getTerminator());
   } else {
-    // llvm::errs() << "No support Def: " << *Def << "\n";
+    llvm::errs() << "No support Def: " << *Def << "\n";
     // assert(false && "No support Def");
   }
 }
@@ -242,67 +253,3 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, unsigned
   Builder->SetInsertPoint(InsertPoint);
   createDfiLoadFn(LoadTarget, Size, DefIDs);
 }
-
-/*
-void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Value *Store, Instruction *InsertPoint) {
-  Builder.SetInsertPoint(InsertPoint);
-  createDfiStoreFnForAggregateData(M, Builder, StoreNode);
-}
-*/
-
-/*
-void DataFlowIntegritySanitizerPass::createDfiStoreFnForAggregateData(Module &M, llvm::IRBuilder<> &Builder, const StoreVFGNode *StoreNode) {
-  const auto &OffsetVec = UseDef->getOffsetVector(StoreNode);
-  assert(OffsetVec.size() != 0);
-  if (llvm::isa<StructOffset>(OffsetVec[0])) {
-    Value *FieldAddr = createStructGep(Builder, StoreNode, OffsetVec);
-    createDfiStoreFn(M, Builder, StoreNode, FieldAddr);
-  } else if (llvm::isa<ArrayOffset>(OffsetVec[0])) {
-    Value *ArrayAddr = (Value *)OffsetVec[0]->Base;
-    createDfiStoreFn(M, Builder, StoreNode, ArrayAddr);
-  } else if (llvm::isa<PointerOffset>(OffsetVec[0])) {
-    // TODO
-    PointerOffset *Offset = llvm::dyn_cast<PointerOffset>(OffsetVec[0]);
-    Value *BaseAddr = (Value *)Offset->Base;
-    Value *Length = (Value *)Offset->Length;
-    createDfiStoreFn(M, Builder, StoreNode, BaseAddr, Length);
-  } else {
-    assert(false && "Invalid Offset Type!!");
-  }
-}
-
-Value *
-DataFlowIntegritySanitizerPass::createStructGep(llvm::IRBuilder<> &Builder, const StoreSVFGNode *StoreNode, const std::vector<struct FieldOffset *> &OffsetVec) {
-  assert(OffsetVec.size() != 0 && llvm::isa<StructOffset>(OffsetVec[0]));
-  Value *CurVal = (Value *)OffsetVec[0]->Base;
-  for (const auto *Offset : OffsetVec) {
-    const auto *StructOff = llvm::dyn_cast<StructOffset>(Offset);
-    LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
-    LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
-    CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
-  }
-  return CurVal;
-///*
-  const auto *Head = OffsetVec[0];
-  Value *CurVal = (Value *)Head->Base;
-  if (const auto *StructOff = dyn_cast<StructOffset>(Head)) {
-    for (auto *Offset : OffsetVec) {
-      const auto *EleStructOff = dyn_cast<StructOffset>(Offset);
-      LLVM_DEBUG(dbgs() << "Type: " << *EleStructOff->StructTy << "\n");
-      LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
-      CurVal = Builder.CreateStructGEP((Type *)EleStructOff->StructTy, CurVal, EleStructOff->Offset);
-    }
-  } else if (const auto *ArrayOff = dyn_cast<ArrayOffset>(Head)) {
-    // do nothing
-  } else if (const auto *PointerOff = dyn_cast<PointerOffset>(Head)) {
-    // cast to [i8 * Length]
-  }
-  for (auto *Offset : OffsetVec) {
-    if (auto *StructOff = dyn_cast<StructOffset>(Offset)) {
-      LLVM_DEBUG(dbgs() << "Type: " << *StructOff->StructTy << "\n");
-      LLVM_DEBUG(dbgs() << "Value: " << *CurVal << "\n");
-      CurVal = Builder.CreateStructGEP((Type *)StructOff->StructTy, CurVal, StructOff->Offset);
-    }
-  }
-}
-*/

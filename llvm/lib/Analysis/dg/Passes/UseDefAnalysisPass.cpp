@@ -15,6 +15,7 @@
 
 #include "dg/Passes/UseDefBuilder.h"
 #include "dg/Passes/UseDefLogger.h"
+#include "dg/Passes/DfiUtils.h"
 
 using namespace llvm;
 using namespace dg;
@@ -24,6 +25,10 @@ AnalysisKey UseDefAnalysisPass::Key;
 
 UseDefAnalysisPass::Result
 UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
+  /// Error at assert(entryNode) in dda::LLVMDefUseAnalysis::addDataDependencies().
+  // llvmdg::LLVMDependenceGraphOptions Opts;
+  // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::svf;
+  // std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, Opts);
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
   Builder->buildDG();
   Builder->assignDefIDs();
@@ -42,13 +47,12 @@ UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   auto *Builder = Result.getBuilder();
 
-  Builder->printUseDef(OS);
-  Builder->printDefInfoMap(OS);
-
   debug::LLVMDG2Dot Dumper(Builder->getDG());
   Dumper.dump("dg.dot");
 
-  Builder->dump(OS);
+  Builder->printUseDef(OS);
+  // Builder->printDefInfoMap(OS);
+  // Builder->dump(OS);
 
   return PreservedAnalyses::all();
 }

@@ -1,5 +1,6 @@
 # Initial settings
 add_definitions(-DENABLE_CFG)
+add_definitions(-DHAVE_SVF)
 
 file (GLOB SOURCES
 	# dganalysis
@@ -68,6 +69,7 @@ add_llvm_component_library(LLVMDg
 	BitWriter
 	IRReader
 	Support
+	Svf
 )
 target_include_directories(LLVMDg PRIVATE
 	${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
@@ -77,3 +79,7 @@ target_include_directories(LLVMDg PRIVATE
 get_target_property(LLVMSqlite3_INCLUDES LLVMSqlite3 INCLUDE_DIRECTORIES)
 target_include_directories(LLVMDg PRIVATE ${LLVMSqlite3_INCLUDES})
 target_link_libraries(LLVMDg PRIVATE LLVMSqlite3)
+
+# SVF settings
+get_target_property(LLVMSVF_INCLUDES LLVMSvf INCLUDE_DIRECTORIES)
+target_include_directories(LLVMDg PRIVATE ${LLVMSVF_INCLUDES})

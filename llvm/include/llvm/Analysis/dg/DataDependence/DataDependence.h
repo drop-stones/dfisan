@@ -15,10 +15,14 @@
 namespace dg {
 namespace dda {
 
+class DfiDataDependenceAnalysis;
+
 // here the types are for type-checking (optional - user can do it
 // when building the graph) and for later optimizations
 
 class DataDependenceAnalysis {
+    friend DfiDataDependenceAnalysis;
+
     // the implementation either uses reaching definitions
     // or transformation to SSA
     std::unique_ptr<DataDependenceAnalysisImpl> _impl;
@@ -39,6 +43,10 @@ class DataDependenceAnalysis {
 
     DataDependenceAnalysis(ReadWriteGraph &&graph)
             : DataDependenceAnalysis(std::move(graph), {}) {}
+    
+    DataDependenceAnalysis(DataDependenceAnalysisImpl *impl,
+                           const DataDependenceAnalysisOptions &opts)
+            : _impl(impl), _options(opts) {}
 
     ReadWriteGraph *getGraph() { return _impl->getGraph(); }
     const ReadWriteGraph *getGraph() const { return _impl->getGraph(); }

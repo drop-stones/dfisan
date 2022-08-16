@@ -23,7 +23,11 @@
 namespace dg {
 namespace dda {
 
+class DfiMemorySSATransformation;
+
 class MemorySSATransformation : public DataDependenceAnalysisImpl {
+    friend DfiMemorySSATransformation;
+
     class BBlockInfo {
         Definitions definitions{};
         RWNodeCall *call{nullptr};
@@ -112,12 +116,12 @@ class MemorySSATransformation : public DataDependenceAnalysisImpl {
     // Find definitions of the def site and return def-use edges.
     // For the uncovered bytes create phi nodes (which are also returned
     // as the definitions).
-    std::vector<RWNode *> findDefinitions(RWBBlock * /*block*/,
+    virtual std::vector<RWNode *> findDefinitions(RWBBlock * /*block*/,
                                           const DefSite & /*ds*/);
-    std::vector<RWNode *> findDefinitions(RWNode *node, const DefSite &ds);
+    virtual std::vector<RWNode *> findDefinitions(RWNode *node, const DefSite &ds);
 
     // Find definitions for the given node (which is supposed to be a use)
-    std::vector<RWNode *> findDefinitions(RWNode *node);
+    virtual std::vector<RWNode *> findDefinitions(RWNode *node);
 
     std::vector<RWNode *> findDefinitionsInPredecessors(RWBBlock *block,
                                                         const DefSite &ds);
@@ -126,9 +130,9 @@ class MemorySSATransformation : public DataDependenceAnalysisImpl {
                                                const DefSite &ds,
                                                std::vector<RWNode *> &defs);
 
-    void addUncoveredFromPredecessors(RWBBlock *block, Definitions &D,
-                                      const DefSite &ds,
-                                      std::vector<RWNode *> &defs);
+    virtual void addUncoveredFromPredecessors(RWBBlock *block, Definitions &D,
+                                              const DefSite &ds,
+                                              std::vector<RWNode *> &defs);
 
     void findPhiDefinitions(RWNode *phi);
 
@@ -191,8 +195,8 @@ class MemorySSATransformation : public DataDependenceAnalysisImpl {
     bool callMayDefineTarget(RWNodeCall *C, RWNode *target);
 
     RWNode *createPhi(const DefSite &ds, RWNodeType type = RWNodeType::PHI);
-    RWNode *createPhi(Definitions &D, const DefSite &ds,
-                      RWNodeType type = RWNodeType::PHI);
+    virtual RWNode *createPhi(Definitions &D, const DefSite &ds,
+                              RWNodeType type = RWNodeType::PHI);
     RWNode *createAndPlacePhi(RWBBlock *block, const DefSite &ds);
 
     // insert a (temporary) use into the graph before the node 'where'
@@ -203,7 +207,7 @@ class MemorySSATransformation : public DataDependenceAnalysisImpl {
     dg::ADT::QueueLIFO<RWNode> _queue;
     std::unordered_map<const RWSubgraph *, SubgraphInfo> _subgraphs_info;
 
-    Definitions &getBBlockDefinitions(RWBBlock *b, const DefSite *ds = nullptr);
+    virtual Definitions &getBBlockDefinitions(RWBBlock *b, const DefSite *ds = nullptr);
 
     SubgraphInfo &getSubgraphInfo(const RWSubgraph *s) {
         return _subgraphs_info[s];

@@ -1,7 +1,25 @@
 #include "Passes/DfiReadWriteGraphBuilder.h"
+// #include "dg/Passes/DfiUtils.h"
 
 namespace dg {
 namespace dda {
+
+RWNode *DfiReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
+    RWNode *ret = LLVMReadWriteGraphBuilder::createLoad(Inst);
+
+    /// Print for debug
+    auto &Loc = Inst->getDebugLoc();
+    if (Loc) {
+        if (Loc->getColumn() == 20 && Loc->getLine() == 671) {
+            llvm::errs() << "Found " << *Inst << "\n";
+            for (const auto &Use : ret->getUses()) {
+                llvm::errs() << " - " << *getValue(Use.target) << "\n";
+            }
+        }
+    }
+
+    return ret;
+}
 
 template <typename OptsT>
 static bool isRelevantCall(const llvm::Instruction *Inst, OptsT &opts) {
