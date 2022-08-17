@@ -4,6 +4,7 @@
 
 #include "dg/llvm/LLVMDependenceGraph.h"
 #include "dg/llvm/LLVMDependenceGraphBuilder.h"
+#include "dg/Passes/DfiProtectInfo.h"
 #include "dg/Passes/UseDefIterator.h"
 #include "dg/Passes/DfiLLVMDependenceGraphBuilder.h"
 
@@ -25,12 +26,13 @@ public:
   UseDefBuilder(llvm::Module *M)
     : UseDefBuilder(M, {}) {}
   UseDefBuilder(llvm::Module *M, const llvmdg::LLVMDependenceGraphOptions &Opts)
-    : DgBuilder(new llvmdg::DfiLLVMDependenceGraphBuilder(M, Opts)) {}
+    : DgBuilder(new llvmdg::DfiLLVMDependenceGraphBuilder(ProtectInfo, M, Opts)), M(M) {}
   
   LLVMDependenceGraph *getDG() { return DG.get(); }
   LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
 
   LLVMDependenceGraph *buildDG() {
+    findDfiProtectTargets();
     DG = DgBuilder->build();
     return DG.get();
   }
@@ -42,16 +44,25 @@ public:
   bool isDef(llvm::Value *Def);
   bool isUse(llvm::Value *Use);
 
+  void findDfiProtectTargets();
+  bool isSelectiveDfi() { return ProtectInfo.isSelectiveDfi(); }
+  DfiProtectInfo &getProtectInfo() { return ProtectInfo; }
+
   void assignDefIDs();
+  bool hasDefID(llvm::Value *Key);
   DefID getDefID(llvm::Value *Key);
 
   void printUseDef(llvm::raw_ostream &OS);
   void printDefInfoMap(llvm::raw_ostream &OS);
+  void printProtectInfo(llvm::raw_ostream &OS);
   void dump(llvm::raw_ostream &OS);
 
 private:
   std::unique_ptr<LLVMDependenceGraph> DG{nullptr};
   DefInfoMap DefToInfo;
+  DfiProtectInfo ProtectInfo;
+  const std::string DfiProtectAnn = "dfi_protection";
+  llvm::Module *M;
 
   void assignDefID(llvm::Value *Def);
 

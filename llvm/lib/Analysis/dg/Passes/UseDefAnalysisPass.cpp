@@ -32,6 +32,7 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
   Builder->buildDG();
   Builder->assignDefIDs();
+  Builder->printProtectInfo(llvm::outs());
 
   debug::UseDefLogger Logger{M};
   Logger.logDefInfo(Builder.get());

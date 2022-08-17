@@ -9,7 +9,7 @@ namespace dg {
 
 void DfiLLVMDependenceGraph::addDefUseEdges(bool preserveDbg) {
   // llvm::errs() << __func__ << "\n";
-  DfiDefUseAnalysis DUA(this, DDA, PTA);
+  DfiDefUseAnalysis DUA(this, DDA, PTA, ProtectInfo);
   DUA.run();
 
   if (preserveDbg) {

@@ -3,23 +3,23 @@
 
 #include "dg/llvm/LLVMDependenceGraph.h"
 #include "dg/llvm/LLVMNode.h"
+#include "dg/Passes/DfiProtectInfo.h"
 #include "dg/Passes/DfiUtils.h"
 #include "llvm/DefUse/DefUse.h"
 
 namespace dg {
 
 class DfiDefUseAnalysis : public LLVMDefUseAnalysis {
+  DfiProtectInfo &ProtectInfo;
 public:
   DfiDefUseAnalysis(LLVMDependenceGraph *dg, LLVMDataDependenceAnalysis *rd,
-                    LLVMPointerAnalysis *pta)
-    : LLVMDefUseAnalysis(dg, rd, pta) {}
+                    LLVMPointerAnalysis *pta, DfiProtectInfo &ProtectInfo)
+    : LLVMDefUseAnalysis(dg, rd, pta), ProtectInfo(ProtectInfo) {}
   
-  void addDataDependencies(LLVMNode *Node) override {
-    LLVMDefUseAnalysis::addDataDependencies(Node);
-    printUseDefFromDebugLoc(RD, Node->getValue(), 20, 669); // ok
-    printUseDefFromDebugLoc(RD, Node->getValue(), 20, 670); // ok
-    printUseDefFromDebugLoc(RD, Node->getValue(), 20, 671); // ng
-  }
+  bool runOnNode(LLVMNode *Node, LLVMNode *Prev) override;
+  
+protected:
+  void addDataDependencies(LLVMNode *Node) override;
 };
 
 } // namespace dg

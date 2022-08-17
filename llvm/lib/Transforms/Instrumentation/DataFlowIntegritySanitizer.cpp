@@ -42,25 +42,47 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initializeSanitizerFuncs();
   insertDfiInitFn();
 
-  for (auto DI = UseDef->def_begin(), DE = UseDef->def_end(); DI != DE; DI++) {
-    insertDfiStoreFn((*DI)->getValue());
-  }
-  for (auto UI = UseDef->use_begin(), UE = UseDef->use_end(); UI != UE; UI++) {
-    auto *Use = (*UI)->getValue();
-
-    // Skip unknown value uses (e.g., argv[]).
-    const auto &UseSites = DDA->getNode(Use)->getUses();
-    if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
-      llvm::errs() << "Skip Use: " << *Use << "\n";
-      continue;
+  if (UseDef->isSelectiveDfi()) {
+    // TODO: protect dfi_protection only
+    for (auto *Def : UseDef->getProtectInfo().Defs) {
+      insertDfiStoreFn((Value *)Def);
     }
+    for (auto *Use : UseDef->getProtectInfo().Uses) {
+      // Skip unknown value uses (e.g., argv[]).
+      const auto &UseSites = DDA->getNode(Use)->getUses();
+      if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
+        llvm::errs() << "Skip Use: " << *Use << "\n";
+        continue;
+      }
 
-    SmallVector<Value *, 8> DefIDs;
-    for (auto *Def : UseDef->getDDA()->getLLVMDefinitions(Use)) {
-      Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
-      DefIDs.push_back(DefID);
+      SmallVector<Value *, 8> DefIDs;
+      for (auto *Def : UseDef->getDDA()->getLLVMDefinitions((Value *)Use)) {
+        Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
+        DefIDs.push_back(DefID);
+      }
+      insertDfiLoadFn((Value *)Use, DefIDs);
     }
-    insertDfiLoadFn(Use, DefIDs);
+  } else {
+    for (auto DI = UseDef->def_begin(), DE = UseDef->def_end(); DI != DE; DI++) {
+      insertDfiStoreFn((*DI)->getValue());
+    }
+    for (auto UI = UseDef->use_begin(), UE = UseDef->use_end(); UI != UE; UI++) {
+      auto *Use = (*UI)->getValue();
+
+      // Skip unknown value uses (e.g., argv[]).
+      const auto &UseSites = DDA->getNode(Use)->getUses();
+      if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
+        llvm::errs() << "Skip Use: " << *Use << "\n";
+        continue;
+      }
+
+      SmallVector<Value *, 8> DefIDs;
+      for (auto *Def : UseDef->getDDA()->getLLVMDefinitions(Use)) {
+        Value *DefID = ConstantInt::get(ArgTy, UseDef->getDefID(Def), false);
+        DefIDs.push_back(DefID);
+      }
+      insertDfiLoadFn(Use, DefIDs);
+    }
   }
 
   return PreservedAnalyses::none();
@@ -123,14 +145,39 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   appendToGlobalCtors(*M, Ctor, 1);
 
   // Insert DfiStoreFn for GlobalInit
-  for (auto GI = UseDef->glob_begin(); GI != UseDef->glob_end(); GI++) {
-    auto *GlobVal = (llvm::Value *)UseDef->getDDA()->getValue(*GI);
-    insertDfiStoreFn(GlobVal);
+  if (UseDef->isSelectiveDfi()) {
+    // TODO
+    for (auto *GlobVal : UseDef->getProtectInfo().Globals) {
+      if (auto *GVal = llvm::dyn_cast<GlobalVariable>(GlobVal)) {
+        if (GVal->isConstant() || GVal->getName() == "llvm.global.annotations") { // Skip constant or annotations
+          llvm::errs() << "Skip GlobalVal: " << *GlobVal << "\n";
+          continue;
+        }
+      }
+      insertDfiStoreFn((Value *)GlobVal);
+    }
+  } else {
+    for (auto GI = UseDef->glob_begin(); GI != UseDef->glob_end(); GI++) {
+      auto *GlobVal = (llvm::Value *)UseDef->getDDA()->getValue(*GI);
+      if (auto *GVal = llvm::dyn_cast<GlobalVariable>(GlobVal)) {
+        if (GVal->isConstant() || GVal->getName() == "llvm.global.annotations") { // Skip constant or annotations
+          llvm::errs() << "Skip GlobalVal: " << *GlobVal << "\n";
+          continue;
+        }
+      }
+      insertDfiStoreFn(GlobVal);
+    }
   }
 }
 
 /// Insert a DEF function after each store statement using pointer.
 void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
+  // if (!UseDef->hasDefID(Def)) {
+  //   LLVM_DEBUG(llvm::errs() << "Skip DfiStoreFn: " << *Def << "\n");
+  //   return;
+  // }
+  llvm::errs() << "InsertDfiStoreFn: " << *Def << "\n";
+
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
     if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
       auto *StoreTarget = Store->getPointerOperand();
@@ -188,6 +235,12 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
 
 /// Insert a CHECK function before each load statement.
 void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, SmallVector<Value *, 8> &DefIDs) {
+  // if (DefIDs.empty()) {
+  //   LLVM_DEBUG(llvm::errs() << "Skip DfiLoadFn: " << *Use << "\n");
+  //   return;
+  // }
+  llvm::errs() << "InsertDfiLoadFn: " << *Use << "\n";
+
   if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
     if (LoadInst *Load = dyn_cast<LoadInst>(UseInst)) {
       auto *LoadTarget = Load->getPointerOperand();

@@ -12,6 +12,53 @@ UseDefBuilder::isUse(llvm::Value *Val) {
   return getDDA()->isUse(Val);
 }
 
+// TODO: Support heap object
+void
+UseDefBuilder::findDfiProtectTargets() {
+  using namespace llvm;
+  // Annotated global variables
+  if (GlobalVariable *GlobAnnotation = M->getGlobalVariable("llvm.global.annotations")) {
+    for (Value *Op : GlobAnnotation->operands()) {  // Metadata are stored in an array of struct of metadata
+      if (ConstantArray *CA = dyn_cast<ConstantArray>(Op)) {
+        for (Value *CAOp : CA->operands()) {
+          if (ConstantStruct *CS = dyn_cast<ConstantStruct>(CAOp)) {
+            if (CS->getNumOperands() >= 2) {
+              Value *AnnotatedVal = CS->getOperand(0)->getOperand(0);
+              if (GlobalVariable *GAnn = dyn_cast<GlobalVariable>(CS->getOperand(1)->getOperand(0))) {
+                if (ConstantDataArray *Arr = dyn_cast<ConstantDataArray>(GAnn->getOperand(0))) {
+                  StringRef AnnStr = Arr->getAsString();
+                  if (AnnStr.startswith(DfiProtectAnn)) {
+                    llvm::errs() << "Annotation: " << AnnStr << ", GlobalVal: " << *AnnotatedVal << "\n";
+                    ProtectInfo.insertGlobal(AnnotatedVal);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (Function &Func : M->getFunctionList()) {
+    for (Instruction &Inst : instructions(&Func)) {
+      if (IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(&Inst)) {
+        Function *Callee = Intrinsic->getCalledFunction();
+        if (Callee->getName() == "llvm.var.annotation") {
+          Value *AnnotatedVal = Intrinsic->getArgOperand(0)->stripPointerCasts();
+          if (GlobalVariable *Ann = dyn_cast<GlobalVariable>(Intrinsic->getArgOperand(1)->stripPointerCasts())) {
+            if (ConstantDataArray *Arr = dyn_cast<ConstantDataArray>(Ann->getOperand(0))) {
+              StringRef AnnStr = Arr->getAsString();
+              llvm::errs() << "Annotation: " << AnnStr << ", annotatedVal: " << *AnnotatedVal << "\n";
+              ProtectInfo.insertLocal(AnnotatedVal);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 void
 UseDefBuilder::assignDefIDs() {
   // Assign DefID to global initializations.
@@ -44,9 +91,14 @@ UseDefBuilder::assignDefID(llvm::Value *Def) {
   }
 }
 
+bool
+UseDefBuilder::hasDefID(llvm::Value *Key) {
+  return DefToInfo.count(Key) != 0;
+}
+
 DefID
 UseDefBuilder::getDefID(llvm::Value *Key) {
-  assert(DefToInfo.count(Key) != 0);
+  assert(hasDefID(Key));
   return DefToInfo[Key].ID;
 }
 
@@ -71,6 +123,11 @@ UseDefBuilder::printDefInfoMap(llvm::raw_ostream &OS) {
 
     OS << "DefID[" << DefInfo.ID << "]: " << *Val << "\n";
   }
+}
+
+void
+UseDefBuilder::printProtectInfo(llvm::raw_ostream &OS) {
+  ProtectInfo.dump(OS);
 }
 
 void
