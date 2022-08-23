@@ -1,4 +1,5 @@
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/Passes/DfiUtils.h"
 #include "dg/llvm/LLVMDependenceGraph.h"
 
 using namespace dg;
@@ -12,11 +13,10 @@ UseDefBuilder::isUse(llvm::Value *Val) {
   return getDDA()->isUse(Val);
 }
 
-// TODO: Support heap object
 void
 UseDefBuilder::findDfiProtectTargets() {
   using namespace llvm;
-  // Annotated global variables
+  // Collect annotated global variables
   if (GlobalVariable *GlobAnnotation = M->getGlobalVariable("llvm.global.annotations")) {
     for (Value *Op : GlobAnnotation->operands()) {  // Metadata are stored in an array of struct of metadata
       if (ConstantArray *CA = dyn_cast<ConstantArray>(Op)) {
@@ -27,9 +27,13 @@ UseDefBuilder::findDfiProtectTargets() {
               if (GlobalVariable *GAnn = dyn_cast<GlobalVariable>(CS->getOperand(1)->getOperand(0))) {
                 if (ConstantDataArray *Arr = dyn_cast<ConstantDataArray>(GAnn->getOperand(0))) {
                   StringRef AnnStr = Arr->getAsString();
-                  if (AnnStr.startswith(DfiProtectAnn)) {
+                  if (AnnStr.startswith(DfiProtectAnn)) {     // Protect global variables
                     llvm::errs() << "Annotation: " << AnnStr << ", GlobalVal: " << *AnnotatedVal << "\n";
                     ProtectInfo.insertGlobal(AnnotatedVal);
+                  }
+                  if (AnnStr.startswith(DfiPtrProtectAnn)) {  // Protect heap variables
+                    llvm::errs() << "Annotation: " << AnnStr << ", GlobalVal: " << *AnnotatedVal << "\n";
+                    ProtectInfo.insertProtectPtr(AnnotatedVal);
                   }
                 }
               }
@@ -40,6 +44,7 @@ UseDefBuilder::findDfiProtectTargets() {
     }
   }
 
+  // Collect annotated local variables
   for (Function &Func : M->getFunctionList()) {
     for (Instruction &Inst : instructions(&Func)) {
       if (IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(&Inst)) {
@@ -49,9 +54,29 @@ UseDefBuilder::findDfiProtectTargets() {
           if (GlobalVariable *Ann = dyn_cast<GlobalVariable>(Intrinsic->getArgOperand(1)->stripPointerCasts())) {
             if (ConstantDataArray *Arr = dyn_cast<ConstantDataArray>(Ann->getOperand(0))) {
               StringRef AnnStr = Arr->getAsString();
-              llvm::errs() << "Annotation: " << AnnStr << ", annotatedVal: " << *AnnotatedVal << "\n";
-              ProtectInfo.insertLocal(AnnotatedVal);
+              if (AnnStr.startswith(DfiProtectAnn)) {     // Protect local variables
+                llvm::errs() << "Annotation: " << AnnStr << ", annotatedVal: " << *AnnotatedVal << "\n";
+                ProtectInfo.insertLocal(AnnotatedVal);
+              }
+              if (AnnStr.startswith(DfiPtrProtectAnn)) {  // Protect heap variables
+                llvm::errs() << "Annotation: " << AnnStr << ", annotatedVal: " << *AnnotatedVal << "\n";
+                ProtectInfo.insertProtectPtr(AnnotatedVal);
+              }
             }
+          }
+        }
+      }
+    }
+  }
+
+  // Collect annotated heap variables
+  for (const auto *ProtectPtr : ProtectInfo.ProtectPtrs) {
+    for (const auto *User : ProtectPtr->users()) {
+      if (const LoadInst *Load = dyn_cast<LoadInst>(User)) {
+        for (const auto &Heap : getPTA()->getLLVMPointsTo(Load)) {
+          if (isMemoryAllocCall(Heap.value)) {
+            llvm::errs() << "Annotated Heap Object: " << *Heap.value << "\n";
+            ProtectInfo.insertHeap(Heap.value);
           }
         }
       }

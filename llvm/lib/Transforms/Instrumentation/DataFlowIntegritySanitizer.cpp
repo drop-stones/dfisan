@@ -43,7 +43,6 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   insertDfiInitFn();
 
   if (UseDef->isSelectiveDfi()) {
-    // TODO: protect dfi_protection only
     for (auto *Def : UseDef->getProtectInfo().Defs) {
       insertDfiStoreFn((Value *)Def);
     }
@@ -146,14 +145,7 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
 
   // Insert DfiStoreFn for GlobalInit
   if (UseDef->isSelectiveDfi()) {
-    // TODO
     for (auto *GlobVal : UseDef->getProtectInfo().Globals) {
-      if (auto *GVal = llvm::dyn_cast<GlobalVariable>(GlobVal)) {
-        if (GVal->isConstant() || GVal->getName() == "llvm.global.annotations") { // Skip constant or annotations
-          llvm::errs() << "Skip GlobalVal: " << *GlobVal << "\n";
-          continue;
-        }
-      }
       insertDfiStoreFn((Value *)GlobVal);
     }
   } else {
@@ -172,10 +164,6 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
 
 /// Insert a DEF function after each store statement using pointer.
 void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
-  // if (!UseDef->hasDefID(Def)) {
-  //   LLVM_DEBUG(llvm::errs() << "Skip DfiStoreFn: " << *Def << "\n");
-  //   return;
-  // }
   llvm::errs() << "InsertDfiStoreFn: " << *Def << "\n";
 
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
@@ -235,10 +223,6 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
 
 /// Insert a CHECK function before each load statement.
 void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, SmallVector<Value *, 8> &DefIDs) {
-  // if (DefIDs.empty()) {
-  //   LLVM_DEBUG(llvm::errs() << "Skip DfiLoadFn: " << *Use << "\n");
-  //   return;
-  // }
   llvm::errs() << "InsertDfiLoadFn: " << *Use << "\n";
 
   if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {

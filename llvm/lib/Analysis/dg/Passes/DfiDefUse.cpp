@@ -13,8 +13,9 @@ bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
   auto *RWNode = RD->getNode(Val);
   for (auto &Use : RWNode->getUses()) {
     auto *UseVal = RD->getValue(Use.target);
-    if (ProtectInfo.hasValue((Value *)UseVal)) {
+    if (ProtectInfo.hasValue(UseVal)) {
       llvm::errs() << "runOnNode: " << *Val << "\n";
+      llvm::errs() << " - Use: " << *UseVal << "\n";
       ProtectInfo.insertUse(Val);
       auto Ret = LLVMDefUseAnalysis::runOnNode(Node, Prev);
       for (auto *Def : RD->getLLVMDefinitions(Val)) {

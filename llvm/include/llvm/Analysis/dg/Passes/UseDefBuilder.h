@@ -30,10 +30,12 @@ public:
   
   LLVMDependenceGraph *getDG() { return DG.get(); }
   LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
+  LLVMPointerAnalysis *getPTA() { return (getDG() != nullptr) ? DG->getPTA() : DgBuilder->getPTA(); }
 
   LLVMDependenceGraph *buildDG() {
+    DgBuilder->runAnalysis();
     findDfiProtectTargets();
-    DG = DgBuilder->build();
+    DG = DgBuilder->buildDG();
     return DG.get();
   }
 
@@ -62,6 +64,7 @@ private:
   DefInfoMap DefToInfo;
   DfiProtectInfo ProtectInfo;
   const std::string DfiProtectAnn = "dfi_protection";
+  const std::string DfiPtrProtectAnn = "dfi_ptr_protection";
   llvm::Module *M;
 
   void assignDefID(llvm::Value *Def);

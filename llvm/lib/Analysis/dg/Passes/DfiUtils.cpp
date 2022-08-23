@@ -9,6 +9,20 @@ using namespace llvm;
 
 namespace dg {
 
+static constexpr unsigned MemoryAllocFuncCount = 3;
+static constexpr char MemoryAllocFunc[MemoryAllocFuncCount][10] = {"malloc", "calloc", "realloc"};
+
+bool isMemoryAllocCall(Value *V) {
+  if (const auto *Call = dyn_cast<llvm::CallInst>(V)) {
+    const Function *Func = Call->getCalledFunction();
+    for (unsigned Idx = 0; Idx < MemoryAllocFuncCount; Idx++) {
+      if (Func->getName() == MemoryAllocFunc[Idx])
+        return true;
+    }
+  }
+  return false;
+}
+
 void printUseDefFromDebugLoc(dda::LLVMDataDependenceAnalysis *DDA, Value *Val, unsigned int Col, unsigned int Line) {
   if (auto *Inst = dyn_cast<Instruction>(Val)) {
     auto Loc = Inst->getDebugLoc();

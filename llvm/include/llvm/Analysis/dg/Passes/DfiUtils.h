@@ -8,6 +8,8 @@ using namespace llvm;
 
 namespace dg {
 
+bool isMemoryAllocCall(llvm::Value *V);
+
 void printUseDefFromDebugLoc(dda::LLVMDataDependenceAnalysis *DDA, Value *Val, unsigned int Col, unsigned int Line);
 void printDefinitionsFromDebugLoc(dda::RWNode *Use, std::vector<dda::RWNode *> &Defs, unsigned int Col, unsigned int Line);
 void printRWNode(dda::LLVMDataDependenceAnalysis *DDA, dda::RWNode *Node);
