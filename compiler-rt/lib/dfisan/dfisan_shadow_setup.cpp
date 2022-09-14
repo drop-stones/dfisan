@@ -10,6 +10,9 @@
 #include "sanitizer_common/sanitizer_platform.h"
 #include "dfisan/dfisan_internal.h"
 #include "dfisan/dfisan_mapping.h"
+#include "dfisan/dfisan_malloc.h"
+
+mspace unsafe_region, safe_aligned_region, safe_unaligned_region;
 
 using namespace __sanitizer;
 
@@ -26,6 +29,12 @@ void InitializeShadowMemory() {
   ProtectGap(kShadowGapBeg, kShadowGapEnd - kShadowGapBeg + 1, 0, (1 << 18));
   Report("INFO: Reserve shadow gap\n");
   CHECK_EQ(kShadowGapEnd, kHighShadowBeg - 1);
+
+  int unsafe_heap_size = 0xffff;
+  uptr unsafe_heap = kLowMemEnd - unsafe_heap_size;
+  ReserveShadowMemoryRange(unsafe_heap, kLowMemEnd, "unsafe heap");
+  unsafe_region = create_mspace_with_base((void*)unsafe_heap, unsafe_heap_size, 0);
+  Report("INFO: Reserve unsafe heap (tentative)\n");
 }
 
 } // namespace __dfisan
