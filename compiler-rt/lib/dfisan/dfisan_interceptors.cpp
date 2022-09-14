@@ -6,6 +6,7 @@
 ///
 //===----------------------------------------------------------------------===//
 #include "dfisan/dfisan_interceptors.h"
+#include "dfisan/dfisan_malloc.h"
 
 #include "interception/interception.h"
 #include "sanitizer_common/sanitizer_common.h"
@@ -15,7 +16,8 @@ using namespace __sanitizer;
 
 INTERCEPTOR(void *, malloc, SIZE_T size) {
   // Report("%s: Intercept malloc(%lu)\n", __func__, (unsigned long)size);
-  void *ptr = REAL(malloc)(size);
+  // void *ptr = REAL(malloc)(size);
+  void *ptr = __dfisan_unsafe_malloc(size);
   return ptr;
 }
 
