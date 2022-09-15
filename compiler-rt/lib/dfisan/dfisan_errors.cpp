@@ -2,7 +2,6 @@
 #include "dfisan/dfisan_mapping.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
-//#include "sanitizer_common/sanitizer_internal_defs.h"
 
 #include "sqlite3.h"
 #include <stdlib.h>
@@ -108,11 +107,13 @@ void PrintDefIDs(u16 Argc, va_list IDList) {
 
 
 void ReportInvalidUseError(uptr LoadAddr, u16 Argc, va_list IDList, uptr pc, uptr bp) {
-  // static u64 ErrorCount = 0;
-  // Printf("Error: count=%llu\n", ++ErrorCount);
-  // return;
-
-  u16 *shadow_memory = (u16 *)MemToShadow(LoadAddr);
+  u16 *shadow_memory = 0;
+  if (AddrIsInSafeAligned(LoadAddr))
+    shadow_memory = (u16 *)AlignedMemToShadow(LoadAddr);
+  else if (AddrIsInSafeUnaligned(LoadAddr))
+    shadow_memory = (u16 *)UnalignedMemToShadow(LoadAddr);
+  else
+    assert(false && "Invalid LoadAddr");
   u16 InvalidID = *shadow_memory;
   Decorator d;
   Printf("\n%s", d.Error());

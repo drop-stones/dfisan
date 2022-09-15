@@ -42,6 +42,9 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initializeSanitizerFuncs();
   insertDfiInitFn();
 
+  // no instrumentations for dlmalloc tests.
+  return PreservedAnalyses::all();
+
   if (UseDef->isSelectiveDfi()) {
     for (auto *Def : UseDef->getProtectInfo().Defs) {
       insertDfiStoreFn((Value *)Def);
@@ -142,6 +145,9 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   appendToUsed(*M, {Ctor});
   // Put the constructor in GlobalCtors
   appendToGlobalCtors(*M, Ctor, 1);
+
+  // Test for dlmalloc
+  return;
 
   // Insert DfiStoreFn for GlobalInit
   if (UseDef->isSelectiveDfi()) {
