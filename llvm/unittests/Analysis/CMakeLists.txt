@@ -53,6 +53,7 @@ add_llvm_unittest_with_input_files(AnalysisTests
   ${EXTRA_TESTS}
 
   UseDefAnalysisTest.cpp
+  ProtectionTargetAnalysisTest.cpp
   )
 
  target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)

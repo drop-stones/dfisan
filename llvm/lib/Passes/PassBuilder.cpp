@@ -73,6 +73,7 @@
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 // #include "llvm/Analysis/SVF/UseDefAnalysis/UseDefAnalysisPass.h"
 #include "llvm/Analysis/dg/Passes/UseDefAnalysisPass.h"
+#include "llvm/Analysis/dg/Passes/ProtectionTargetAnalysisPass.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/PassManager.h"

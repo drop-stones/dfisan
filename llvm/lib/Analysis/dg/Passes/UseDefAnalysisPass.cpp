@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "dg/Passes/UseDefAnalysisPass.h"
+#include "dg/Passes/ProtectionTargetAnalysisPass.h"
 #include "dg/llvm/LLVMDependenceGraph.h"
 #include "dg/llvm/LLVMDependenceGraphBuilder.h"
 #include "dg/llvm/LLVMSlicer.h"
@@ -29,6 +30,8 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // llvmdg::LLVMDependenceGraphOptions Opts;
   // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::svf;
   // std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, Opts);
+
+  auto &ProtectionTargets = MAM.getResult<ProtectionTargetAnalysisPass>(M);
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
   Builder->buildDG();
   Builder->assignDefIDs();
