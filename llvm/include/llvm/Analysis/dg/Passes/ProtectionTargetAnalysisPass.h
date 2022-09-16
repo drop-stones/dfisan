@@ -15,7 +15,8 @@
 
 namespace llvm {
 
-using ValueSet = std::unordered_set<const llvm::Value *>;
+using ValueSet = std::unordered_set<llvm::Value *>;
+using InstSet = std::unordered_set<llvm::Instruction *>;
 
 class ProtectionTargetAnalysisPass : public AnalysisInfoMixin<ProtectionTargetAnalysisPass> {
   friend AnalysisInfoMixin<ProtectionTargetAnalysisPass>;
@@ -28,11 +29,13 @@ public:
   public:
     Result() {}
 
-    void insertGlobalTarget(const Value *G) { GlobalTargets.insert(G); }
-    void insertLocalTarget (const Value *L) { LocalTargets.insert(L); }
+    void insertGlobalTarget(Value *G) { GlobalTargets.insert(G); }
+    void insertLocalTarget (Value *L) { LocalTargets.insert(L); }
+    void insertHeapTarget  (Value *H) { HeapTargets.insert(H); }
 
     ValueSet& getGlobalTargets() { return GlobalTargets; }
     ValueSet& getLocalTargets()  { return LocalTargets; }
+    ValueSet& getHeapTargets()   { return HeapTargets; }
 
     void dump(raw_ostream &OS) {
       OS << "ProtectionTargetAnalysisPass Result::dump()\n";
@@ -41,11 +44,14 @@ public:
         OS << "  - " << *Global << "\n";
       for (const auto *Local : LocalTargets)
         OS << "  - " << *Local << "\n";
+      for (const auto *Heap : HeapTargets)
+        OS << "  - " << *Heap << "\n";
     }
 
   private:
     ValueSet GlobalTargets;
     ValueSet LocalTargets;
+    ValueSet HeapTargets;
   };
 
   Result run(Module &M, ModuleAnalysisManager &MAM);

@@ -10,7 +10,9 @@
 #ifndef DFISAN_INTERFACE_INTERNAL_H
 #define DFISAN_INTERFACE_INTERNAL_H
 
+#include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
+#include <stddef.h>
 
 using __sanitizer::uptr;
 using __sanitizer::u64;
@@ -21,6 +23,16 @@ extern "C" {
   // This function should be called at the very beginning of the process,
   // before any instrumented code is executed and before any call to malloc.
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_init();
+
+  // Memory allocators for safe and unsafe data
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_unsafe_malloc(size_t n);
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_aligned_malloc(size_t n);
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_unaligned_malloc(size_t n);
+
+  // Free for safe and unsafe data
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unsafe_free(void *ptr);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_safe_aligned_free(void *ptr);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_safe_unaligned_free(void *ptr);
 
   // Sets Def-IDs to the given range of the shadow memory.
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id_n (uptr StoreAddr, u64 Size, u16 DefID);

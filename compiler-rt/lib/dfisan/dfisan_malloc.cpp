@@ -1,4 +1,5 @@
 #include "dfisan_malloc.h"
+#include "dfisan_interface_internal.h"
 #include "sanitizer_common/sanitizer_common.h"
 
 using namespace __sanitizer;
@@ -45,27 +46,33 @@ void ReserveSafeUnalignedRegion(size_t mem_beg, size_t mem_end, size_t shadow_be
 }
 
 // mallocs
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void* __dfisan_unsafe_malloc(size_t n) {
   return mspace_malloc(unsafe_region, n);
 }
 
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void* __dfisan_safe_aligned_malloc(size_t n) {
   return mspace_malloc(safe_aligned_region, n);
 }
 
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void* __dfisan_safe_unaligned_malloc(size_t n) {
   return mspace_malloc(safe_unaligned_region, n);
 }
 
 // frees
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_unsafe_free(void *ptr) {
   mspace_free(unsafe_region, ptr);
 }
 
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_safe_aligned_free(void *ptr) {
   mspace_free(safe_aligned_region, ptr);
 }
 
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_safe_unaligned_free(void *ptr) {
   mspace_free(safe_unaligned_region, ptr);
 }

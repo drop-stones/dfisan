@@ -65,4 +65,18 @@ ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M) {
       }
     }
   }
+
+  // Find safe heap variables
+  for (Function &Func : M.getFunctionList()) {
+    for (Instruction &Inst : instructions(&Func)) {
+      if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
+        Value *Callee = Call->getCalledOperand()->stripPointerCasts();
+        // LLVM_DEBUG(dbgs() << "Callee with stripCasts: " << *Callee << "\n");
+        if (Callee->getName() == "safe_malloc") {
+          LLVM_DEBUG(dbgs() << "Heap Target: " << *Call << "\n");
+          Res.insertHeapTarget(Call);
+        }
+      }
+    }
+  }
 }

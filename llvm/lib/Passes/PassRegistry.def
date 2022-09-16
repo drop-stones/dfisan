@@ -123,6 +123,7 @@ MODULE_PASS("poison-checking", PoisonCheckingPass())
 MODULE_PASS("pseudo-probe-update", PseudoProbeUpdatePass())
 MODULE_PASS("print-usedef", UseDefPrinterPass(dbgs()))
 MODULE_PASS("dfisan", DataFlowIntegritySanitizerPass())
+MODULE_PASS("replace-with-safe-alloc", ReplaceWithSafeAllocPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS

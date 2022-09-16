@@ -33,6 +33,7 @@ constexpr char DfisanLoad16FnName[]      = "__dfisan_check_ids_16";
 
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
+  llvm::errs() << "DataFlowIntegritySanitizerPass: Insert check functions to enforce data flow integrity\n";
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   UseDef = Result.getBuilder();
   this->M = &M;
