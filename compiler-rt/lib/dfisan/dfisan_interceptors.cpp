@@ -32,9 +32,24 @@ INTERCEPTOR(void, free, void *ptr) {
   } else if (__dfisan::AddrIsInSafeUnaligned((uptr)ptr)) {
     __dfisan_safe_unaligned_free(ptr);
   } else {
-    assert(false && "Invalid address of free");
+    dlfree(ptr);
   }
   return;
+}
+
+INTERCEPTOR(void *, calloc, SIZE_T size, SIZE_T elem_size) {
+  void *ptr = __dfisan_unsafe_calloc(size, elem_size);
+  return ptr;
+}
+
+INTERCEPTOR(void *, realloc, void *ptr, SIZE_T size) {
+  void *new_ptr = __dfisan_unsafe_realloc(ptr, size);
+  return new_ptr;
+}
+
+INTERCEPTOR(void *, mmap, void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+  void *ptr = __dfisan_unsafe_mmap(addr, length, prot, flags, fd, offset);
+  return ptr;
 }
 
 namespace __dfisan {
@@ -47,6 +62,9 @@ void InitializeDfisanInterceptors() {
 
   INTERCEPT_FUNCTION(malloc);
   INTERCEPT_FUNCTION(free);
+  INTERCEPT_FUNCTION(calloc);
+  INTERCEPT_FUNCTION(realloc);
+  INTERCEPT_FUNCTION(mmap);
 
   interceptors_initialized = true;
 }

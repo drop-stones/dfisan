@@ -5840,12 +5840,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
       Args.MakeArgString("-fall-align=" + Twine(A->getValue())));
   
-  // Pass -fsanitize=dfi.
-  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ))
-    if (std::string(A->getValue()) == "dfi")
-      CmdArgs.push_back(
-        Args.MakeArgString("-fall-align=" + Twine("4")));
-
   // -fvisibility= and -fvisibility-ms-compat are of a piece.
   if (const Arg *A = Args.getLastArg(options::OPT_fvisibility_EQ,
                                      options::OPT_fvisibility_ms_compat)) {

@@ -13,10 +13,20 @@ using namespace llvm;
 
 namespace {
 
+constexpr char SafeAlignedMallocFnName[]    = "__dfisan_safe_aligned_malloc";
+constexpr char SafeUnalignedMallocFnName[]  = "__dfisan_safe_unaligned_malloc";
+constexpr char SafeAlignedFreeFnName[]      = "__dfisan_safe_aligned_free";
+constexpr char SafeUnalignedFreeFnName[]    = "__dfisan_safe_unaligned_free";
+constexpr char SafeAlignedCallocFnName[]    = "__dfisan_safe_aligned_calloc";
+constexpr char SafeUnalignedCallocFnName[]  = "__dfisan_safe_unaligned_calloc";
+constexpr char SafeAlignedReallocFnName[]   = "__dfisan_safe_aligned_realloc";
+constexpr char SafeUnalignedReallocFnName[] = "__dfisan_safe_unaligned_realloc";
+
 const DataLayout *DL;
 Type *VoidTy, *Int64Ty, *Int8PtrTy;
-FunctionType *MallocTy, *FreeTy;
-FunctionCallee SafeAlignedMalloc, SafeUnalignedMalloc, SafeAlignedFree, SafeUnalignedFree;
+FunctionType *MallocTy, *FreeTy, *CallocTy, *ReallocTy;
+FunctionCallee SafeAlignedMalloc, SafeUnalignedMalloc, SafeAlignedFree, SafeUnalignedFree,
+               SafeAlignedCalloc, SafeUnalignedCalloc, SafeAlignedRealloc, SafeUnalignedRealloc;
 
 // Check whether the given Type is four aligned or not.
 bool isFourAligned(Type *TargetType) {
@@ -37,15 +47,26 @@ bool isFourAligned(Type *TargetType) {
 
 void initTypes(Module &M) {
   DL = &(M.getDataLayout());
+
   VoidTy = Type::getVoidTy(M.getContext());
   Int64Ty = Type::getInt64Ty(M.getContext());
   Int8PtrTy = Type::getInt8PtrTy(M.getContext());
+
   MallocTy = FunctionType::get(Int8PtrTy, {Int64Ty}, false);
-  SafeAlignedMalloc = M.getOrInsertFunction("__dfisan_safe_aligned_malloc", MallocTy);
-  SafeUnalignedMalloc = M.getOrInsertFunction("__dfisan_safe_unaligned_malloc", MallocTy);
+  SafeAlignedMalloc = M.getOrInsertFunction(SafeAlignedMallocFnName, MallocTy);
+  SafeUnalignedMalloc = M.getOrInsertFunction(SafeUnalignedMallocFnName, MallocTy);
+
   FreeTy = FunctionType::get(VoidTy, {Int8PtrTy}, false);
-  SafeAlignedFree = M.getOrInsertFunction("__dfisan_safe_aligned_free", FreeTy);
-  SafeUnalignedFree = M.getOrInsertFunction("__dfisan_safe_unaligned_free", FreeTy);
+  SafeAlignedFree = M.getOrInsertFunction(SafeAlignedFreeFnName, FreeTy);
+  SafeUnalignedFree = M.getOrInsertFunction(SafeUnalignedFreeFnName, FreeTy);
+
+  CallocTy = FunctionType::get(Int8PtrTy, {Int64Ty, Int64Ty}, false);
+  SafeAlignedCalloc = M.getOrInsertFunction(SafeAlignedCallocFnName, CallocTy);
+  SafeUnalignedCalloc = M.getOrInsertFunction(SafeUnalignedCallocFnName, CallocTy);
+
+  ReallocTy = FunctionType::get(Int8PtrTy, {Int8PtrTy, Int64Ty}, false);
+  SafeAlignedRealloc = M.getOrInsertFunction(SafeAlignedReallocFnName, ReallocTy);
+  SafeUnalignedRealloc = M.getOrInsertFunction(SafeUnalignedReallocFnName, ReallocTy);
 }
 
 Value *createSafeAllocAndFree(Instruction *OrigInst, Type *OrigTy) {
@@ -75,12 +96,26 @@ Value *createSafeAllocAndFree(Instruction *OrigInst, Type *OrigTy) {
                             : Builder.CreateCall(SafeUnalignedFree, SafeAlloc);
     }
   } else if (CallInst *Call = dyn_cast<CallInst>(OrigInst)) {
-    // Create safe malloc for heap alloc
+    // Create safe alloc for heap alloc
     Value *Callee = Call->getCalledOperand()->stripPointerCasts();
-    assert((Callee->getName() == "safe_malloc") && "Invalid call");
-    Value *SizeVal = Call->getArgOperand(0);
-    NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(MallocTy, SafeAlignedMalloc.getCallee(), {SizeVal})
-                                   : Builder.CreateCall(MallocTy, SafeUnalignedMalloc.getCallee(), {SizeVal});
+    assert(Callee != nullptr && "Invalid Callee");
+    if (Callee->getName() == "safe_malloc") {
+      Value *SizeVal = Call->getArgOperand(0);
+      NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(MallocTy, SafeAlignedMalloc.getCallee(), {SizeVal})
+                                     : Builder.CreateCall(MallocTy, SafeUnalignedMalloc.getCallee(), {SizeVal});
+    } else if (Callee->getName() == "safe_calloc") {
+      Value *SizeVal = Call->getArgOperand(0);
+      Value *ElemSizeVal = Call->getArgOperand(1);
+      NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(CallocTy, SafeAlignedCalloc.getCallee(), {SizeVal, ElemSizeVal})
+                                     : Builder.CreateCall(CallocTy, SafeUnalignedCalloc.getCallee(), {SizeVal, ElemSizeVal});
+    } else if (Callee->getName() == "safe_realloc") {
+      Value *PtrVal = Call->getArgOperand(0);
+      Value *SizeVal = Call->getArgOperand(1);
+      NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(ReallocTy, SafeAlignedRealloc.getCallee(), {PtrVal, SizeVal})
+                                     : Builder.CreateCall(ReallocTy, SafeUnalignedRealloc.getCallee(), {PtrVal, SizeVal});
+    } else {
+      llvm_unreachable("No support function call");
+    }
   } else {
     llvm_unreachable("No Support code pattern");
   }
@@ -109,9 +144,9 @@ void replaceHeapAllocsWithSafeAllocs(ValueSet &HeapTargets) {
     assert(isa<CallInst>(HeapTarget) && "Invalid heap value");
     CallInst *Call = dyn_cast<CallInst>(HeapTarget);
     Value *Callee = Call->getCalledOperand()->stripPointerCasts();
-    assert((Callee->getName() == "safe_malloc") && "Invalid call");
+    assert(Callee != nullptr && "Invalid Callee");
     Value *NextUser = *Call->user_begin();
-    assert((isa<BitCastInst>(NextUser) && NextUser->getType()->isPointerTy()) && "No Support code pattern");
+    assert((NextUser != nullptr && isa<BitCastInst>(NextUser) && NextUser->getType()->isPointerTy()) && "No Support code pattern");
     Type *TargetType = dyn_cast<BitCastInst>(NextUser)->getDestTy()->getPointerElementType();
     LLVM_DEBUG(dbgs() << "Callee: " << Callee->getName() << ", Type: " << *TargetType << "\n");
     Value *SafeAlloc = createSafeAllocAndFree(Call, TargetType);

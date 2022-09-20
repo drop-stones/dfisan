@@ -12,7 +12,9 @@
 
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
+
 #include <stddef.h>
+#include <sys/mman.h>
 
 using __sanitizer::uptr;
 using __sanitizer::u64;
@@ -33,6 +35,19 @@ extern "C" {
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unsafe_free(void *ptr);
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_safe_aligned_free(void *ptr);
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_safe_unaligned_free(void *ptr);
+
+  // Callocs for safe and unsafe data
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_unsafe_calloc(size_t n, size_t elem_size);
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_aligned_calloc(size_t n, size_t elem_size);
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_unaligned_calloc(size_t n, size_t elem_size);
+
+  // Reallocs for safe and unsafe data
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_unsafe_realloc(void *ptr, size_t n);
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_aligned_realloc(void *ptr, size_t n);
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_unaligned_realloc(void *ptr, size_t n);
+
+  // Mmap in unsafe region
+  SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_unsafe_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 
   // Sets Def-IDs to the given range of the shadow memory.
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id_n (uptr StoreAddr, u64 Size, u16 DefID);

@@ -1,6 +1,12 @@
 #include "dfisan_malloc.h"
 #include "dfisan_interface_internal.h"
 #include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_internal_defs.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/mman.h>
 
 using namespace __sanitizer;
 
@@ -8,7 +14,7 @@ using namespace __sanitizer;
 void *unsafe_heap, *safe_aligned_heap, *safe_unaligned_heap;
 mspace unsafe_region, safe_aligned_region, safe_unaligned_region;
 
-// mmaps
+// Initialization functions of memory layout
 void* ReserveRegion(size_t beg, size_t end, const char *name) {
   ReserveShadowMemoryRange(beg, end, name); // mmap needs MAP_NORESERVE
   return (void*)beg;
@@ -45,6 +51,7 @@ void ReserveSafeUnalignedRegion(size_t mem_beg, size_t mem_end, size_t shadow_be
   Report("INFO: Reserve Shadow Unaligned Region (0x%zx, 0x%zx)\n", shadow_beg, shadow_end);
 }
 
+/// Functions for interception
 // mallocs
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void* __dfisan_unsafe_malloc(size_t n) {
@@ -75,4 +82,46 @@ void __dfisan_safe_aligned_free(void *ptr) {
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_safe_unaligned_free(void *ptr) {
   mspace_free(safe_unaligned_region, ptr);
+}
+
+// callocs
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_unsafe_calloc(size_t n, size_t elem_size) {
+  return mspace_calloc(unsafe_region, n, elem_size);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_safe_aligned_calloc(size_t n, size_t elem_size) {
+  return mspace_calloc(safe_aligned_region, n, elem_size);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_safe_unaligned_calloc(size_t n, size_t elem_size) {
+  return mspace_calloc(safe_unaligned_region, n, elem_size);
+}
+
+// reallocs
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_unsafe_realloc(void *ptr, size_t n) {
+  return mspace_realloc(unsafe_region, ptr, n);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_safe_aligned_realloc(void *ptr, size_t n) {
+  return mspace_realloc(safe_aligned_region, ptr, n);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_safe_unaligned_realloc(void *ptr, size_t n) {
+  return mspace_realloc(safe_unaligned_region, ptr, n);
+}
+
+// mmap
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfisan_unsafe_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+  void *rv = mmap(addr, length, prot, flags, fd, offset);
+  if (rv == MAP_FAILED) {
+    fprintf(stderr, "ERROR: mmap %d - %s\n", errno, strerror(errno));
+  }
+  return rv;
 }

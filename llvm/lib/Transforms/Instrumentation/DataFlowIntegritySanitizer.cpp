@@ -33,18 +33,21 @@ constexpr char DfisanLoad16FnName[]      = "__dfisan_check_ids_16";
 
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  llvm::errs() << "DataFlowIntegritySanitizerPass: Insert check functions to enforce data flow integrity\n";
-  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  UseDef = Result.getBuilder();
+  LLVM_DEBUG(dbgs() << "DataFlowIntegritySanitizerPass: Insert check functions to enforce data flow integrity\n");
+
   this->M = &M;
   Builder = std::make_unique<IRBuilder<>>(M.getContext());
-  const auto *DDA = UseDef->getDDA();
 
   initializeSanitizerFuncs();
   insertDfiInitFn();
 
   // no instrumentations for dlmalloc tests.
   return PreservedAnalyses::all();
+
+/*
+  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
+  UseDef = Result.getBuilder();
+  const auto *DDA = UseDef->getDDA();
 
   if (UseDef->isSelectiveDfi()) {
     for (auto *Def : UseDef->getProtectInfo().Defs) {
@@ -89,6 +92,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
 
   return PreservedAnalyses::none();
+*/
 }
 
 void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
