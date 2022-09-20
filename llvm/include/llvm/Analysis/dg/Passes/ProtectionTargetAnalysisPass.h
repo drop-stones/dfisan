@@ -62,6 +62,9 @@ private:
 
   Result Res;
   const std::string ProtectionAnno = "dfi_protection";
+  const std::string SafeMallocFnName = "safe_malloc";
+  const std::string SafeCallocFnName = "safe_calloc";
+  const std::string SafeReallocFnName = "safe_realloc";
 };
 
 } // namespace llvm

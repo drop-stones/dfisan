@@ -146,8 +146,16 @@ void replaceHeapAllocsWithSafeAllocs(ValueSet &HeapTargets) {
     Value *Callee = Call->getCalledOperand()->stripPointerCasts();
     assert(Callee != nullptr && "Invalid Callee");
     Value *NextUser = *Call->user_begin();
-    assert((NextUser != nullptr && isa<BitCastInst>(NextUser) && NextUser->getType()->isPointerTy()) && "No Support code pattern");
-    Type *TargetType = dyn_cast<BitCastInst>(NextUser)->getDestTy()->getPointerElementType();
+    if (NextUser == nullptr)  // Skip the unused target
+      continue;
+    Type *TargetType = nullptr;
+    if (BitCastInst *Bitcast = dyn_cast<BitCastInst>(NextUser)) {
+      TargetType = Bitcast->getDestTy()->getPointerElementType();
+    } else if (StoreInst *Store = dyn_cast<StoreInst>(NextUser)) {
+      TargetType = Store->getPointerOperandType()->getPointerElementType();
+    } else {
+      llvm_unreachable("No support code pattern");
+    }
     LLVM_DEBUG(dbgs() << "Callee: " << Callee->getName() << ", Type: " << *TargetType << "\n");
     Value *SafeAlloc = createSafeAllocAndFree(Call, TargetType);
     replaceAndEraseInst(Call, SafeAlloc);

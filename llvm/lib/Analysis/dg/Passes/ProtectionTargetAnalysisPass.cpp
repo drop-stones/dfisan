@@ -71,8 +71,9 @@ ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M) {
     for (Instruction &Inst : instructions(&Func)) {
       if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
         Value *Callee = Call->getCalledOperand()->stripPointerCasts();
-        // LLVM_DEBUG(dbgs() << "Callee with stripCasts: " << *Callee << "\n");
-        if (Callee->getName() == "safe_malloc") {
+        if (Callee->getName() == SafeMallocFnName ||
+            Callee->getName() == SafeCallocFnName ||
+            Callee->getName() == SafeReallocFnName) {
           LLVM_DEBUG(dbgs() << "Heap Target: " << *Call << "\n");
           Res.insertHeapTarget(Call);
         }
