@@ -31,14 +31,19 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::svf;
   // std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, Opts);
 
-  auto &ProtectionTargets = MAM.getResult<ProtectionTargetAnalysisPass>(M);
+  auto &AnalysisResult = MAM.getResult<ProtectionTargetAnalysisPass>(M);
+  AnalysisResult.dump(llvm::outs());
+  assert(!AnalysisResult.beforeReplacement() && "ReplaceWithSafeAlloc is not done yet");
+
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
+/*
   Builder->buildDG();
   Builder->assignDefIDs();
   Builder->printProtectInfo(llvm::outs());
 
   debug::UseDefLogger Logger{M};
   Logger.logDefInfo(Builder.get());
+*/
 
   UseDefAnalysisPass::Result Result { std::move(Builder) };
 

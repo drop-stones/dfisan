@@ -13,6 +13,18 @@
 #include "llvm/IR/PassManager.h"
 #include <unordered_set>
 
+constexpr char SafeMallocFnName[]           = "safe_malloc";
+constexpr char SafeCallocFnName[]           = "safe_calloc";
+constexpr char SafeReallocFnName[]          = "safe_realloc";
+constexpr char SafeAlignedMallocFnName[]    = "__dfisan_safe_aligned_malloc";
+constexpr char SafeUnalignedMallocFnName[]  = "__dfisan_safe_unaligned_malloc";
+constexpr char SafeAlignedFreeFnName[]      = "__dfisan_safe_aligned_free";
+constexpr char SafeUnalignedFreeFnName[]    = "__dfisan_safe_unaligned_free";
+constexpr char SafeAlignedCallocFnName[]    = "__dfisan_safe_aligned_calloc";
+constexpr char SafeUnalignedCallocFnName[]  = "__dfisan_safe_unaligned_calloc";
+constexpr char SafeAlignedReallocFnName[]   = "__dfisan_safe_aligned_realloc";
+constexpr char SafeUnalignedReallocFnName[] = "__dfisan_safe_unaligned_realloc";
+
 namespace llvm {
 
 using ValueSet = std::unordered_set<llvm::Value *>;
@@ -27,44 +39,59 @@ public:
   // Protection Target Info
   class Result {
   public:
-    Result() {}
+    Result() : BeforeReplacement(false) {}
 
     void insertGlobalTarget(Value *G) { GlobalTargets.insert(G); }
     void insertLocalTarget (Value *L) { LocalTargets.insert(L); }
     void insertHeapTarget  (Value *H) { HeapTargets.insert(H); }
+    void insertProtectionTarget(Value *P) { ProtectionTargets.insert(P); }
 
     ValueSet& getGlobalTargets() { return GlobalTargets; }
     ValueSet& getLocalTargets()  { return LocalTargets; }
     ValueSet& getHeapTargets()   { return HeapTargets; }
+    ValueSet& getProtectionTargets() { return ProtectionTargets; }
+
+    void setBeforeReplacement(bool B) { BeforeReplacement = B; }
+    bool beforeReplacement() { return BeforeReplacement; }
 
     void dump(raw_ostream &OS) {
       OS << "ProtectionTargetAnalysisPass Result::dump()\n";
-      OS << " - GlobalTargets:\n";
-      for (const auto *Global : GlobalTargets)
-        OS << "  - " << *Global << "\n";
-      for (const auto *Local : LocalTargets)
-        OS << "  - " << *Local << "\n";
-      for (const auto *Heap : HeapTargets)
-        OS << "  - " << *Heap << "\n";
+      if (beforeReplacement()) {
+        OS << " - GlobalTargets:\n";
+        for (const auto *Global : GlobalTargets)
+          OS << "  - " << *Global << "\n";
+        OS << " - LocalTargets:\n";
+        for (const auto *Local : LocalTargets)
+          OS << "  - " << *Local << "\n";
+        OS << " - HeapTargets:\n";
+        for (const auto *Heap : HeapTargets)
+          OS << "  - " << *Heap << "\n";
+      } else {
+        OS << " - ProtectionTargets:\n";
+        for (const auto *Target : ProtectionTargets)
+          OS << "  - " << *Target << "\n";
+      }
     }
 
   private:
-    ValueSet GlobalTargets;
-    ValueSet LocalTargets;
-    ValueSet HeapTargets;
+    ValueSet GlobalTargets;     // Annotated global targets
+    ValueSet LocalTargets;      // Annotated local targets
+    ValueSet HeapTargets;       // Annotated heap targets
+    ValueSet ProtectionTargets; // Protection targets allocated by safe allocs
+    bool BeforeReplacement;
   };
 
   Result run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
   // Find "dfi_protection" annotations and collect targets
-  void findProtectionTargetAnnotations(Module &M);
+  void findProtectionTargetAnnotations(Module &M, Result &Res);
 
-  Result Res;
+  // Find protection targets allocated by safe allocs
+  void findProtectionTargets(Module &M, Result &Res);
+
+  // Result Res;
   const std::string ProtectionAnno = "dfi_protection";
-  const std::string SafeMallocFnName = "safe_malloc";
-  const std::string SafeCallocFnName = "safe_calloc";
-  const std::string SafeReallocFnName = "safe_realloc";
 };
 
 } // namespace llvm

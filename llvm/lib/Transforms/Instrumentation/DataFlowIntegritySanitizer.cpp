@@ -41,11 +41,12 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initializeSanitizerFuncs();
   insertDfiInitFn();
 
+  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
+
   // no instrumentations for dlmalloc tests.
   return PreservedAnalyses::all();
 
 /*
-  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   UseDef = Result.getBuilder();
   const auto *DDA = UseDef->getDDA();
 

@@ -27,8 +27,12 @@ int main(void) {
   struct NotAlignFour *notAlign = (struct NotAlignFour *)safe_malloc(sizeof(struct NotAlignFour));
   assert(AddrIsInSafeUnaligned(notAlign) && "notAlign is not in safe unaligned region!!");
 
+  struct AlignFour *unsafe = (struct AlignFour *)malloc(sizeof(struct AlignFour));
+  assert(AddrIsInUnsafeRegion(unsafe) && "unsafe is not in unsafe region!!");
+
   free(align);
   free(notAlign);
+  free(unsafe);
 
   return 0;
 }

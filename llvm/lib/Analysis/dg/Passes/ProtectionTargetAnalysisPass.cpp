@@ -18,19 +18,35 @@ using namespace llvm;
 
 #define DEBUG_TYPE "protection-target"
 
+namespace {
+static inline bool isReplacementFnName(StringRef FnName) {
+  return (FnName == SafeMallocFnName) || (FnName == SafeCallocFnName) || (FnName == SafeReallocFnName);
+}
+
+static inline bool isSafeAllocFnName(StringRef FnName) {
+  return (FnName == SafeAlignedMallocFnName) || (FnName == SafeUnalignedMallocFnName) ||
+         (FnName == SafeAlignedCallocFnName) || (FnName == SafeUnalignedCallocFnName) ||
+         (FnName == SafeAlignedReallocFnName) || (FnName == SafeUnalignedReallocFnName);
+}
+} // anonymous namespace
+
 // Provide an explicit template instantiation for the static ID.
 AnalysisKey ProtectionTargetAnalysisPass::Key;
 
 ProtectionTargetAnalysisPass::Result
 ProtectionTargetAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   LLVM_DEBUG(dbgs() << "ProtectionTargetAnalysisPass::" << __func__ << "\n");
-  findProtectionTargetAnnotations(M);
+  ProtectionTargetAnalysisPass::Result Res;
+
+  findProtectionTargetAnnotations(M, Res);
+  if (!Res.beforeReplacement())
+    findProtectionTargets(M, Res);
 
   return Res;
 }
 
 void
-ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M) {
+ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M, Result &Res) {
   // Find annotated global variables
   if (GlobalVariable *GlobAnno = M.getNamedGlobal("llvm.global.annotations")) {
     ConstantArray *CArr = dyn_cast<ConstantArray>(GlobAnno->getOperand(0));
@@ -48,6 +64,7 @@ ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M) {
   }
 
   // Find annotated local variables
+  InstSet ToBeRemoved;
   for (Function &Func : M.getFunctionList()) {
     for (Instruction &Inst : instructions(&Func)) {
       if (IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(&Inst)) {
@@ -60,22 +77,44 @@ ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M) {
           if (AnnoName.startswith(ProtectionAnno)) {
             LLVM_DEBUG(dbgs() << "Local Target: " << *LocalTarget << "\n");
             Res.insertLocalTarget(LocalTarget);
+            ToBeRemoved.insert(Intrinsic);
           }
         }
       }
     }
   }
+  // Remove local annotations because unnecessary
+  for (auto *Removed : ToBeRemoved)
+    Removed->eraseFromParent();
 
   // Find safe heap variables
   for (Function &Func : M.getFunctionList()) {
     for (Instruction &Inst : instructions(&Func)) {
       if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
         Value *Callee = Call->getCalledOperand()->stripPointerCasts();
-        if (Callee->getName() == SafeMallocFnName ||
-            Callee->getName() == SafeCallocFnName ||
-            Callee->getName() == SafeReallocFnName) {
+        if (isReplacementFnName(Callee->getName())) {
           LLVM_DEBUG(dbgs() << "Heap Target: " << *Call << "\n");
           Res.insertHeapTarget(Call);
+        }
+      }
+    }
+  }
+
+  // TODO: Replacement of global targets
+  // Res.setBeforeReplacement(!Res.getGlobalTargets().empty() || !Res.getHeapTargets().empty() || !Res.getLocalTargets().empty());
+  Res.setBeforeReplacement(!Res.getHeapTargets().empty() || !Res.getLocalTargets().empty());
+}
+
+void
+ProtectionTargetAnalysisPass::findProtectionTargets(Module &M, Result &Res) {
+  // Find protection targets allocated by safe allocs
+  for (Function &Func : M.getFunctionList()) {
+    for (Instruction &Inst : instructions(&Func)) {
+      if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
+        Value *Callee = Call->getCalledOperand()->stripPointerCasts();
+        if (isSafeAllocFnName(Callee->getName())) {
+          LLVM_DEBUG(dbgs() << "Protection Target: " << *Call << "\n");
+          Res.insertProtectionTarget(Call);
         }
       }
     }

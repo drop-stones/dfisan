@@ -13,15 +13,6 @@ using namespace llvm;
 
 namespace {
 
-constexpr char SafeAlignedMallocFnName[]    = "__dfisan_safe_aligned_malloc";
-constexpr char SafeUnalignedMallocFnName[]  = "__dfisan_safe_unaligned_malloc";
-constexpr char SafeAlignedFreeFnName[]      = "__dfisan_safe_aligned_free";
-constexpr char SafeUnalignedFreeFnName[]    = "__dfisan_safe_unaligned_free";
-constexpr char SafeAlignedCallocFnName[]    = "__dfisan_safe_aligned_calloc";
-constexpr char SafeUnalignedCallocFnName[]  = "__dfisan_safe_unaligned_calloc";
-constexpr char SafeAlignedReallocFnName[]   = "__dfisan_safe_aligned_realloc";
-constexpr char SafeUnalignedReallocFnName[] = "__dfisan_safe_unaligned_realloc";
-
 const DataLayout *DL;
 Type *VoidTy, *Int64Ty, *Int8PtrTy;
 FunctionType *MallocTy, *FreeTy, *CallocTy, *ReallocTy;
@@ -162,7 +153,7 @@ void replaceHeapAllocsWithSafeAllocs(ValueSet &HeapTargets) {
   }
 }
 
-void replaceGlobalAllocsWithSafeAllocs(Module &M, ValueSet &GlobalTargets) {
+void replaceGlobalAllocsWithSafeAllocs(ValueSet &GlobalTargets) {
   // TODO: replace all global variables
   LLVM_DEBUG(dbgs() << "TODO: Replace all globals\n");
 }
@@ -172,10 +163,13 @@ PreservedAnalyses
 ReplaceWithSafeAllocPass::run(Module &M, ModuleAnalysisManager &MAM) {
   LLVM_DEBUG(dbgs() << "ReplaceWithSafeAllocPass: Replace protection target's allocs with safe allocs\n");
   auto &Result = MAM.getResult<ProtectionTargetAnalysisPass>(M);
+  if (!Result.beforeReplacement())  // Skip if replacement has already done
+    return PreservedAnalyses::all();
 
   initTypes(M);
   replaceLocalAllocsWithSafeAllocs(Result.getLocalTargets());
   replaceHeapAllocsWithSafeAllocs(Result.getHeapTargets());
+  replaceGlobalAllocsWithSafeAllocs(Result.getGlobalTargets());
 
-  return PreservedAnalyses::all();
+  return PreservedAnalyses::none();
 }
