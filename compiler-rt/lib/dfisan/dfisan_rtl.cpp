@@ -391,8 +391,8 @@ static void DfisanInitInternal() {
     return;
   dfisan_init_is_running = true;
 
-  InitializeDfisanInterceptors();
   InitializeShadowMemory();
+  InitializeDfisanInterceptors();
 
   SetCommonFlagsDefaults();   // for Decorator
 
