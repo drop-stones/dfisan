@@ -83,6 +83,8 @@ add_clang_library(clangDriver
   Types.cpp
   XRayArgs.cpp
 
+  ToolChains/Dfisan.cpp
+
   DEPENDS
   ClangDriverOptions
 

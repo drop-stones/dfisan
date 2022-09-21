@@ -49,6 +49,7 @@ void
 ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M, Result &Res) {
   // Find annotated global variables
   if (GlobalVariable *GlobAnno = M.getNamedGlobal("llvm.global.annotations")) {
+    ValueSet ToBeRemovedAnno;
     ConstantArray *CArr = dyn_cast<ConstantArray>(GlobAnno->getOperand(0));
     for (Value *CArrOp : CArr->operands()) {
       ConstantStruct *AnnoStruct = dyn_cast<ConstantStruct>(CArrOp);
@@ -59,8 +60,11 @@ ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M, Result 
       if (AnnoName.startswith(ProtectionAnno)) {
         LLVM_DEBUG(dbgs() << "Global Target: " << *GlobalTarget << "\n");
         Res.insertGlobalTarget(GlobalTarget);
+        ToBeRemovedAnno.insert(CArrOp);
       }
     }
+    // Remove global annotations because unnecessary
+    GlobAnno->eraseFromParent();
   }
 
   // Find annotated local variables
