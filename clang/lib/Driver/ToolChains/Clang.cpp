@@ -5840,6 +5840,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
       Args.MakeArgString("-fall-align=" + Twine(A->getValue())));
   
+  // Pass -fsanitize=dfi.
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ))
+    if (std::string(A->getValue(0)) == "dfi")
+      CmdArgs.push_back(
+        Args.MakeArgString("-mcmodel=large"));
+  
   // -fvisibility= and -fvisibility-ms-compat are of a piece.
   if (const Arg *A = Args.getLastArg(options::OPT_fvisibility_EQ,
                                      options::OPT_fvisibility_ms_compat)) {
@@ -7138,14 +7144,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-o");
       CmdArgs.push_back(Output.getFilename());
 
+      // dfisan options.
       // Add the output file name for middle end.
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-output-filename");
-      CmdArgs.push_back("-mllvm");
-      if (Arg *OutputOpt = Args.getLastArg(options::OPT_o))
-        CmdArgs.push_back(OutputOpt->getValue());
-      else
-        CmdArgs.push_back(Output.getFilename());
+      if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ)) {
+        if (std::string(A->getValue(0)) == "dfi") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-output-filename");
+          CmdArgs.push_back("-mllvm");
+          if (Arg *OutputOpt = Args.getLastArg(options::OPT_o))
+            CmdArgs.push_back(OutputOpt->getValue());
+          else
+            CmdArgs.push_back(Output.getFilename());
+        }
+      }
     }
   } else {
     assert(Output.isNothing() && "Invalid output.");

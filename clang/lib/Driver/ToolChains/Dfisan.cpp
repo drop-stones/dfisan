@@ -8,8 +8,36 @@ namespace toolchains {
 using namespace tools;
 using namespace llvm::opt;
 
+Tool *DfisanToolChain::buildAssembler() const {
+  return new dfisan::Assembler(*this);
+}
+
 Tool *DfisanToolChain::buildLinker() const {
   return new dfisan::Linker(*this);
+}
+
+void dfisan::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
+                                     const InputInfo &Output,
+                                     const InputInfoList &Inputs,
+                                     const ArgList &TCArgs,
+                                     const char *LinkingOutput) const {
+  // First call the default assembler
+  tools::gnutools::Assembler::ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
+
+  /// Append "-mcmodel=large" for R_X86_64_64 (not R_X86_64_32S)
+  // Get assemble command arguments.
+  auto &Jobs = C.getJobs();
+  auto &AssembleJob = Jobs.getJobs().back();
+  auto &CmdArgs = AssembleJob->getArguments();
+
+  // Copy the arguments.
+  ArgStringList NewArgs = CmdArgs;
+
+  // Append the mcmodel argument.
+  NewArgs.push_back(TCArgs.MakeArgString("-mcmodel=large"));
+
+  // Replace with the new arguments.
+  AssembleJob->replaceArguments(NewArgs);
 }
 
 void dfisan::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -17,10 +45,10 @@ void dfisan::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfoList &Inputs,
                                   const llvm::opt::ArgList &TCArgs,
                                   const char *LinkingOutput) const {
-  llvm::errs() << "dfisan::Linker::" << __func__ << "\n";
+  // First call the default linker
   tools::gnutools::Linker::ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
 
-  // Append "-T <linker script>" argument.
+  /// Append "-T <linker script>" argument.
   if (!TCArgs.hasArg(options::OPT_T)) {
     // Get link command arguments.
     auto &Jobs = C.getJobs();

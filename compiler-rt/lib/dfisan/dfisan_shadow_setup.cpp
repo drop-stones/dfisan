@@ -36,9 +36,9 @@ void InitializeShadowMemory() {
   // mmap the unsafe heap
   ReserveUnsafeRegion(kUnsafeHeapBeg, kUnsafeHeapEnd);
   // mmap the safe aligned heap
-  ReserveSafeAlignedRegion(kSafeAlignedBeg, kSafeAlignedEnd, kShadowAlignedBeg, kShadowAlignedEnd);
+  ReserveSafeAlignedRegion(kSafeAlignedGlobalBeg, kSafeAlignedGlobalEnd, kSafeAlignedHeapBeg, kSafeAlignedHeapEnd, kShadowAlignedBeg, kShadowAlignedEnd);
   // mmap the safe unaligned heap
-  ReserveSafeUnalignedRegion(kSafeUnalignedBeg, kSafeUnalignedEnd, kShadowUnalignedBeg, kShadowUnalignedEnd);
+  ReserveSafeUnalignedRegion(kSafeUnalignedGlobalBeg, kSafeUnalignedGlobalEnd, kSafeUnalignedHeapBeg, kSafeUnalignedHeapEnd, kShadowUnalignedBeg, kShadowUnalignedEnd);
 
   // mmap the shadow gap
   ProtectGap(kShadowGapBeg, kShadowGapEnd - kShadowGapBeg + 1, 0, (1 << 18));

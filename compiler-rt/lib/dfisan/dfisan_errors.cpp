@@ -108,9 +108,9 @@ void PrintDefIDs(u16 Argc, va_list IDList) {
 
 void ReportInvalidUseError(uptr LoadAddr, u16 Argc, va_list IDList, uptr pc, uptr bp) {
   u16 *shadow_memory = 0;
-  if (AddrIsInSafeAligned(LoadAddr))
+  if (AddrIsInSafeAlignedRegion(LoadAddr))
     shadow_memory = (u16 *)AlignedMemToShadow(LoadAddr);
-  else if (AddrIsInSafeUnaligned(LoadAddr))
+  else if (AddrIsInSafeUnalignedRegion(LoadAddr))
     shadow_memory = (u16 *)UnalignedMemToShadow(LoadAddr);
   else
     assert(false && "Invalid LoadAddr");

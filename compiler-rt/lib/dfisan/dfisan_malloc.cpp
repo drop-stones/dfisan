@@ -11,7 +11,9 @@
 using namespace __sanitizer;
 
 // globals
-void *unsafe_heap, *safe_aligned_heap, *safe_unaligned_heap;
+void *unsafe_heap;
+void *safe_aligned_heap, *safe_aligned_glob;
+void *safe_unaligned_heap, *safe_unaligned_glob;
 mspace unsafe_region, safe_aligned_region, safe_unaligned_region;
 
 // Initialization functions of memory layout
@@ -27,25 +29,29 @@ void ReserveUnsafeRegion(size_t beg, size_t end) {
   Report("INFO: Reserve Unsafe Region (0x%zx, 0x%zx)\n", beg, end);
 }
 
-void ReserveSafeAlignedRegion(size_t mem_beg, size_t mem_end, size_t shadow_beg, size_t shadow_end) {
-  size_t mem_size = mem_end - mem_beg + 1;
+void ReserveSafeAlignedRegion(size_t glob_beg, size_t glob_end, size_t heap_beg, size_t heap_end, size_t shadow_beg, size_t shadow_end) {
+  size_t glob_size = glob_end - glob_beg + 1;
+  size_t heap_size = heap_end - heap_beg + 1;
   size_t shadow_size = shadow_end - shadow_beg + 1;
-  CHECK_EQ(mem_size, shadow_size * 2);
-  safe_aligned_heap = ReserveRegion(mem_beg, mem_end, "safe aligned heap");
-  safe_aligned_region = create_mspace_with_base(safe_aligned_heap, mem_size, 0);
-  Report("INFO: Reserve Safe Aligned Region (0x%zx, 0x%zx)\n", mem_beg, mem_end);
+  CHECK_EQ((glob_size + heap_size), shadow_size * 2);
+  safe_aligned_glob = ReserveRegion(glob_beg, glob_end, "safe aligned global");
+  safe_aligned_heap = ReserveRegion(heap_beg, heap_end, "safe aligned heap");
+  safe_aligned_region = create_mspace_with_base(safe_aligned_heap, heap_size, 0);
+  Report("INFO: Reserve Safe Aligned Region (0x%zx, 0x%zx)\n", heap_beg, heap_end);
 
   ReserveShadowMemoryRange(shadow_beg, shadow_end, "safe aligned shadow");
   Report("INFO: Reserve Shadow Aligned Region (0x%zx, 0x%zx)\n", shadow_beg, shadow_end);
 }
 
-void ReserveSafeUnalignedRegion(size_t mem_beg, size_t mem_end, size_t shadow_beg, size_t shadow_end) {
-  size_t mem_size = mem_end - mem_beg + 1;
+void ReserveSafeUnalignedRegion(size_t glob_beg, size_t glob_end, size_t heap_beg, size_t heap_end, size_t shadow_beg, size_t shadow_end) {
+  size_t glob_size = glob_end - glob_beg + 1;
+  size_t heap_size = heap_end - heap_beg + 1;
   size_t shadow_size = shadow_end - shadow_beg + 1;
-  CHECK_EQ(mem_size * 2, shadow_size);
-  safe_unaligned_heap = ReserveRegion(mem_beg, mem_end, "safe unaligned heap");
-  safe_unaligned_region = create_mspace_with_base(safe_unaligned_heap, mem_size, 0);
-  Report("INFO: Reserve Safe Unaligned Region (0x%zx, 0x%zx)\n", mem_beg, mem_end);
+  CHECK_EQ((glob_size + heap_size) * 2, shadow_size);
+  safe_unaligned_glob = ReserveRegion(glob_beg, glob_end, "safe unaligned global");
+  safe_unaligned_heap = ReserveRegion(heap_beg, heap_end, "safe unaligned heap");
+  safe_unaligned_region = create_mspace_with_base(safe_unaligned_heap, heap_size, 0);
+  Report("INFO: Reserve Safe Unaligned Region (0x%zx, 0x%zx)\n", heap_beg, heap_end);
 
   ReserveShadowMemoryRange(shadow_beg, shadow_end, "safe unaligned shadow");
   Report("INFO: Reserve Shadow Unaligned Region (0x%zx, 0x%zx)\n", shadow_beg, shadow_end);

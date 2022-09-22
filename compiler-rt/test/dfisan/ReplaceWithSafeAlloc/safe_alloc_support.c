@@ -8,13 +8,13 @@
 
 int main(void) {
   char *str = (char *)safe_malloc(100);
-  assert(AddrIsInSafeAligned(str) && "str is not in safe aligned region!!");
+  assert(AddrIsInSafeAlignedHeap(str) && "str is not in safe aligned region!!");
 
   str = (char *)safe_realloc(str, 200);
-  assert(AddrIsInSafeAligned(str) && "str is not in safe aligned region!!");
+  assert(AddrIsInSafeAlignedHeap(str) && "str is not in safe aligned region!!");
 
   int *p = (int *)safe_calloc(200, sizeof(long));
-  assert(AddrIsInSafeAligned(p) && "p is not in safe aligned region!!");
+  assert(AddrIsInSafeAlignedHeap(p) && "p is not in safe aligned region!!");
 
   free(str);
   free(p);

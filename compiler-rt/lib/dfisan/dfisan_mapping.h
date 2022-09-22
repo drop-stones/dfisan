@@ -41,6 +41,10 @@ constexpr uptr kUnsafeHeapEnd      = 0x10007fffffff;
 constexpr uptr kUnsafeHeapBeg      = 0x100000000000;
 constexpr uptr kSafeAlignedEnd     = 0x87fffffff;
 constexpr uptr kSafeAlignedBeg     = 0x800000000;
+  constexpr uptr kSafeAlignedHeapEnd   = kSafeAlignedEnd;
+  constexpr uptr kSafeAlignedHeapBeg   = 0x810000000;
+  constexpr uptr kSafeAlignedGlobalEnd = 0x80fffffff;
+  constexpr uptr kSafeAlignedGlobalBeg = kSafeAlignedBeg;
 constexpr uptr kShadowAlignedEnd   = 0x43fffffff;
 constexpr uptr kShadowAlignedBeg   = 0x400000000;
 constexpr uptr kShadowGapEnd       = 0x3ffffffff;
@@ -49,6 +53,10 @@ constexpr uptr kShadowUnalignedEnd = 0x1ffffffff;
 constexpr uptr kShadowUnalignedBeg = 0x100000000;
 constexpr uptr kSafeUnalignedEnd   = 0xffffffff;
 constexpr uptr kSafeUnalignedBeg   = 0x80000000;
+  constexpr uptr kSafeUnalignedHeapEnd   = kSafeUnalignedEnd;
+  constexpr uptr kSafeUnalignedHeapBeg   = 0x90000000;
+  constexpr uptr kSafeUnalignedGlobalEnd = 0x8fffffff;
+  constexpr uptr kSafeUnalignedGlobalBeg = kSafeUnalignedBeg;
 constexpr uptr kLowUnsafeEnd       = 0x7fff7fff;
 constexpr uptr kLowUnsafeBeg       = 0x0;
 
@@ -62,12 +70,20 @@ static inline bool AddrIsInUnsafeHeap(uptr addr) {
   return kUnsafeHeapBeg <= addr && addr <= kUnsafeHeapEnd;
 }
 
-static inline bool AddrIsInSafeAligned(uptr addr) {
-  return kSafeAlignedBeg <= addr && addr <= kSafeAlignedEnd;
+static inline bool AddrIsInSafeAlignedHeap(uptr addr) {
+  return kSafeAlignedHeapBeg <= addr && addr <= kSafeAlignedHeapEnd;
 }
 
-static inline bool AddrIsInSafeUnaligned(uptr addr) {
-  return kSafeUnalignedBeg <= addr && addr <= kSafeUnalignedEnd;
+static inline bool AddrIsInSafeAlignedGlobal(uptr addr) {
+  return kSafeAlignedGlobalBeg <= addr && addr <= kSafeAlignedGlobalEnd;
+}
+
+static inline bool AddrIsInSafeUnalignedHeap(uptr addr) {
+  return kSafeUnalignedHeapBeg <= addr && addr <= kSafeUnalignedHeapEnd;
+}
+
+static inline bool AddrIsInSafeUnalignedGlobal(uptr addr) {
+  return kSafeUnalignedGlobalBeg <= addr && addr <= kSafeUnalignedGlobalEnd;
 }
 
 static inline bool AddrIsInShadowAligned(uptr addr) {
@@ -88,8 +104,16 @@ static inline bool AddrIsInUnsafeRegion(uptr addr) {
          AddrIsInUnsafeHeap(addr);
 }
 
+static inline bool AddrIsInSafeAlignedRegion(uptr addr) {
+  return kSafeAlignedBeg <= addr && addr <= kSafeAlignedEnd;
+}
+
+static inline bool AddrIsInSafeUnalignedRegion(uptr addr) {
+  return kSafeUnalignedBeg <= addr && addr <= kSafeUnalignedEnd;
+}
+
 static inline bool AddrIsInSafeRegion(uptr addr) {
-  return AddrIsInSafeAligned(addr) || AddrIsInSafeUnaligned(addr);
+  return AddrIsInSafeAlignedRegion(addr) || AddrIsInSafeUnalignedRegion(addr);
 }
 
 static inline bool AddrIsInShadow(uptr addr) {
@@ -97,12 +121,12 @@ static inline bool AddrIsInShadow(uptr addr) {
 }
 
 static inline uptr AlignedMemToShadow(uptr addr) {
-  CHECK(AddrIsInSafeAligned(addr));
+  CHECK(AddrIsInSafeAlignedRegion(addr));
   return (addr >> kAlignedShiftWidth);
 }
 
 static inline uptr UnalignedMemToShadow(uptr addr) {
-  CHECK(AddrIsInSafeUnaligned(addr));
+  CHECK(AddrIsInSafeUnalignedRegion(addr));
   return (addr << kUnalignedShiftWidth);
 }
 

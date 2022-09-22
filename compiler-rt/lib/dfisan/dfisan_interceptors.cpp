@@ -27,9 +27,9 @@ INTERCEPTOR(void, free, void *ptr) {
   // Report("%s: Intercept free(%p)\n", __func__, ptr);
   if (__dfisan::AddrIsInUnsafeHeap((uptr)ptr)) {
     __dfisan_unsafe_free(ptr);
-  } else if (__dfisan::AddrIsInSafeAligned((uptr)ptr)) {
+  } else if (__dfisan::AddrIsInSafeAlignedHeap((uptr)ptr)) {
     __dfisan_safe_aligned_free(ptr);
-  } else if (__dfisan::AddrIsInSafeUnaligned((uptr)ptr)) {
+  } else if (__dfisan::AddrIsInSafeUnalignedHeap((uptr)ptr)) {
     __dfisan_safe_unaligned_free(ptr);
   } else {
     dlfree(ptr);

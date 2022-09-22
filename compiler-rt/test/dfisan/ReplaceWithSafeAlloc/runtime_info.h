@@ -10,28 +10,35 @@ void *safe_realloc(void *ptr, size_t size);
 
 
 /// Copy from "compiler-rt/lib/dfisan/dfisan_mapping.h"
+const char kAlignedShiftWidth = 1;
+const char kUnalignedShiftWidth = 1;
+const char kAlignedMemGranularity = 4;
+const char kShadowGranularity = 2;
 
-char kAlignedShiftWidth = 1;
-char kUnalignedShiftWidth = 1;
-char kAlignedMemGranularity = 4;
-char kShadowGranularity = 2;
-
-unsigned long kUnsafeStackEnd     = 0x7fffffffffff;
-unsigned long kUnsafeStackBeg     = 0x70007fff8000;
-unsigned long kUnsafeHeapEnd      = 0x10007fffffff;
-unsigned long kUnsafeHeapBeg      = 0x100000000000;
-unsigned long kSafeAlignedEnd     = 0x87fffffff;
-unsigned long kSafeAlignedBeg     = 0x800000000;
-unsigned long kShadowAlignedEnd   = 0x43fffffff;
-unsigned long kShadowAlignedBeg   = 0x400000000;
-unsigned long kShadowGapEnd       = 0x3ffffffff;
-unsigned long kShadowGapBeg       = 0x200000000;
-unsigned long kShadowUnalignedEnd = 0x1ffffffff;
-unsigned long kShadowUnalignedBeg = 0x100000000;
-unsigned long kSafeUnalignedEnd   = 0xffffffff;
-unsigned long kSafeUnalignedBeg   = 0x80000000;
-unsigned long kLowUnsafeEnd       = 0x7fff7fff;
-unsigned long kLowUnsafeBeg       = 0x0;
+const unsigned long kUnsafeStackEnd     = 0x7fffffffffff;
+const unsigned long kUnsafeStackBeg     = 0x70007fff8000;
+const unsigned long kUnsafeHeapEnd      = 0x10007fffffff;
+const unsigned long kUnsafeHeapBeg      = 0x100000000000;
+const unsigned long kSafeAlignedEnd     = 0x87fffffff;
+const unsigned long kSafeAlignedBeg     = 0x800000000;
+  const unsigned long kSafeAlignedHeapEnd   = kSafeAlignedEnd;
+  const unsigned long kSafeAlignedHeapBeg   = 0x810000000;
+  const unsigned long kSafeAlignedGlobalEnd = 0x80fffffff;
+  const unsigned long kSafeAlignedGlobalBeg = kSafeAlignedBeg;
+const unsigned long kShadowAlignedEnd   = 0x43fffffff;
+const unsigned long kShadowAlignedBeg   = 0x400000000;
+const unsigned long kShadowGapEnd       = 0x3ffffffff;
+const unsigned long kShadowGapBeg       = 0x200000000;
+const unsigned long kShadowUnalignedEnd = 0x1ffffffff;
+const unsigned long kShadowUnalignedBeg = 0x100000000;
+const unsigned long kSafeUnalignedEnd   = 0xffffffff;
+const unsigned long kSafeUnalignedBeg   = 0x80000000;
+  const unsigned long kSafeUnalignedHeapEnd   = kSafeUnalignedEnd;
+  const unsigned long kSafeUnalignedHeapBeg   = 0x90000000;
+  const unsigned long kSafeUnalignedGlobalEnd = 0x8fffffff;
+  const unsigned long kSafeUnalignedGlobalBeg = kSafeUnalignedBeg;
+const unsigned long kLowUnsafeEnd       = 0x7fff7fff;
+const unsigned long kLowUnsafeBeg       = 0x0;
 
 static inline unsigned long AlignAddr(unsigned long addr) {
   return addr & ~(kAlignedMemGranularity - 1);   // Clear Lower 2 bit for 4 bytes alignment
@@ -41,12 +48,20 @@ static inline char AddrIsInUnsafeHeap(unsigned long addr) {
   return kUnsafeHeapBeg <= addr && addr <= kUnsafeHeapEnd;
 }
 
-static inline char AddrIsInSafeAligned(unsigned long addr) {
-  return kSafeAlignedBeg <= addr && addr <= kSafeAlignedEnd;
+static inline char AddrIsInSafeAlignedHeap(unsigned long addr) {
+  return kSafeAlignedHeapBeg <= addr && addr <= kSafeAlignedHeapEnd;
 }
 
-static inline char AddrIsInSafeUnaligned(unsigned long addr) {
-  return kSafeUnalignedBeg <= addr && addr <= kSafeUnalignedEnd;
+static inline char AddrIsInSafeAlignedGlobal(unsigned long addr) {
+  return kSafeAlignedGlobalBeg <= addr && addr <= kSafeAlignedGlobalEnd;
+}
+
+static inline char AddrIsInSafeUnalignedHeap(unsigned long addr) {
+  return kSafeUnalignedHeapBeg <= addr && addr <= kSafeUnalignedHeapEnd;
+}
+
+static inline char AddrIsInSafeUnalignedGlobal(unsigned long addr) {
+  return kSafeUnalignedGlobalBeg <= addr && addr <= kSafeUnalignedGlobalEnd;
 }
 
 static inline char AddrIsInShadowAligned(unsigned long addr) {
@@ -67,8 +82,16 @@ static inline char AddrIsInUnsafeRegion(unsigned long addr) {
          AddrIsInUnsafeHeap(addr);
 }
 
+static inline char AddrIsInSafeAlignedRegion(unsigned long addr) {
+  return kSafeAlignedBeg <= addr && addr <= kSafeAlignedEnd;
+}
+
+static inline char AddrIsInSafeUnalignedRegion(unsigned long addr) {
+  return kSafeUnalignedBeg <= addr && addr <= kSafeUnalignedEnd;
+}
+
 static inline char AddrIsInSafeRegion(unsigned long addr) {
-  return AddrIsInSafeAligned(addr) || AddrIsInSafeUnaligned(addr);
+  return AddrIsInSafeAlignedRegion(addr) || AddrIsInSafeUnalignedRegion(addr);
 }
 
 static inline char AddrIsInShadow(unsigned long addr) {

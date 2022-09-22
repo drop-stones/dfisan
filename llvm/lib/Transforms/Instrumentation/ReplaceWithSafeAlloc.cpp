@@ -13,6 +13,9 @@ using namespace llvm;
 
 namespace {
 
+constexpr char SafeAlignedGlobalSecName[]   = ".safe_aligned_global";
+constexpr char SafeUnalignedGlobalSecName[] = ".safe_unaligned_global";
+
 const DataLayout *DL;
 Type *VoidTy, *Int64Ty, *Int8PtrTy;
 FunctionType *MallocTy, *FreeTy, *CallocTy, *ReallocTy;
@@ -153,9 +156,24 @@ void replaceHeapAllocsWithSafeAllocs(ValueSet &HeapTargets) {
   }
 }
 
-void replaceGlobalAllocsWithSafeAllocs(ValueSet &GlobalTargets) {
-  // TODO: replace all global variables
-  LLVM_DEBUG(dbgs() << "TODO: Replace all globals\n");
+void setSafeSectionToGlobalTargets(ValueSet &GlobalTargets) {
+  for (auto *GlobalTarget : GlobalTargets) {
+    assert(isa<GlobalVariable>(GlobalTarget) && "Invalid global value");
+    GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(GlobalTarget);
+    // Set appropriate global section
+    if (GlobVar->getLinkage() == GlobalValue::LinkageTypes::ExternalLinkage)
+      if (GlobVar->getName() == "stdout")
+        continue;
+    Type *TargetType = GlobVar->getValueType();
+    if (isFourAligned(TargetType)) {
+      GlobVar->setSection(SafeAlignedGlobalSecName);
+      LLVM_DEBUG(dbgs() << "Set section " << SafeAlignedGlobalSecName << " for " << *GlobVar << "\n");
+    } else {
+      GlobVar->setSection(".safe_unaligned_global");
+      LLVM_DEBUG(dbgs() << "Set section " << SafeUnalignedGlobalSecName << " for " << *GlobVar << "\n");
+    }
+    GlobVar->setAlignment(MaybeAlign{8}); // Enforce 8 byte alignment
+  }
 }
 } // anonymous namespace
 
@@ -169,7 +187,7 @@ ReplaceWithSafeAllocPass::run(Module &M, ModuleAnalysisManager &MAM) {
   initTypes(M);
   replaceLocalAllocsWithSafeAllocs(Result.getLocalTargets());
   replaceHeapAllocsWithSafeAllocs(Result.getHeapTargets());
-  replaceGlobalAllocsWithSafeAllocs(Result.getGlobalTargets());
+  setSafeSectionToGlobalTargets(Result.getGlobalTargets());
 
   return PreservedAnalyses::none();
 }

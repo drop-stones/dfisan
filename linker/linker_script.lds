@@ -186,6 +186,21 @@ SECTIONS
     *(.ldata .ldata.* .gnu.linkonce.l.*)
     . = ALIGN(. != 0 ? 64 / 8 : 1);
   }
+
+  /* Safe region sections */
+  . = SEGMENT_START("safe-unaligned-segment", 0x80000000);
+  .safe_unaligned_global ALIGN(CONSTANT (MAXPAGESIZE) + (. & (CONSTANT (MAXPAGESIZE) - 1))) :
+  {
+    *(.safe_unaligned_global)
+    . = ALIGN(64 / 8);
+  }
+  . = SEGMENT_START("safe-aligned-segment", 0x800000000);
+  .safe_aligned_global ALIGN(CONSTANT (MAXPAGESIZE) + (. & (CONSTANT (MAXPAGESIZE) - 1))) :
+  {
+    *(.safe_aligned_global)
+    . = ALIGN(64 / 8);
+  }
+  
   . = ALIGN(64 / 8);
   _end = .; PROVIDE (end = .);
   . = DATA_SEGMENT_END (.);

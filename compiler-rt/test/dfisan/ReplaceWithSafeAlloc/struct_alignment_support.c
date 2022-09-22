@@ -20,19 +20,35 @@ struct NotAlignFour {
   long l;   // offset: 8
 };
 
+struct AlignFour gAlign __attribute__((annotate("dfi_protection")));
+struct NotAlignFour gNotAlign __attribute__((annotate("dfi_protection")));
+struct AlignFour gUnsafe;
+
 int main(void) {
-  struct AlignFour *align = (struct AlignFour *)safe_malloc(sizeof(struct AlignFour));
-  assert(AddrIsInSafeAligned(align) && "align is not in safe aligned region!!");
+  // Check global struct
+  assert(AddrIsInSafeAlignedGlobal(&gAlign) && "gAlign is not in safe aligned region");
+  assert(AddrIsInSafeUnalignedGlobal(&gNotAlign) && "gNotAlign is not in safe unaligned region");
+  assert(AddrIsInUnsafeRegion(&gUnsafe) && "gUnsafe is not in unsafe region");
 
-  struct NotAlignFour *notAlign = (struct NotAlignFour *)safe_malloc(sizeof(struct NotAlignFour));
-  assert(AddrIsInSafeUnaligned(notAlign) && "notAlign is not in safe unaligned region!!");
+  // Check local struct
+  struct AlignFour lAlign __attribute__((annotate("dfi_protection")));
+  struct NotAlignFour lNotAlign __attribute__((annotate("dfi_protection")));
+  struct AlignFour lUnsafe;
+  assert(AddrIsInSafeAlignedHeap(&lAlign) && "lAlign is not in safe aligned region");
+  assert(AddrIsInSafeUnalignedHeap(&lNotAlign) && "lNotAlign is not in safe unaligned region");
+  assert(AddrIsInUnsafeRegion(&lUnsafe) && "lUnsafe is not in unsafe region");
 
-  struct AlignFour *unsafe = (struct AlignFour *)malloc(sizeof(struct AlignFour));
-  assert(AddrIsInUnsafeRegion(unsafe) && "unsafe is not in unsafe region!!");
+  // Check heap struct
+  struct AlignFour *hAlign = (struct AlignFour *)safe_malloc(sizeof(struct AlignFour));
+  struct NotAlignFour *hNotAlign = (struct NotAlignFour *)safe_malloc(sizeof(struct NotAlignFour));
+  struct AlignFour *hUnsafe = (struct AlignFour *)malloc(sizeof(struct AlignFour));
+  assert(AddrIsInSafeAlignedHeap(hAlign) && "hAlign is not in safe aligned region!!");
+  assert(AddrIsInSafeUnalignedHeap(hNotAlign) && "hNotAlign is not in safe unaligned region!!");
+  assert(AddrIsInUnsafeRegion(hUnsafe) && "hUnsafe is not in unsafe region!!");
 
-  free(align);
-  free(notAlign);
-  free(unsafe);
+  free(hAlign);
+  free(hNotAlign);
+  free(hUnsafe);
 
   return 0;
 }
