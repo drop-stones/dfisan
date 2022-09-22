@@ -181,8 +181,6 @@ PreservedAnalyses
 ReplaceWithSafeAllocPass::run(Module &M, ModuleAnalysisManager &MAM) {
   LLVM_DEBUG(dbgs() << "ReplaceWithSafeAllocPass: Replace protection target's allocs with safe allocs\n");
   auto &Result = MAM.getResult<ProtectionTargetAnalysisPass>(M);
-  if (!Result.beforeReplacement())  // Skip if replacement has already done
-    return PreservedAnalyses::all();
 
   initTypes(M);
   replaceLocalAllocsWithSafeAllocs(Result.getLocalTargets());

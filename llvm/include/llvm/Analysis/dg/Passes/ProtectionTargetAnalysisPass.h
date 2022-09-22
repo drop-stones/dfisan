@@ -3,7 +3,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// This file contains the declaration of the ProtectionTargetAnalysis class,
-/// which collect "dfi_protection" annotations.
+/// which collect "dfi_protection" annotations and analyze protection targets.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -13,6 +13,7 @@
 #include "llvm/IR/PassManager.h"
 #include <unordered_set>
 
+constexpr char ProtectionAnnoName[]         = "dfi_protection";
 constexpr char SafeMallocFnName[]           = "safe_malloc";
 constexpr char SafeCallocFnName[]           = "safe_calloc";
 constexpr char SafeReallocFnName[]          = "safe_realloc";
@@ -30,55 +31,43 @@ namespace llvm {
 using ValueSet = std::unordered_set<llvm::Value *>;
 using InstSet = std::unordered_set<llvm::Instruction *>;
 
+/// Collect "dfi_protection" annotations and analyze protection targets.
 class ProtectionTargetAnalysisPass : public AnalysisInfoMixin<ProtectionTargetAnalysisPass> {
   friend AnalysisInfoMixin<ProtectionTargetAnalysisPass>;
 
   static AnalysisKey Key;
 
 public:
-  // Protection Target Info
+  // Protection Target Info befor replacement
   class Result {
   public:
-    Result() : BeforeReplacement(false) {}
+    Result() {}
 
     void insertGlobalTarget(Value *G) { GlobalTargets.insert(G); }
     void insertLocalTarget (Value *L) { LocalTargets.insert(L); }
     void insertHeapTarget  (Value *H) { HeapTargets.insert(H); }
-    void insertProtectionTarget(Value *P) { ProtectionTargets.insert(P); }
 
     ValueSet& getGlobalTargets() { return GlobalTargets; }
     ValueSet& getLocalTargets()  { return LocalTargets; }
     ValueSet& getHeapTargets()   { return HeapTargets; }
-    ValueSet& getProtectionTargets() { return ProtectionTargets; }
-
-    void setBeforeReplacement(bool B) { BeforeReplacement = B; }
-    bool beforeReplacement() { return BeforeReplacement; }
 
     void dump(raw_ostream &OS) {
-      OS << "ProtectionTargetAnalysisPass Result::dump()\n";
-      if (beforeReplacement()) {
-        OS << " - GlobalTargets:\n";
-        for (const auto *Global : GlobalTargets)
-          OS << "  - " << *Global << "\n";
-        OS << " - LocalTargets:\n";
-        for (const auto *Local : LocalTargets)
-          OS << "  - " << *Local << "\n";
-        OS << " - HeapTargets:\n";
-        for (const auto *Heap : HeapTargets)
-          OS << "  - " << *Heap << "\n";
-      } else {
-        OS << " - ProtectionTargets:\n";
-        for (const auto *Target : ProtectionTargets)
-          OS << "  - " << *Target << "\n";
-      }
+      OS << "ProtectionTargetAnalysisPass::Result::dump()\n";
+      OS << " - GlobalTargets:\n";
+      for (const auto *Global : GlobalTargets)
+        OS << "  - " << *Global << "\n";
+      OS << " - LocalTargets:\n";
+      for (const auto *Local : LocalTargets)
+        OS << "  - " << *Local << "\n";
+      OS << " - HeapTargets:\n";
+      for (const auto *Heap : HeapTargets)
+        OS << "  - " << *Heap << "\n";
     }
 
   private:
     ValueSet GlobalTargets;     // Annotated global targets
     ValueSet LocalTargets;      // Annotated local targets
     ValueSet HeapTargets;       // Annotated heap targets
-    ValueSet ProtectionTargets; // Protection targets allocated by safe allocs
-    bool BeforeReplacement;
   };
 
   Result run(Module &M, ModuleAnalysisManager &MAM);
@@ -86,12 +75,38 @@ public:
 private:
   // Find "dfi_protection" annotations and collect targets
   void findProtectionTargetAnnotations(Module &M, Result &Res);
+};
 
+/// Collect protection targets after replacement.
+class CollectProtectionTargetPass : public AnalysisInfoMixin<CollectProtectionTargetPass> {
+  friend AnalysisInfoMixin<CollectProtectionTargetPass>;
+
+  static AnalysisKey Key;
+
+public:
+  // Protection Target Info after replacement
+  class Result {
+  public:
+    Result() {}
+
+    void insertProtectionTarget(Value *P) { ProtectionTargets.insert(P); }
+    ValueSet &getProtectionTargets() { return ProtectionTargets; }
+
+    void dump(raw_ostream &OS) {
+      OS << "CollectProtectionTargetPass::Result::dump()\n";
+      for (const auto *Target : ProtectionTargets)
+        OS << " - " << *Target << "\n";
+    }
+
+  private:
+    ValueSet ProtectionTargets;
+  };
+
+  Result run(Module &M, ModuleAnalysisManager &MAM);
+
+private:
   // Find protection targets allocated by safe allocs
   void findProtectionTargets(Module &M, Result &Res);
-
-  // Result Res;
-  const std::string ProtectionAnno = "dfi_protection";
 };
 
 } // namespace llvm
