@@ -7,9 +7,9 @@
 namespace dg {
 
 class DfiLLVMDependenceGraph : public LLVMDependenceGraph {
-  DfiProtectInfo &ProtectInfo;
+  DfiProtectInfo *ProtectInfo;
 public:
-  DfiLLVMDependenceGraph(DfiProtectInfo &ProtectInfo, bool threads = false)
+  DfiLLVMDependenceGraph(DfiProtectInfo *ProtectInfo, bool threads = false)
     : LLVMDependenceGraph(threads), ProtectInfo(ProtectInfo) {}
 
   void addDefUseEdges(bool preserveDbg = true) override;

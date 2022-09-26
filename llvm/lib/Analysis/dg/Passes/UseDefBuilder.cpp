@@ -14,145 +14,15 @@ UseDefBuilder::isUse(llvm::Value *Val) {
 }
 
 void
-UseDefBuilder::findDfiProtectTargets() {
-  using namespace llvm;
-  // Collect annotated global variables
-  if (GlobalVariable *GlobAnnotation = M->getGlobalVariable("llvm.global.annotations")) {
-    for (Value *Op : GlobAnnotation->operands()) {  // Metadata are stored in an array of struct of metadata
-      if (ConstantArray *CA = dyn_cast<ConstantArray>(Op)) {
-        for (Value *CAOp : CA->operands()) {
-          if (ConstantStruct *CS = dyn_cast<ConstantStruct>(CAOp)) {
-            if (CS->getNumOperands() >= 2) {
-              Value *AnnotatedVal = CS->getOperand(0)->getOperand(0);
-              if (GlobalVariable *GAnn = dyn_cast<GlobalVariable>(CS->getOperand(1)->getOperand(0))) {
-                if (ConstantDataArray *Arr = dyn_cast<ConstantDataArray>(GAnn->getOperand(0))) {
-                  StringRef AnnStr = Arr->getAsString();
-                  if (AnnStr.startswith(DfiProtectAnn)) {     // Protect global variables
-                    llvm::errs() << "Annotation: " << AnnStr << ", GlobalVal: " << *AnnotatedVal << "\n";
-                    ProtectInfo.insertGlobal(AnnotatedVal);
-                  }
-                  if (AnnStr.startswith(DfiPtrProtectAnn)) {  // Protect heap variables
-                    llvm::errs() << "Annotation: " << AnnStr << ", GlobalVal: " << *AnnotatedVal << "\n";
-                    ProtectInfo.insertProtectPtr(AnnotatedVal);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Collect annotated local variables
-  for (Function &Func : M->getFunctionList()) {
-    for (Instruction &Inst : instructions(&Func)) {
-      if (IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(&Inst)) {
-        Function *Callee = Intrinsic->getCalledFunction();
-        if (Callee->getName() == "llvm.var.annotation") {
-          Value *AnnotatedVal = Intrinsic->getArgOperand(0)->stripPointerCasts();
-          if (GlobalVariable *Ann = dyn_cast<GlobalVariable>(Intrinsic->getArgOperand(1)->stripPointerCasts())) {
-            if (ConstantDataArray *Arr = dyn_cast<ConstantDataArray>(Ann->getOperand(0))) {
-              StringRef AnnStr = Arr->getAsString();
-              if (AnnStr.startswith(DfiProtectAnn)) {     // Protect local variables
-                llvm::errs() << "Annotation: " << AnnStr << ", annotatedVal: " << *AnnotatedVal << "\n";
-                ProtectInfo.insertLocal(AnnotatedVal);
-              }
-              if (AnnStr.startswith(DfiPtrProtectAnn)) {  // Protect heap variables
-                llvm::errs() << "Annotation: " << AnnStr << ", annotatedVal: " << *AnnotatedVal << "\n";
-                ProtectInfo.insertProtectPtr(AnnotatedVal);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Collect annotated heap variables
-  for (const auto *ProtectPtr : ProtectInfo.ProtectPtrs) {
-    for (const auto *User : ProtectPtr->users()) {
-      if (const LoadInst *Load = dyn_cast<LoadInst>(User)) {
-        for (const auto &Heap : getPTA()->getLLVMPointsTo(Load)) {
-          if (isMemoryAllocCall(Heap.value)) {
-            llvm::errs() << "Annotated Heap Object: " << *Heap.value << "\n";
-            ProtectInfo.insertHeap(Heap.value);
-          }
-        }
-      }
-    }
-  }
-}
-
-void
-UseDefBuilder::assignDefIDs() {
-  // Assign DefID to global initializations.
-  for (auto GI = glob_begin(), GE = glob_end(); GI != GE; GI++) {
-    auto *GlobInit = (llvm::Value *)getDDA()->getValue(*GI);
-    assert(isDef(GlobInit));
-    assignDefID(GlobInit);
-  }
-
-  // Assign DefID to store instructions.
-  for (auto DI = def_begin(), DE = def_end(); DI != DE; DI++) {
-    auto *Def = (*DI)->getValue();
-    assert(isDef(Def));
-    assignDefID(Def);
-  }
-}
-
-void
-UseDefBuilder::assignDefID(llvm::Value *Def) {
-  static DefID CurrID = 1;
-  if (DefToInfo.count(Def) == 0) {
-    DefToInfo.emplace(Def, CurrID);
-
-    if (CurrID == USHRT_MAX) {
-      llvm::errs() << "DefID overflow!!\n";
-      CurrID = 1;
-    } else {
-      CurrID++;
-    }
-  }
-}
-
-bool
-UseDefBuilder::hasDefID(llvm::Value *Key) {
-  return DefToInfo.count(Key) != 0;
-}
-
-DefID
-UseDefBuilder::getDefID(llvm::Value *Key) {
-  assert(hasDefID(Key));
-  return DefToInfo[Key].ID;
-}
-
-void
 UseDefBuilder::printUseDef(llvm::raw_ostream &OS) {
   OS << __func__ << "\n";
-  for (auto UI = use_begin(), UE = use_end(); UI != UE; UI++) {
-    auto *Use = (*UI)->getValue();
+  auto *DDA = getDDA();
+  for (auto *Use : ProtectInfo->Uses) {
     OS << "Use: " << *Use << "\n";
-    for (auto *Def : getDDA()->getLLVMDefinitions(Use)) {
-      OS << " - DefID[" << getDefID(Def) << "]: " << *Def << "\n";
+    for (auto *Def : DDA->getLLVMDefinitions(Use)) {
+      OS << " - DefID[" << ProtectInfo->getDefID(Def) << "] " << *Def << "\n";
     }
   }
-}
-
-void
-UseDefBuilder::printDefInfoMap(llvm::raw_ostream &OS) {
-  OS << __func__ << "\n";
-  for (const auto &Iter : DefToInfo) {
-    auto *Val = Iter.first;
-    auto &DefInfo = Iter.second;
-
-    OS << "DefID[" << DefInfo.ID << "]: " << *Val << "\n";
-  }
-}
-
-void
-UseDefBuilder::printProtectInfo(llvm::raw_ostream &OS) {
-  ProtectInfo.dump(OS);
 }
 
 void

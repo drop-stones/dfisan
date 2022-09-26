@@ -187,6 +187,15 @@ void LLVMReadWriteGraphBuilder::addReallocUses(const llvm::Instruction *Inst,
             // the realloc reallocates itself
             ptrNode = &node;
         } else {
+            // realloc <-> realloc loop occur
+            auto *Call = llvm::dyn_cast<llvm::CallInst>(ptr.value);
+            auto *Callee = Call->getCalledOperand()->stripPointerCasts();
+            auto type = _options.getAllocationFunction(Callee->getName().str());
+            if (type == AllocationFunction::REALLOC && getNode(ptr.value) == nullptr) {
+                // Skip to avoid infinite recursion
+                llvm::errs() << __func__ << ": [Error] Skip realloc to avoid infinite recursion\n";
+                continue;
+            }
             ptrNode = getOperand(ptr.value);
         }
         if (!ptrNode) {

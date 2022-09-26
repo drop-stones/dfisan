@@ -32,18 +32,15 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, Opts);
 
   auto &AnalysisResult = MAM.getResult<CollectProtectionTargetPass>(M);
-  AnalysisResult.dump(llvm::outs());
-
-  std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M);
-/*
+  std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, AnalysisResult.getAlignedTargets(), AnalysisResult.getUnalignedTargets());
   Builder->buildDG();
-  Builder->assignDefIDs();
-  Builder->printProtectInfo(llvm::outs());
+
+  Builder->getProtectInfo()->dump(llvm::outs());
 
   debug::UseDefLogger Logger{M};
-  Logger.logDefInfo(Builder.get());
-*/
+  Logger.logDefInfo(Builder->getDDA(), Builder->getProtectInfo());
 
+  // std::unique_ptr<dg::LLVMDependenceGraph> DG = std::move( Builder->moveDG() );
   UseDefAnalysisPass::Result Result { std::move(Builder) };
 
   return Result;

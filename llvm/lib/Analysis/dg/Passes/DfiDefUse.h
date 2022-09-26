@@ -10,10 +10,10 @@
 namespace dg {
 
 class DfiDefUseAnalysis : public LLVMDefUseAnalysis {
-  DfiProtectInfo &ProtectInfo;
+  DfiProtectInfo *ProtectInfo;
 public:
   DfiDefUseAnalysis(LLVMDependenceGraph *dg, LLVMDataDependenceAnalysis *rd,
-                    LLVMPointerAnalysis *pta, DfiProtectInfo &ProtectInfo)
+                    LLVMPointerAnalysis *pta, DfiProtectInfo *ProtectInfo)
     : LLVMDefUseAnalysis(dg, rd, pta), ProtectInfo(ProtectInfo) {}
   
   bool runOnNode(LLVMNode *Node, LLVMNode *Prev) override;

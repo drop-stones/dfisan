@@ -7,6 +7,7 @@ namespace dda {
 RWNode *DfiReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
     RWNode *ret = LLVMReadWriteGraphBuilder::createLoad(Inst);
 
+/*
     /// Print for debug
     auto &Loc = Inst->getDebugLoc();
     if (Loc) {
@@ -17,6 +18,7 @@ RWNode *DfiReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
             }
         }
     }
+*/
 
     return ret;
 }

@@ -156,6 +156,7 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   return;
 
   // Insert DfiStoreFn for GlobalInit
+/*
   if (UseDef->isSelectiveDfi()) {
     for (auto *GlobVal : UseDef->getProtectInfo().Globals) {
       insertDfiStoreFn((Value *)GlobVal);
@@ -172,12 +173,14 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
       insertDfiStoreFn(GlobVal);
     }
   }
+*/
 }
 
 /// Insert a DEF function after each store statement using pointer.
 void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
   llvm::errs() << "InsertDfiStoreFn: " << *Def << "\n";
 
+/*
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
     if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
       auto *StoreTarget = Store->getPointerOperand();
@@ -231,6 +234,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
     llvm::errs() << "No support Def: " << *Def << "\n";
     // assert(false && "No support Def");
   }
+*/
 }
 
 /// Insert a CHECK function before each load statement.

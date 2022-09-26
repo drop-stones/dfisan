@@ -42,7 +42,7 @@ UseDefLogger::UseDefLogger(llvm::Module &M)
   : DBFilename( (OutputFilename == "-" ? getModuleName(M) : OutputFilename) + ".sqlite3") {
   if (!isEnabled())
     return;
-  LLVM_DEBUG(llvm::errs() << "DBFilename: " << DBFilename << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "DBFilename: " << DBFilename << "\n");
   if (sqlite3_open(DBFilename.c_str(), &DB) != SQLITE_OK) {
     llvm::errs() << "Error: sqlite_open: Cannot open " << DBFilename << "\n";
     exit(1);
@@ -59,7 +59,7 @@ UseDefLogger::~UseDefLogger() {
 }
 
 void
-UseDefLogger::logDefInfo(UseDefBuilder *Builder) {
+UseDefLogger::logDefInfo(dda::LLVMDataDependenceAnalysis *DDA, DfiProtectInfo *ProtectInfo) {
   if (!isEnabled())
     return;
   
@@ -67,33 +67,24 @@ UseDefLogger::logDefInfo(UseDefBuilder *Builder) {
   sqlite3_exec(DB, ("DROP TABLE IF EXISTS " + DBTableName).c_str(), nullptr, nullptr, &ErrMsg);
   sqlite3_exec(DB, ("CREATE TABLE " + DBTableName + " (DefID INTEGER , line INTEGER, column INTEGER, filename TEXT, UNIQUE(DefID, line, column, filename))").c_str(), nullptr, nullptr, &ErrMsg);
 
-  // Log global variable initializations.
-  for (auto GI = Builder->glob_begin(); GI != Builder->glob_end(); GI++) {
-    auto *GlobVal = (llvm::Value *)Builder->getDDA()->getValue(*GI);
-    DefID ID = Builder->getDefID(GlobVal);
-    std::string Valname = GlobVal->getNameOrAsOperand();
-    StringRef Filename = Valname;
-    logSingleDefInfo(ID, Filename);
-  }
-
-  // Log store instructions.
-  for (auto DI = Builder->def_begin(); DI != Builder->def_end(); DI++) {
-    auto *Def = (*DI)->getValue();
-    DefID ID = Builder->getDefID(Def);
-
-    unsigned Line = 0, Column = 0;
-    StringRef Filename;
-    if (auto *Inst = llvm::dyn_cast<llvm::Instruction>(Def)) {
-      auto &DebugLoc = Inst->getDebugLoc();
-      if (DebugLoc) {
+  // Log Def instructions.
+  for (auto *Def : ProtectInfo->Defs) {
+    DefID ID = ProtectInfo->getDefID(Def);
+    if (auto *GlobVar = dyn_cast<GlobalVariable>(Def)) {
+      StringRef Valname = GlobVar->getName();
+      logSingleDefInfo(ID, Valname);
+    } else if (auto *Inst = dyn_cast<Instruction>(Def)) {
+      unsigned Line = 0, Column = 0;
+      StringRef Filename;
+      if (auto &DebugLoc = Inst->getDebugLoc()) {
         Line = DebugLoc->getLine();
         Column = DebugLoc->getColumn();
         Filename = DebugLoc->getScope()->getFilename();
       }
+      logSingleDefInfo(ID, Filename, Line, Column);
     } else {
-      assert(false && "No support value");
+      llvm_unreachable("No support def value");
     }
-    logSingleDefInfo(ID, Filename, Line, Column);
   }
 }
 

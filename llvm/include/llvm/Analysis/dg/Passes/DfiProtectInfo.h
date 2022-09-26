@@ -1,87 +1,97 @@
 #ifndef LLVM_ANALYSIS_DG_PASSES_DFIPROTECTINFO_H
 #define LLVM_ANALYSIS_DG_PASSES_DFIPROTECTINFO_H
 
-#include <set>
+#include <unordered_set>
+#include <unordered_map>
+
 #include "llvm/IR/Value.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace dg {
 
-using ValueSet = std::set<const llvm::Value *>;
+using ValueSet = std::unordered_set<llvm::Value *>;
+using InstSet = std::unordered_set<llvm::Instruction *>;
 
+using DefID = uint16_t;
+struct DefInfo {
+  DefID ID;
+  bool IsInstrumented;
+
+  DefInfo(DefID ID) : ID(ID), IsInstrumented(false) {}
+  DefInfo() : DefInfo(0) {}
+};
+using DefInfoMap = std::unordered_map<llvm::Value *, DefInfo>;
+
+/// Class to store protection targets and its defs and uses.
 struct DfiProtectInfo {
-private:
-  bool isProtectTarget(const llvm::Value *V) {
-    if (const auto *GlobalVal = llvm::dyn_cast<llvm::GlobalVariable>(V)) {
-      if (GlobalVal->isConstant() || GlobalVal->getName() == "llvm.global.annotations")
-        return false;
-    }
-    return true;
-  }
-
 public:
-  DfiProtectInfo() {}
+  DfiProtectInfo(ValueSet &Aligned, ValueSet &Unaligned)
+    : AlignedTargets(Aligned), UnalignedTargets(Unaligned) {}
 
-  bool isSelectiveDfi() {
-    return !(Globals.empty() && Locals.empty() && Heaps.empty());
-  }
+  bool hasAlignedTarget(llvm::Value *V)   { return AlignedTargets.count(V) != 0; }
+  bool hasUnalignedTarget(llvm::Value *V) { return UnalignedTargets.count(V) != 0; }
+  bool hasTarget(llvm::Value *V) { return hasAlignedTarget(V) || hasUnalignedTarget(V); }
+  bool hasDef(llvm::Value *Def) { return Defs.count(Def) != 0; }
+  bool hasUse(llvm::Instruction *Use) { return Uses.count(Use) != 0; }
 
-  void insertGlobal(const llvm::Value *G) {
-    if (isProtectTarget(G))
-      Globals.insert(G);
-  }
-  void insertLocal(const llvm::Value *L) { Locals.insert(L); }
-  void insertHeap(const llvm::Value *H)  { Heaps.insert(H); }
-  void insertProtectPtr(const llvm::Value *Ptr) { ProtectPtrs.insert(Ptr); }
-  void insertDef(const llvm::Value *D) {
-    if (isProtectTarget(D))
-      Defs.insert(D);
-  }
-  void insertUse(const llvm::Value *U) { Uses.insert(U); }
+  void insertDef(llvm::Value *Def) { Defs.insert(Def); assignDefID(Def); }
+  void insertUse(llvm::Instruction *Use) { Uses.insert(Use); }
 
-  bool hasValue(const llvm::Value *V) {
-    return hasGlobal(V) || hasLocal(V) || hasHeap(V);
+  bool hasDefID(llvm::Value *Def) {
+    return DefToInfo.count(Def) != 0;
   }
-  bool hasGlobal(const llvm::Value *G) { return Globals.count(G) != 0; }
-  bool hasLocal(const llvm::Value *L)  { return Locals.count(L) != 0; }
-  bool hasHeap(const llvm::Value *H)   { return Heaps.count(H) != 0; }
-  bool hasProtectPtr(const llvm::Value *Ptr) { return ProtectPtrs.count(Ptr) != 0; }
+  DefID getDefID(llvm::Value *Def) {
+    assert(hasDefID(Def) && "No Def value");
+    return DefToInfo[Def].ID;
+  }
 
   void dump(llvm::raw_ostream &OS) {
     OS << "DfiProtectInfo::" << __func__ << "\n";
-    OS << "DfiProtectionList:\n";
-    OS << " - Globals:\n";
-    for (const auto *Global : Globals)
-      OS << "   - " << *Global << "\n";
-    OS << " - Locals:\n";
-    for (const auto *Local : Locals)
-      OS << "   - " << *Local << "\n";
-    OS << " - Heaps:\n";
-    for (const auto *Heap : Heaps)
-      OS << "   - " << *Heap << "\n";
-    OS << " - ProtectPtrs:\n";
-    for (const auto *Ptr : ProtectPtrs)
-      OS << "   - " << *Ptr << "\n";
+    OS << "Aligned Targets:\n";
+    for (auto *Aligned : AlignedTargets)
+      OS << " - " << *Aligned << "\n";
+    OS << "Unaligned Targets:\n";
+    for (auto *Unaligned : UnalignedTargets)
+      OS << " - " << *Unaligned << "\n";
     
     OS << "Def instructions:\n";
-    for (const auto *Def : Defs)
-      OS << " - " << *Def << "\n";
+    for (auto *Def : Defs)
+      OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
     OS << "Use instructions:\n";
-    for (const auto *Use : Uses)
+    for (auto *Use : Uses)
       OS << " - " << *Use << "\n";
   }
 
   /// Protection Targets
-  ValueSet Globals;
-  ValueSet Locals;
-  ValueSet Heaps;
+  ValueSet &AlignedTargets;
+  ValueSet &UnalignedTargets;
 
-  /// Pointers which points-to heap objects.
-  ValueSet ProtectPtrs;
-
+  /// Def and Use of targets
   ValueSet Defs;
-  ValueSet Uses;
+  InstSet Uses;
+
+  DefInfoMap DefToInfo;
+
+private:
+  const DefID InitID = 1;
+  DefID CurrID = InitID;
+
+  void assignDefID(llvm::Value *Def) {
+    if (hasDefID(Def))  // Already assigned
+      return;
+    
+    DefToInfo.emplace(Def, CurrID);
+
+    // Calculate the next DefID.
+    if (CurrID == USHRT_MAX) {
+      llvm::errs() << "DefID overflow!\n";
+      CurrID = InitID;
+    } else {
+      CurrID++;
+    }
+  }
 };
 
 } // namespace dg
