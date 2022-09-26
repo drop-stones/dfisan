@@ -13,9 +13,6 @@ using namespace llvm;
 
 namespace {
 
-constexpr char SafeAlignedGlobalSecName[]   = ".safe_aligned_global";
-constexpr char SafeUnalignedGlobalSecName[] = ".safe_unaligned_global";
-
 const DataLayout *DL;
 Type *VoidTy, *Int64Ty, *Int8PtrTy;
 FunctionType *MallocTy, *FreeTy, *CallocTy, *ReallocTy;

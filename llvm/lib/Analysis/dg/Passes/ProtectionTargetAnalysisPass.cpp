@@ -23,10 +23,16 @@ static inline bool isReplacementFnName(StringRef FnName) {
   return (FnName == SafeMallocFnName) || (FnName == SafeCallocFnName) || (FnName == SafeReallocFnName);
 }
 
+static inline bool isSafeAlignedAllocFnName(StringRef FnName) {
+  return (FnName == SafeAlignedMallocFnName) || (FnName == SafeAlignedCallocFnName) || (FnName == SafeAlignedReallocFnName);
+}
+
+static inline bool isSafeUnalignedAllocFnName(StringRef FnName) {
+  return (FnName == SafeUnalignedMallocFnName) || (FnName == SafeUnalignedCallocFnName) || (FnName == SafeUnalignedReallocFnName);
+}
+
 static inline bool isSafeAllocFnName(StringRef FnName) {
-  return (FnName == SafeAlignedMallocFnName) || (FnName == SafeUnalignedMallocFnName) ||
-         (FnName == SafeAlignedCallocFnName) || (FnName == SafeUnalignedCallocFnName) ||
-         (FnName == SafeAlignedReallocFnName) || (FnName == SafeUnalignedReallocFnName);
+  return isSafeAlignedAllocFnName(FnName) || isSafeUnalignedAllocFnName(FnName);
 }
 
 // Collect global variables annotated by "dfi_protection".
@@ -85,16 +91,34 @@ void collectHeapTargetsAllocatedByReplacementFn(Module &M, ValueSet &HeapTargets
   }
 }
 
-// Collect heap targets allocated by safe allocs.
-void collectHeapTargetsAllocatedBySafeAllocFn(Module &M, ValueSet &HeapTargets) {
+// Divide global targets into aligned and unaligned by their sections.
+void collectGlobalTargetsBySection(Module &M, ValueSet &AlignedTargets, ValueSet &UnalignedTargets) {
+  ValueSet GlobalTargets;
+  collectGlobalTargetsWithAnnotation(M, GlobalTargets);
+
+  for (auto *Target : GlobalTargets) {
+    assert(isa<GlobalVariable>(Target) && "Global target is not global variable");
+    GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Target);
+    if (GlobVar->getSection() == SafeAlignedGlobalSecName) {
+      AlignedTargets.insert(Target);
+    } else if (GlobVar->getSection() == SafeUnalignedGlobalSecName) {
+      UnalignedTargets.insert(Target);
+    }
+  }
+}
+
+// Divide heap targets into aligned and unaligned by their alloc fn names.
+void collectHeapTargetsByFnName(Module &M, ValueSet &AlignedTargets, ValueSet &UnalignedTargets) {
   for (Function &Func : M.getFunctionList()) {
     for (Instruction &Inst : instructions(&Func)) {
       if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
         Value *Callee = Call->getCalledOperand()->stripPointerCasts();
-        if (isSafeAllocFnName(Callee->getName())) {
-          LLVM_DEBUG(dbgs() << "Protection Target allocated by safe alloc: " << *Call << "\n");
-          // Res.insertProtectionTarget(Call);
-          HeapTargets.insert(Call);
+        if (isSafeAlignedAllocFnName(Callee->getName())) {
+          LLVM_DEBUG(dbgs() << "Protection Target allocated by aligned safe alloc: " << *Call << "\n");
+          AlignedTargets.insert(Call);
+        } else if (isSafeUnalignedAllocFnName(Callee->getName())) {
+          LLVM_DEBUG(dbgs() << "Protection Target allocated by unaligned safe alloc: " << *Call << "\n");
+          UnalignedTargets.insert(Call);
         }
       }
     }
@@ -143,8 +167,8 @@ CollectProtectionTargetPass::run(Module &M, ModuleAnalysisManager &MAM) {
 void
 CollectProtectionTargetPass::findProtectionTargets(Module &M, Result &Res) {
   // Collect global targets
-  collectGlobalTargetsWithAnnotation(M, Res.getProtectionTargets());
+  collectGlobalTargetsBySection(M, Res.getAlignedTargets(), Res.getUnalignedTargets());
 
   // Collect protection targets allocated by safe allocs
-  collectHeapTargetsAllocatedBySafeAllocFn(M, Res.getProtectionTargets());
+  collectHeapTargetsByFnName(M, Res.getAlignedTargets(), Res.getUnalignedTargets());
 }

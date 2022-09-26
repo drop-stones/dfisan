@@ -25,6 +25,8 @@ constexpr char SafeAlignedCallocFnName[]    = "__dfisan_safe_aligned_calloc";
 constexpr char SafeUnalignedCallocFnName[]  = "__dfisan_safe_unaligned_calloc";
 constexpr char SafeAlignedReallocFnName[]   = "__dfisan_safe_aligned_realloc";
 constexpr char SafeUnalignedReallocFnName[] = "__dfisan_safe_unaligned_realloc";
+constexpr char SafeAlignedGlobalSecName[]   = ".safe_aligned_global";
+constexpr char SafeUnalignedGlobalSecName[] = ".safe_unaligned_global";
 
 namespace llvm {
 
@@ -89,17 +91,24 @@ public:
   public:
     Result() {}
 
-    void insertProtectionTarget(Value *P) { ProtectionTargets.insert(P); }
-    ValueSet &getProtectionTargets() { return ProtectionTargets; }
+    void insertAlignedTarget(Value *A)   { AlignedTargets.insert(A); }
+    void insertUnalignedTarget(Value *U) { UnalignedTargets.insert(U); }
+    ValueSet &getAlignedTargets()   { return AlignedTargets; }
+    ValueSet &getUnalignedTargets() { return UnalignedTargets; }
 
     void dump(raw_ostream &OS) {
       OS << "CollectProtectionTargetPass::Result::dump()\n";
-      for (const auto *Target : ProtectionTargets)
+      OS << "Aligned Targets:\n";
+      for (const auto *Target : AlignedTargets)
         OS << " - " << *Target << "\n";
+      OS << "Unaligned Targets:\n";
+      for (const auto *Target : UnalignedTargets)
+        OS << "   - " << *Target << "\n";
     }
 
   private:
-    ValueSet ProtectionTargets;
+    ValueSet AlignedTargets;
+    ValueSet UnalignedTargets;
   };
 
   Result run(Module &M, ModuleAnalysisManager &MAM);
