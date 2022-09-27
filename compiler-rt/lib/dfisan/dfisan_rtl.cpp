@@ -35,6 +35,10 @@ static inline void setAlignedRDT(uptr Addr, u16 ID, u64 Length) {
   for (u64 i = 0; i < Length; i++)
     *(shadow_memory + i) = ID;
 }
+#define SET_COND_ALIGNED_ID(StoreAddr, DefID, Size, Cond) \
+  if (Cond) {                                             \
+    setAlignedRDT(StoreAddr, DefID, Size);                \
+  }
 
 static inline bool checkAlignedRDT(uptr Addr, u16 ID) {
   u16 *shadow_memory = (u16 *)__dfisan::AlignedMemToShadow(Addr);
@@ -52,6 +56,15 @@ static inline bool checkAlignedRDT(uptr Addr, u32 Argc, va_list IDList) {
   va_start(IDList, Argc);                               \
   if (checkAlignedRDT(LoadAddr, Argc, IDList) == false) \
     REPORT_ERROR(LoadAddr, Argc, IDList)
+#define CHECK_ALIGNED_ID_LIST(LoadAddr, Argc, Size) \
+  va_list IDList;                                   \
+  for (u32 i = 0; i < Size; i++)                    \
+    CHECK_ALIGNED_ID(LoadAddr, Argc, IDList);       \
+  va_end(IDList)
+#define CHECK_COND_ALIGNED_ID_LIST(LoadAddr, Argc, Size, Cond)  \
+  if (Cond) {                                                   \
+    CHECK_ALIGNED_ID_LIST(LoadAddr, Argc, Size);                \
+  }
 
 // --- Unaligned RDT ---
 static inline void setUnalignedRDT(uptr Addr, u16 ID) {
@@ -63,6 +76,10 @@ static inline void setUnalignedRDT(uptr Addr, u16 ID, u32 Length) {
   for (u32 i = 0; i < Length; i++)
     *(shadow_memory + i) = ID;
 }
+#define SET_COND_UNALIGNED_ID(StoreAddr, DefID, Size, Cond) \
+  if (Cond) {                                               \
+    setUnalignedRDT(StoreAddr, DefID, Size);                \
+  }
 
 static inline bool checkUnalignedRDT(uptr Addr, u16 ID) {
   u16 *shadow_memory = (u16 *)__dfisan::UnalignedMemToShadow(Addr);
@@ -80,6 +97,46 @@ static inline bool checkUnalignedRDT(uptr Addr, u32 Argc, va_list IDList) {
   va_start(IDList, Argc);                                 \
   if (checkUnalignedRDT(LoadAddr, Argc, IDList) == false) \
     REPORT_ERROR(LoadAddr, Argc, IDList)
+#define CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, Size) \
+  va_list IDList;                                     \
+  for (u32 i = 0; i < Size; i++)                      \
+    CHECK_UNALIGNED_ID(LoadAddr, Argc, IDList);       \
+  va_end(IDList)
+#define CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, Size, Cond)  \
+  if (Cond) {                                                     \
+    CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);                \
+  }
+
+// --- Aligned or Unaligned functions ---
+#define SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, Size)       \
+  if (__dfisan::AddrIsInSafeAlignedRegion(StoreAddr)) {           \
+    setAlignedRDT(StoreAddr, DefID, getShadowAlignedSize(Size));  \
+  } else if (__dfisan::AddrIsInSafeUnalignedRegion(StoreAddr)) {  \
+    setUnalignedRDT(StoreAddr, DefID, Size);                      \
+  } else {                                                        \
+    UNREACHABLE("Set access unsafe region!!");                    \
+  }
+#define SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, Size)  \
+  if (__dfisan::AddrIsInSafeAlignedRegion(StoreAddr)) {           \
+    setAlignedRDT(StoreAddr, DefID, getShadowAlignedSize(Size));  \
+  } else if (__dfisan::AddrIsInSafeUnalignedRegion(StoreAddr)) {  \
+    setUnalignedRDT(StoreAddr, DefID, Size);                      \
+  }
+
+#define CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, Size)        \
+  if (__dfisan::AddrIsInSafeAlignedRegion(LoadAddr)) {                  \
+    CHECK_ALIGNED_ID_LIST(LoadAddr, Argc, getShadowAlignedSize(Size));  \
+  } else if (__dfisan::AddrIsInSafeUnalignedRegion(LoadAddr)) {         \
+    CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);                      \
+  } else {                                                              \
+    UNREACHABLE("Check access unsafe region!!");                        \
+  }
+#define CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, Size)   \
+  if (__dfisan::AddrIsInSafeAlignedRegion(LoadAddr)) {                  \
+    CHECK_ALIGNED_ID_LIST(LoadAddr, Argc, getShadowAlignedSize(Size));  \
+  } else if (__dfisan::AddrIsInSafeUnalignedRegion(LoadAddr)) {         \
+    CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);                      \
+  }
 
 /*
 static inline void setRDT(uptr Addr, u16 ID) {
@@ -114,8 +171,8 @@ namespace __dfisan {
 bool dfisan_inited = false;
 bool dfisan_init_is_running = false;
 
-// --- Aligned Heap Region ---
-// Set functions
+/* --- Set functions --- */
+// aligned
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_aligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
   setAlignedRDT(StoreAddr, DefID, getShadowAlignedSize(Size));
@@ -123,14 +180,12 @@ void __dfisan_aligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_aligned_store_id_1(uptr StoreAddr, u16 DefID) {
-  uptr AlignedAddr = AlignAddr(StoreAddr);
-  setAlignedRDT(AlignedAddr, DefID);
+  setAlignedRDT(AlignAddr(StoreAddr), DefID);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_aligned_store_id_2(uptr StoreAddr, u16 DefID) {
-  uptr AlignedAddr = AlignAddr(StoreAddr);
-  setAlignedRDT(AlignedAddr, DefID);
+  setAlignedRDT(AlignAddr(StoreAddr), DefID);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
@@ -148,60 +203,7 @@ void __dfisan_aligned_store_id_16(uptr StoreAddr, u16 DefID) {
   setAlignedRDT(StoreAddr, DefID, 4);
 }
 
-// Check functions
-// TODO: va_arg cannot use `u16` (these values are converted to i32)
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_aligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < getShadowAlignedSize(Size); i++) {
-    CHECK_ALIGNED_ID(LoadAddr, Argc, IDList);
-  }
-  va_end(IDList);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_aligned_check_id_1(uptr LoadAddr, u32 Argc, ...) {
-  uptr AlignedAddr = AlignAddr(LoadAddr);
-  va_list IDList;
-  CHECK_ALIGNED_ID(AlignedAddr, Argc, IDList);
-  va_end(IDList);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_aligned_check_id_2(uptr LoadAddr, u32 Argc, ...) {
-  uptr AlignedAddr = AlignAddr(LoadAddr);
-  va_list IDList;
-  CHECK_ALIGNED_ID(AlignedAddr, Argc, IDList);
-  va_end(IDList);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_aligned_check_id_4(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  CHECK_ALIGNED_ID(LoadAddr, Argc, IDList);
-  va_end(IDList);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_aligned_check_id_8(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < 2; i++) {
-    CHECK_ALIGNED_ID(LoadAddr + (i * 4), Argc, IDList);
-  }
-  va_end(IDList);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_aligned_check_id_16(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < 4; i++) {
-    CHECK_ALIGNED_ID(LoadAddr + (i * 4), Argc, IDList);
-  }
-  va_end(IDList);
-}
-
-// --- Unaligned Heap Region ---
-// Set functions
+// unaligned
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_unaligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
   setUnalignedRDT(StoreAddr, DefID, Size);
@@ -232,58 +234,315 @@ void __dfisan_unaligned_store_id_16(uptr StoreAddr, u16 DefID) {
   setUnalignedRDT(StoreAddr, DefID, 16);
 }
 
-// Check functions
-// TODO: va_arg cannot use `u16` (these values are converted to i32)
+// aligned or unaligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
+  SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, Size);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_store_id_1(uptr StoreAddr, u16 DefID) {
+  SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_store_id_2(uptr StoreAddr, u16 DefID) {
+  SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 2);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_store_id_4(uptr StoreAddr, u16 DefID) {
+  SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 4);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_store_id_8(uptr StoreAddr, u16 DefID) {
+  SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 8);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_store_id_16(uptr StoreAddr, u16 DefID) {
+  SET_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 16);
+}
+
+// conditional aligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
+  SET_COND_ALIGNED_ID(AlignAddr(StoreAddr), DefID, Size, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_store_id_1(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_ID(AlignAddr(StoreAddr), DefID, 1, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_store_id_2(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_ID(AlignAddr(StoreAddr), DefID, 1, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_store_id_4(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_ID(StoreAddr, DefID, 1, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_store_id_8(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_ID(StoreAddr, DefID, 2, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_store_id_16(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_ID(StoreAddr, DefID, 4, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+// conditional unaligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
+  SET_COND_UNALIGNED_ID(StoreAddr, DefID, Size, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_store_id_1(uptr StoreAddr, u16 DefID) {
+  SET_COND_UNALIGNED_ID(StoreAddr, DefID, 1, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_store_id_2(uptr StoreAddr, u16 DefID) {
+  SET_COND_UNALIGNED_ID(StoreAddr, DefID, 2, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_store_id_4(uptr StoreAddr, u16 DefID) {
+  SET_COND_UNALIGNED_ID(StoreAddr, DefID, 4, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_store_id_8(uptr StoreAddr, u16 DefID) {
+  SET_COND_UNALIGNED_ID(StoreAddr, DefID, 8, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_store_id_16(uptr StoreAddr, u16 DefID) {
+  SET_COND_UNALIGNED_ID(StoreAddr, DefID, 16, __dfisan::AddrIsInSafeAlignedRegion(StoreAddr));
+}
+
+// conditional aligned or unaligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
+  SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, Size);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_store_id_1(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_store_id_2(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 2);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_store_id_4(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 4);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_store_id_8(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 8);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_store_id_16(uptr StoreAddr, u16 DefID) {
+  SET_COND_ALIGNED_OR_UNALIGNED_ID(StoreAddr, DefID, 16);
+}
+
+/* --- Check functions --- */
+// aligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
+  CHECK_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, getShadowAlignedSize(Size));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_check_ids_1(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_check_ids_2(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_check_ids_4(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_check_ids_8(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 2);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 4);
+}
+
+// unaligned
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_unaligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < getShadowAlignedSize(Size); i++) {
-    CHECK_ALIGNED_ID(LoadAddr, Argc, IDList);
-  }
-  va_end(IDList);
+  CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_unaligned_check_id_1(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  CHECK_UNALIGNED_ID(LoadAddr, Argc, IDList);
-  va_end(IDList);
+void __dfisan_unaligned_check_ids_1(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, 1);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_unaligned_check_id_2(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < 2; i++) {
-    CHECK_UNALIGNED_ID(LoadAddr + i, Argc, IDList);;
-  }
-  va_end(IDList);
+void __dfisan_unaligned_check_ids_2(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, 2);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_unaligned_check_id_4(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < 4; i++) {
-    CHECK_UNALIGNED_ID(LoadAddr + i, Argc, IDList);
-  }
-  va_end(IDList);
+void __dfisan_unaligned_check_ids_4(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, 4);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_unaligned_check_id_8(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < 8; i++) {
-    CHECK_ALIGNED_ID(LoadAddr + i, Argc, IDList);
-  }
-  va_end(IDList);
+void __dfisan_unaligned_check_ids_8(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, 8);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_unaligned_check_id_16(uptr LoadAddr, u32 Argc, ...) {
-  va_list IDList;
-  for (u32 i = 0; i < 16; i++) {
-    CHECK_ALIGNED_ID(LoadAddr + i, Argc, IDList);
-  }
-  va_end(IDList);
+void __dfisan_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, 16);
+}
+
+// aligned or unaligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
+  CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_check_ids_1(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_check_ids_2(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 2);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_check_ids_4(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 4);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_check_ids_8(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 8);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_aligned_or_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 16);
+}
+
+// conditional aligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, getShadowAlignedSize(Size), __dfisan::AddrIsInSafeAlignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_check_ids_1(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 1, __dfisan::AddrIsInSafeAlignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_check_ids_2(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 1, __dfisan::AddrIsInSafeAlignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_check_ids_4(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 1, __dfisan::AddrIsInSafeAlignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_check_ids_8(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 2, __dfisan::AddrIsInSafeAlignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_ID_LIST(AlignAddr(LoadAddr), Argc, 4, __dfisan::AddrIsInSafeAlignedRegion(LoadAddr));
+}
+
+// conditional unaligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
+  CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, Size, __dfisan::AddrIsInSafeUnalignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_check_ids_1(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, 1, __dfisan::AddrIsInSafeUnalignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_check_ids_2(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, 2, __dfisan::AddrIsInSafeUnalignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_check_ids_4(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, 4, __dfisan::AddrIsInSafeUnalignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_check_ids_8(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, 8, __dfisan::AddrIsInSafeUnalignedRegion(LoadAddr));
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_UNALIGNED_ID_LIST(LoadAddr, Argc, 16, __dfisan::AddrIsInSafeUnalignedRegion(LoadAddr));
+}
+
+// conditional aligned or unaligned
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_check_ids_n(uptr LoadAddr, u64 Size, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_check_ids_1(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 1);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_check_ids_2(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 2);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_check_ids_4(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 4);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_check_ids_8(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 8);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_cond_aligned_or_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
+  CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 16);
 }
 
 /*
