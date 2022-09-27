@@ -67,9 +67,12 @@ UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   Dumper.dump("dg.dot");
 
   // Print use-def
-  printUseDefFromDDA(OS, ProtectInfo->AlignedUses, DDA, ProtectInfo);
-  printUseDefFromDDA(OS, ProtectInfo->UnalignedUses, DDA, ProtectInfo);
-  printUseDefFromDDA(OS, ProtectInfo->BothUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->AlignedOnlyUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->UnalignedOnlyUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->BothOnlyUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->AlignedOrNoTargetUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->UnalignedOrNoTargetUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->BothOrNoTargetUses, DDA, ProtectInfo);
 
   // auto *Builder = Result.getBuilder();
   // Builder->printUseDef(OS);

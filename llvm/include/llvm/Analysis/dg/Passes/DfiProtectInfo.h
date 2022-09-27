@@ -34,14 +34,19 @@ public:
   bool hasUnalignedTarget(llvm::Value *V) { return UnalignedTargets.count(V) != 0; }
   bool hasTarget(llvm::Value *V) { return hasAlignedTarget(V) || hasUnalignedTarget(V); }
 
-  void insertAlignedDef(llvm::Value *Def) { AlignedDefs.insert(Def); assignDefID(Def); }
-  void insertAlignedUse(llvm::Instruction *Use) { AlignedUses.insert(Use); }
+  void insertAlignedOnlyDef(llvm::Value *Def)         { AlignedOnlyDefs.insert(Def); assignDefID(Def); }
+  void insertUnalignedOnlyDef(llvm::Value *Def)       { UnalignedOnlyDefs.insert(Def); assignDefID(Def); }
+  void insertBothOnlyDef(llvm::Value *Def)            { BothOnlyDefs.insert(Def); assignDefID(Def); }
+  void insertAlignedOrNoTargetDef(llvm::Value *Def)   { AlignedOrNoTargetDefs.insert(Def); assignDefID(Def); }
+  void insertUnalignedOrNoTargetDef(llvm::Value *Def) { UnalignedOrNoTargetDefs.insert(Def); assignDefID(Def); }
+  void insertBothOrNoTargetDef(llvm::Value *Def)      { BothOrNoTargetDefs.insert(Def); assignDefID(Def); }
 
-  void insertUnalignedDef(llvm::Value *Def) { UnalignedDefs.insert(Def); assignDefID(Def); }
-  void insertUnalignedUse(llvm::Instruction *Use) { UnalignedUses.insert(Use); }
-
-  void insertBothDef(llvm::Value *Def) { BothDefs.insert(Def); assignDefID(Def); }
-  void insertBothUse(llvm::Instruction *Use) { BothUses.insert(Use); }
+  void insertAlignedOnlyUse(llvm::Instruction *Use)         { AlignedOnlyUses.insert(Use); }
+  void insertUnalignedOnlyUse(llvm::Instruction *Use)       { UnalignedOnlyUses.insert(Use); }
+  void insertBothOnlyUse(llvm::Instruction *Use)            { BothOnlyUses.insert(Use); }
+  void insertAlignedOrNoTargetUse(llvm::Instruction *Use)   { AlignedOrNoTargetUses.insert(Use); }
+  void insertUnalignedOrNoTargetUse(llvm::Instruction *Use) { UnalignedOrNoTargetUses.insert(Use); }
+  void insertBothOrNoTargetUse(llvm::Instruction *Use)      { BothOrNoTargetUses.insert(Use); }
 
   bool hasDefID(llvm::Value *Def) {
     return DefToInfo.count(Def) != 0;
@@ -60,24 +65,42 @@ public:
     for (auto *Unaligned : UnalignedTargets)
       OS << " - " << *Unaligned << "\n";
     
-    OS << "Aligned Def instructions:\n";
-    for (auto *Def : AlignedDefs)
+    OS << "AlignedOnly Def instructions:\n";
+    for (auto *Def : AlignedOnlyDefs)
       OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
-    OS << "Unaligned Def instructions:\n";
-    for (auto *Def : UnalignedDefs)
+    OS << "UnalignedOnly Def instructions:\n";
+    for (auto *Def : UnalignedOnlyDefs)
       OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
-    OS << "Both Def instructions:\n";
-    for (auto *Def : BothDefs)
+    OS << "BothOnly Def instructions:\n";
+    for (auto *Def : BothOnlyDefs)
+      OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
+    OS << "AlignedOrNoTarget Def instructions:\n";
+    for (auto *Def : AlignedOrNoTargetDefs)
+      OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
+    OS << "UnalignedOrNoTarget Def instructions:\n";
+    for (auto *Def : UnalignedOrNoTargetDefs)
+      OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
+    OS << "BothOrNoTarget Def instructions:\n";
+    for (auto *Def : BothOrNoTargetDefs)
       OS << " - DefID[" << DefToInfo[Def].ID << "] " << *Def << "\n";
 
-    OS << "Aligned Use instructions:\n";
-    for (auto *Use : AlignedUses)
+    OS << "AlignedOnly Use instructions:\n";
+    for (auto *Use : AlignedOnlyUses)
       OS << " - " << *Use << "\n";
-    OS << "Unaligned Use instructions:\n";
-    for (auto *Use : UnalignedUses)
+    OS << "UnalignedOnly Use instructions:\n";
+    for (auto *Use : UnalignedOnlyUses)
       OS << " - " << *Use << "\n";
-    OS << "Both Use instructions:\n";
-    for (auto *Use : BothUses)
+    OS << "BothOnly Use instructions:\n";
+    for (auto *Use : BothOnlyUses)
+      OS << " - " << *Use << "\n";
+    OS << "AlignedOrNoTarget Use instructions:\n";
+    for (auto *Use : AlignedOrNoTargetUses)
+      OS << " - " << *Use << "\n";
+    OS << "UnalignedOrNoTarget Use instructions:\n";
+    for (auto *Use : UnalignedOrNoTargetUses)
+      OS << " - " << *Use << "\n";
+    OS << "BothOrNoTarget Use instructions:\n";
+    for (auto *Use : BothOrNoTargetUses)
       OS << " - " << *Use << "\n";
   }
 
@@ -85,6 +108,23 @@ public:
   ValueSet &AlignedTargets;
   ValueSet &UnalignedTargets;
 
+  /// Defs by kind
+  ValueSet AlignedOnlyDefs;
+  ValueSet UnalignedOnlyDefs;
+  ValueSet BothOnlyDefs;
+  ValueSet AlignedOrNoTargetDefs;
+  ValueSet UnalignedOrNoTargetDefs;
+  ValueSet BothOrNoTargetDefs;
+
+  /// Uses by kind
+  InstSet AlignedOnlyUses;
+  InstSet UnalignedOnlyUses;
+  InstSet BothOnlyUses;
+  InstSet AlignedOrNoTargetUses;
+  InstSet UnalignedOrNoTargetUses;
+  InstSet BothOrNoTargetUses;
+
+/*
   /// Def and Use of aligned targets.
   ValueSet AlignedDefs;
   InstSet AlignedUses;
@@ -96,6 +136,7 @@ public:
   /// Def and Use of both aligned and unaligned targets.
   ValueSet BothDefs;
   InstSet BothUses;
+*/
 
   DefInfoMap DefToInfo;
 

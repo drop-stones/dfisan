@@ -35,28 +35,36 @@ bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
   if (RD->isUse(Val)) {
     assert(isa<Instruction>(Val) && "Use is not instruction");
     Instruction *Inst = dyn_cast<Instruction>(Val);
-    bool IsAligned = isAlignedUse(Val);
-    bool IsUnaligned = isUnalignedUse(Val);
-    if (IsAligned && IsUnaligned) {
-      ProtectInfo->insertBothUse(Inst);
-    } else if (IsAligned) {
-      ProtectInfo->insertAlignedUse(Inst);
-    } else if (IsUnaligned) {
-      ProtectInfo->insertUnalignedUse(Inst);
-    } else {
+    DfiDefUseKind Kind = analyzeDefUseKind(Inst);
+    if (Kind.isAlignedOnlyUse())
+      ProtectInfo->insertAlignedOnlyUse(Inst);
+    else if (Kind.isUnalignedOnlyUse())
+      ProtectInfo->insertUnalignedOnlyUse(Inst);
+    else if (Kind.isBothOnlyUse())
+      ProtectInfo->insertBothOnlyUse(Inst);
+    else if (Kind.isAlignedOrNoTargetUse())
+      ProtectInfo->insertAlignedOrNoTargetUse(Inst);
+    else if (Kind.isUnalignedOrNoTargetUse())
+      ProtectInfo->insertUnalignedOrNoTargetUse(Inst);
+    else if (Kind.isBothOrNoTargetUse())
+      ProtectInfo->insertBothOrNoTargetUse(Inst);
+    else
       return false; // no use of targets
-    }
     addDataDependencies(Node);
   } else if (RD->isDef(Val)) {
-    bool IsAligned = isAlignedDef(Val);
-    bool IsUnaligned = isUnalignedDef(Val);
-    if (IsAligned && IsUnaligned) {
-      ProtectInfo->insertBothDef(Val);
-    } else if (IsAligned) {
-      ProtectInfo->insertAlignedDef(Val);
-    } else if (IsUnaligned) {
-      ProtectInfo->insertUnalignedDef(Val);
-    }
+    DfiDefUseKind Kind = analyzeDefUseKind(Val);
+    if (Kind.isAlignedOnlyDef())
+      ProtectInfo->insertAlignedOnlyDef(Val);
+    else if (Kind.isUnalignedOnlyDef())
+      ProtectInfo->insertUnalignedOnlyDef(Val);
+    else if (Kind.isBothOnlyDef())
+      ProtectInfo->insertBothOnlyDef(Val);
+    else if (Kind.isAlignedOrNoTargetDef())
+      ProtectInfo->insertAlignedOrNoTargetDef(Val);
+    else if (Kind.isUnalignedOrNoTargetDef())
+      ProtectInfo->insertUnalignedOrNoTargetDef(Val);
+    else if (Kind.isBothOrNoTargetDef())
+      ProtectInfo->insertBothOrNoTargetDef(Val);
   }
 
   return false;
@@ -98,6 +106,7 @@ void DfiDefUseAnalysis::addDataDependencies(LLVMNode *Node) {
   LLVMDefUseAnalysis::addDataDependencies(Node);
 }
 
+/*
 bool DfiDefUseAnalysis::isAlignedDef(Value *Def) {
   assert(RD->isDef(Def) && "No def instruction");
   bool Ret = false;
@@ -116,6 +125,17 @@ bool DfiDefUseAnalysis::isUnalignedDef(Value *Def) {
   for (auto &DefSite : DefNode->getDefines()) {
     auto *Target = RD->getValue(DefSite.target);
     Ret |= ProtectInfo->hasUnalignedTarget((llvm::Value *)Target);
+  }
+  return Ret;
+}
+
+bool DfiDefUseAnalysis::isNoTargetDef(Value *Def) {
+  assert(RD->isDef(Def) && "No def instruction");
+  bool Ret = false;
+  auto *DefNode = RD->getNode(Def);
+  for (auto &DefSite : DefNode->getDefines()) {
+    auto *Target = RD->getValue(DefSite.target);
+    Ret |= !(ProtectInfo->hasTarget((llvm::Value *)Target));
   }
   return Ret;
 }
@@ -141,5 +161,40 @@ bool DfiDefUseAnalysis::isUnalignedUse(Value *Use) {
   }
   return Ret;
 }
+
+bool DfiDefUseAnalysis::isNoTargetUse(Value *Use) {
+  assert(RD->isUse(Use) && "No use instruction");
+  bool Ret = false;
+  auto *UseNode = RD->getNode(Use);
+  for (auto &UseSite : UseNode->getUses()) {
+    auto *Target = RD->getValue(UseSite.target);
+    Ret |= !(ProtectInfo->hasTarget((llvm::Value *)Target));
+  }
+  return Ret;
+}
+*/
+
+DfiDefUseKind
+DfiDefUseAnalysis::analyzeDefUseKind(Value *Val) {
+  struct DfiDefUseKind Kind;
+  auto *RWNode = RD->getNode(Val);
+  dg::dda::DefSiteSet *Targets;
+  if (RD->isDef(Val)) {
+    Kind.IsDef = true;
+    Targets = &RWNode->getDefines();
+  }
+  if (RD->isUse(Val)) {
+    Kind.IsUse = true;
+    Targets = &RWNode->getUses();
+  }
+  for (auto &TargetSite : *Targets) {
+    auto *Target = (llvm::Value *)RD->getValue(TargetSite.target);
+    Kind.IsAligned   |= ProtectInfo->hasAlignedTarget(Target);
+    Kind.IsUnaligned |= ProtectInfo->hasUnalignedTarget(Target);
+    Kind.IsNoTarget  |= !(ProtectInfo->hasTarget(Target));
+  }
+  return Kind;
+}
+
 
 } // namespace dg

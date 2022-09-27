@@ -9,6 +9,36 @@
 
 namespace dg {
 
+struct DfiDefUseKind {
+  DfiDefUseKind() : IsDef(false), IsUse(false), IsAligned(false), IsUnaligned(false), IsNoTarget(false) {}
+
+  /// Def kind
+  bool isAlignedOnlyDef()         { return IsDef &&  IsAligned && !IsUnaligned && !IsNoTarget; }
+  bool isUnalignedOnlyDef()       { return IsDef && !IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isBothOnlyDef()            { return IsDef &&  IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isAlignedOrNoTargetDef()   { return IsDef &&  IsAligned && !IsUnaligned &&  IsNoTarget; }
+  bool isUnalignedOrNoTargetDef() { return IsDef && !IsAligned &&  IsUnaligned &&  IsNoTarget; }
+  bool isBothOrNoTargetDef()      { return IsDef &&  IsAligned &&  IsUnaligned &&  IsNoTarget; }
+
+  /// Use kind
+  bool isAlignedOnlyUse()         { return IsUse &&  IsAligned && !IsUnaligned && !IsNoTarget; }
+  bool isUnalignedOnlyUse()       { return IsUse && !IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isBothOnlyUse()            { return IsUse &&  IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isAlignedOrNoTargetUse()   { return IsUse &&  IsAligned && !IsUnaligned &&  IsNoTarget; }
+  bool isUnalignedOrNoTargetUse() { return IsUse && !IsAligned &&  IsUnaligned &&  IsNoTarget; }
+  bool isBothOrNoTargetUse()      { return IsUse &&  IsAligned &&  IsUnaligned &&  IsNoTarget; }
+
+  // Unused funcs
+  bool isNoKind()   { return !IsAligned && !IsUnaligned && !IsNoTarget; }
+  bool isNoTarget() { return !IsAligned && !IsUnaligned && IsNoTarget; }
+
+  bool IsDef;
+  bool IsUse;
+  bool IsAligned;
+  bool IsUnaligned;
+  bool IsNoTarget;
+};
+
 class DfiDefUseAnalysis : public LLVMDefUseAnalysis {
   DfiProtectInfo *ProtectInfo;
 public:
@@ -22,10 +52,15 @@ protected:
   void addDataDependencies(LLVMNode *Node) override;
 
 private:
+/*
   bool isAlignedDef(llvm::Value *Def);
   bool isAlignedUse(llvm::Value *Use);
   bool isUnalignedDef(llvm::Value *Def);
   bool isUnalignedUse(llvm::Value *Use);
+  bool isNoTargetDef(llvm::Value *Def);
+  bool isNoTargetUse(llvm::Value *Use);
+*/
+  DfiDefUseKind analyzeDefUseKind(llvm::Value *Val);
 };
 
 } // namespace dg
