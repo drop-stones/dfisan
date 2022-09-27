@@ -14,18 +14,6 @@ UseDefBuilder::isUse(llvm::Value *Val) {
 }
 
 void
-UseDefBuilder::printUseDef(llvm::raw_ostream &OS) {
-  OS << __func__ << "\n";
-  auto *DDA = getDDA();
-  for (auto *Use : ProtectInfo->Uses) {
-    OS << "Use: " << *Use << "\n";
-    for (auto *Def : DDA->getLLVMDefinitions(Use)) {
-      OS << " - DefID[" << ProtectInfo->getDefID(Def) << "] " << *Def << "\n";
-    }
-  }
-}
-
-void
 UseDefBuilder::dump(llvm::raw_ostream &OS) {
   OS << __func__ << "\n";
   auto *DDA = getDDA();

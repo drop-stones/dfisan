@@ -20,6 +20,12 @@ public:
   
 protected:
   void addDataDependencies(LLVMNode *Node) override;
+
+private:
+  bool isAlignedDef(llvm::Value *Def);
+  bool isAlignedUse(llvm::Value *Use);
+  bool isUnalignedDef(llvm::Value *Def);
+  bool isUnalignedUse(llvm::Value *Use);
 };
 
 } // namespace dg

@@ -5,11 +5,18 @@
 #include "llvm/IR/IRBuilder.h"
 
 namespace dg {
-class UseDefBuilder;
+// class UseDefBuilder;
+class LLVMDependenceGraph;
+class DfiProtectInfo;
 using DefID = uint16_t;
+namespace dda {
+class LLVMDataDependenceAnalysis;
+} // namespace dda
 } // namespace dg
 
 namespace llvm {
+
+using ValueVector = SmallVector<Value *, 8>;
 
 class DataFlowIntegritySanitizerPass : public PassInfoMixin<DataFlowIntegritySanitizerPass> {
 public:
@@ -20,9 +27,13 @@ private:
                  DfiStore1Fn, DfiStore2Fn, DfiStore4Fn, DfiStore8Fn, DfiStore16Fn,
                  DfiLoad1Fn, DfiLoad2Fn, DfiLoad4Fn, DfiLoad8Fn, DfiLoad16Fn;
   Type *VoidTy, *ArgTy, *PtrTy, *Int8Ty, *Int32Ty, *Int64Ty;
-  dg::UseDefBuilder *UseDef;
-  Module *M;
-  std::unique_ptr<IRBuilder<>> Builder;
+  // dg::UseDefBuilder *UseDef;
+  dg::LLVMDependenceGraph *DG = nullptr;
+  dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
+  dg::DfiProtectInfo *ProtectInfo = nullptr;
+  Module *M = nullptr;
+  std::unique_ptr<IRBuilder<>> Builder{nullptr};
+  Function *Ctor = nullptr;
 
   /// Initialize member variables.
   void initializeSanitizerFuncs();
@@ -34,15 +45,15 @@ private:
   void insertDfiStoreFn(Value *Def);
 
   /// Insert DfiLoadFn before each load instruction.
-  void insertDfiLoadFn(Value *Use, SmallVector<Value *, 8> &DefIDs);
+  void insertDfiLoadFn(Value *Use, ValueVector &DefIDs);
 
   /// Create a function call to DfiStoreFn from llvm::Value.
   void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, Instruction *InsertPoint = nullptr);
   void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, Value *SizeVal, Instruction *InsertPoint = nullptr);
 
   /// Create a function call to DfiLoadFn.
-  void createDfiLoadFn(Value *LoadTarget, unsigned Size, SmallVector<Value *, 8> &DefIDs);
-  void createDfiLoadFn(Value *LoadTarget, unsigned Size, SmallVector<Value *, 8> &DefIDs, Instruction *InsertPoint);
+  void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs);
+  void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, Instruction *InsertPoint);
 
   /// Create DfiStoreFn for aggregate data.
   //void createDfiStoreFnForAggregateData(Value *Store);

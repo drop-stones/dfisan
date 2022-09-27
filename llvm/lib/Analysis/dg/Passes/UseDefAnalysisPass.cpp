@@ -40,22 +40,39 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   debug::UseDefLogger Logger{M};
   Logger.logDefInfo(Builder->getDDA(), Builder->getProtectInfo());
 
-  // std::unique_ptr<dg::LLVMDependenceGraph> DG = std::move( Builder->moveDG() );
-  UseDefAnalysisPass::Result Result { std::move(Builder) };
+  UseDefAnalysisPass::Result Result { std::move(Builder->moveDG()), std::move(Builder->moveProtectInfo()) };
 
   return Result;
 }
+
+namespace {
+static void printUseDefFromDDA(raw_ostream &OS, InstSet &Uses, dg::dda::LLVMDataDependenceAnalysis *DDA, dg::DfiProtectInfo *ProtectInfo) {
+  for (auto *Use : Uses) {
+    OS << "Use: " << *Use << "\n";
+    for (auto *Def : DDA->getLLVMDefinitions(Use))
+      OS << " - DefID[" << ProtectInfo->getDefID(Def) << "] " << *Def << "\n";
+  }
+}
+} // anonymous namespace
 
 PreservedAnalyses
 UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   OS << "UseDefPrinterPass::print " << M.getName() << "\n";
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  auto *Builder = Result.getBuilder();
+  auto *DG = Result.getDG();
+  auto *DDA = DG->getDDA();
+  auto *ProtectInfo = Result.getProtectInfo();
 
-  debug::LLVMDG2Dot Dumper(Builder->getDG());
+  debug::LLVMDG2Dot Dumper(DG);
   Dumper.dump("dg.dot");
 
-  Builder->printUseDef(OS);
+  // Print use-def
+  printUseDefFromDDA(OS, ProtectInfo->AlignedUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->UnalignedUses, DDA, ProtectInfo);
+  printUseDefFromDDA(OS, ProtectInfo->BothUses, DDA, ProtectInfo);
+
+  // auto *Builder = Result.getBuilder();
+  // Builder->printUseDef(OS);
   // Builder->printDefInfoMap(OS);
   // Builder->dump(OS);
 

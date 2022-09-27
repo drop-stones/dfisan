@@ -37,7 +37,6 @@ public:
   bool isDef(llvm::Value *Def);
   bool isUse(llvm::Value *Use);
 
-  void printUseDef(llvm::raw_ostream &OS);
   void dump(llvm::raw_ostream &OS);
 
 private:

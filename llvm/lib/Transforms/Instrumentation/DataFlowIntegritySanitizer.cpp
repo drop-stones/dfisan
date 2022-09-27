@@ -35,16 +35,41 @@ PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   LLVM_DEBUG(dbgs() << "DataFlowIntegritySanitizerPass: Insert check functions to enforce data flow integrity\n");
 
+  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
+  DG = Result.getDG();
+  DDA = Result.getDDA();
+  ProtectInfo = Result.getProtectInfo();
   this->M = &M;
   Builder = std::make_unique<IRBuilder<>>(M.getContext());
 
   initializeSanitizerFuncs();
   insertDfiInitFn();
 
-  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-
   // no instrumentations for dlmalloc tests.
   return PreservedAnalyses::all();
+
+/*
+  for (auto *Def : ProtectInfo->Defs) {
+    insertDfiStoreFn(Def);
+  }
+  for (auto *Use : ProtectInfo->Uses) {
+    // Skip unknown value uses (e.g., argv[]).
+    const auto &UseSites = DDA->getNode(Use)->getUses();
+    if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
+      llvm::errs() << "Skip use: " << *Use << "\n";
+      continue;
+    }
+
+    ValueVector DefIDs;
+    for (auto *Def : DDA->getLLVMDefinitions(Use)) {
+      Value *DefID = ConstantInt::get(ArgTy, ProtectInfo->getDefID(Def), false);
+      DefIDs.push_back(DefID);
+    }
+    insertDfiLoadFn(Use, DefIDs);
+  }
+
+  return PreservedAnalyses::none();
+*/
 
 /*
   UseDef = Result.getBuilder();
@@ -136,7 +161,7 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
 
   // Create Sanitizer Ctor
-  Function *Ctor = Function::createWithDefaultAttr(
+  Ctor = Function::createWithDefaultAttr(
     FunctionType::get(VoidTy, false),
     GlobalValue::InternalLinkage, 0, DfisanModuleCtorName, M);
   Ctor->addFnAttr(Attribute::NoUnwind);
@@ -180,20 +205,20 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
 void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
   llvm::errs() << "InsertDfiStoreFn: " << *Def << "\n";
 
-/*
+///*
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
     if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
       auto *StoreTarget = Store->getPointerOperand();
       unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-      createDfiStoreFn(UseDef->getDefID(Store), StoreTarget, Size, Store->getNextNode());
+      createDfiStoreFn(ProtectInfo->getDefID(Store), StoreTarget, Size, Store->getNextNode());
     } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>(DefInst)) {
       auto *StoreTarget = Memcpy->getOperand(0);
       auto *SizeVal = Memcpy->getOperand(2);
-      createDfiStoreFn(UseDef->getDefID(Memcpy), StoreTarget, SizeVal, Memcpy->getNextNode());
+      createDfiStoreFn(ProtectInfo->getDefID(Memcpy), StoreTarget, SizeVal, Memcpy->getNextNode());
     } else if (MemSetInst *Memset = dyn_cast<MemSetInst>(DefInst)) {
       auto *StoreTarget = Memset->getOperand(0);
       auto *SizeVal = Memset->getOperand(2);
-      createDfiStoreFn(UseDef->getDefID(Memset), StoreTarget, SizeVal, Memset->getNextNode());
+      createDfiStoreFn(ProtectInfo->getDefID(Memset), StoreTarget, SizeVal, Memset->getNextNode());
     } else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
       auto *Callee = Call->getCalledFunction();
       if (Callee->getName() == "calloc") {
@@ -201,40 +226,41 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def) {
         auto *Size = Call->getOperand(1);
         Builder->SetInsertPoint(Call->getNextNode());
         auto *SizeVal = Builder->CreateNUWMul(Nmem, Size);
-        createDfiStoreFn(UseDef->getDefID(Call), Def, SizeVal);
+        createDfiStoreFn(ProtectInfo->getDefID(Call), Def, SizeVal);
       } else if (Callee->getName() == "fgets") {
         auto *StoreTarget = Call->getOperand(0);
         auto *SizeVal = Call->getOperand(1);
-        createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+        createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
       } else if (Callee->getName() == "__isoc99_sscanf") {
         for (unsigned Idx = 2; Idx < Call->arg_size(); Idx++) {
           auto *StoreTarget = Call->getOperand(Idx);
           unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-          createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, Size, Call->getNextNode());
+          createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, Size, Call->getNextNode());
         }
       } else if (Callee->getName() == "read") {
         auto *StoreTarget = Call->getOperand(1);
         auto *SizeVal = Def;
         llvm::errs() << "Instrument " << Callee->getName() << "\n";
         llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << *SizeVal << "\n";
-        createDfiStoreFn(UseDef->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
+        createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, SizeVal, Call->getNextNode());
       } else {
         llvm::errs() << "No support Def function: " << Callee->getName() << "\n";
+        // llvm_unreachable("No support Def function");
       }
     } else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Def)) {
       // Do nothing
     } else {
       llvm::errs() << "No support DefInst: " << *DefInst << "\n";
-      // assert(false && "No support Def");
+      // llvm_unreachable("No support DefInst");
     }
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
-    createDfiStoreFn(UseDef->getDefID(GlobVar), GlobVar, Size, Builder->GetInsertBlock()->getTerminator());
+    createDfiStoreFn(ProtectInfo->getDefID(GlobVar), GlobVar, Size, Ctor->getEntryBlock().getTerminator());
   } else {
     llvm::errs() << "No support Def: " << *Def << "\n";
-    // assert(false && "No support Def");
+    // llvm_unreachable("No support Def");
   }
-*/
+//*/
 }
 
 /// Insert a CHECK function before each load statement.

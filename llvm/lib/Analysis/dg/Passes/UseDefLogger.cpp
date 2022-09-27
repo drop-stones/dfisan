@@ -68,7 +68,8 @@ UseDefLogger::logDefInfo(dda::LLVMDataDependenceAnalysis *DDA, DfiProtectInfo *P
   sqlite3_exec(DB, ("CREATE TABLE " + DBTableName + " (DefID INTEGER , line INTEGER, column INTEGER, filename TEXT, UNIQUE(DefID, line, column, filename))").c_str(), nullptr, nullptr, &ErrMsg);
 
   // Log Def instructions.
-  for (auto *Def : ProtectInfo->Defs) {
+  for (auto &Iter : ProtectInfo->DefToInfo) {
+    llvm::Value *Def = Iter.first;
     DefID ID = ProtectInfo->getDefID(Def);
     if (auto *GlobVar = dyn_cast<GlobalVariable>(Def)) {
       StringRef Valname = GlobVar->getName();

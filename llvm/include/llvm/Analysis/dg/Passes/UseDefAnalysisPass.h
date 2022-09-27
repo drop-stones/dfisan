@@ -11,6 +11,8 @@
 #define LLVM_ANALYSIS_DG_PASSES_USEDEFANALYSIS_PASS_H
 
 #include "llvm/IR/PassManager.h"
+#include "dg/Passes/DfiProtectInfo.h"
+#include "dg/llvm/DataDependence/DataDependence.h"
 #include "dg/llvm/LLVMDependenceGraph.h"
 #include "dg/llvm/LLVMDependenceGraphBuilder.h"
 #include "dg/Passes/UseDefBuilder.h"
@@ -24,14 +26,16 @@ class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {
 
 public:
   class Result {
-    std::unique_ptr<dg::UseDefBuilder> Builder{nullptr};
+    std::unique_ptr<dg::LLVMDependenceGraph> DG{nullptr};
+    std::unique_ptr<dg::DfiProtectInfo> ProtectInfo{nullptr};
 
   public:
-    Result(std::unique_ptr<dg::UseDefBuilder> &&Builder) : Builder(std::move(Builder)) {}
+    Result(std::unique_ptr<dg::LLVMDependenceGraph> &&DG, std::unique_ptr<dg::DfiProtectInfo> &&ProtectInfo)
+      : DG(std::move(DG)), ProtectInfo(std::move(ProtectInfo)) {}
 
-    dg::UseDefBuilder *getBuilder() { return Builder.get(); }
-    dg::LLVMDependenceGraph *getDG() { return Builder->getDG(); }
-    // bool invalidate();
+    dg::LLVMDependenceGraph *getDG() { return DG.get(); }
+    dg::dda::LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
+    dg::DfiProtectInfo *getProtectInfo() { return ProtectInfo.get(); }
   };
   
   Result run(Module &M, ModuleAnalysisManager &MAM);
