@@ -1,5 +1,8 @@
 #include "DfiDefUse.h"
 
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "dfi-def-use"
+
 namespace dg {
 
 /// Copy from DefUse.cpp
@@ -24,8 +27,10 @@ static void handleOperands(const Instruction *Inst, LLVMNode *node) {
     }
 }
 
+// Collect uses of targets into ProtectInfo.
 bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
   Value *Val = Node->getKey();
+  LLVM_DEBUG(llvm::dbgs() << "DfiDefUseAnalysis::" << __func__ << ": " << *Val << "\n");
 
   // just add direct def-use edges to every instruction
   if (auto *Inst = dyn_cast<Instruction>(Val))
@@ -35,7 +40,7 @@ bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
   if (RD->isUse(Val)) {
     assert(isa<Instruction>(Val) && "Use is not instruction");
     Instruction *Inst = dyn_cast<Instruction>(Val);
-    DfiDefUseKind Kind = analyzeDefUseKind(Inst);
+    DfiDefUseKind Kind = analyzeUseKind(Inst);
     if (Kind.isAlignedOnlyUse())
       ProtectInfo->insertAlignedOnlyUse(Inst);
     else if (Kind.isUnalignedOnlyUse())
@@ -51,150 +56,72 @@ bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
     else
       return false; // no use of targets
     addDataDependencies(Node);
-  } else if (RD->isDef(Val)) {
-    DfiDefUseKind Kind = analyzeDefUseKind(Val);
-    if (Kind.isAlignedOnlyDef())
-      ProtectInfo->insertAlignedOnlyDef(Val);
-    else if (Kind.isUnalignedOnlyDef())
-      ProtectInfo->insertUnalignedOnlyDef(Val);
-    else if (Kind.isBothOnlyDef())
-      ProtectInfo->insertBothOnlyDef(Val);
-    else if (Kind.isAlignedOrNoTargetDef())
-      ProtectInfo->insertAlignedOrNoTargetDef(Val);
-    else if (Kind.isUnalignedOrNoTargetDef())
-      ProtectInfo->insertUnalignedOrNoTargetDef(Val);
-    else if (Kind.isBothOrNoTargetDef())
-      ProtectInfo->insertBothOrNoTargetDef(Val);
   }
 
   return false;
-
-/*
-  if (!RD->isUse(Val))
-    return LLVMDefUseAnalysis::runOnNode(Node, Prev);
-  assert(isa<Instruction>(Val) && "runOnNode: not instruction use");
-  Instruction *Inst = dyn_cast<Instruction>(Val);
-
-  // Selective DataFlow analysis
-  auto *RWNode = RD->getNode(Val);
-  for (auto &Use : RWNode->getUses()) {
-    auto *UseVal = RD->getValue(Use.target);
-    if (ProtectInfo->hasTarget((llvm::Value *)UseVal)) {
-      // llvm::errs() << "runOnNode: " << *Val << "\n";
-      // llvm::errs() << " - Use: " << *UseVal << "\n";
-      ProtectInfo->insertUse(Inst);
-      auto Ret = LLVMDefUseAnalysis::runOnNode(Node, Prev);
-      for (auto *Def : RD->getLLVMDefinitions(Val)) {
-        bool IsAligned = isAlignedDef(Def);
-        bool IsUnaligned = isUnalignedDef(Def);
-        if (IsAligned && IsUnaligned) {
-          ProtectInfo->insertBothDef(Def);
-        } else if (IsAligned) {
-          ProtectInfo->insertAlignedDef(Def);
-        } else if (IsUnaligned) {
-          ProtectInfo->insertUnalignedDef(Def);
-        }
-      }
-      return Ret;
-    }
-  }
-  return false;
-*/
 }
 
+// Collect defs of targets into ProtectInfo.
 void DfiDefUseAnalysis::addDataDependencies(LLVMNode *Node) {
   LLVMDefUseAnalysis::addDataDependencies(Node);
-}
 
-/*
-bool DfiDefUseAnalysis::isAlignedDef(Value *Def) {
-  assert(RD->isDef(Def) && "No def instruction");
-  bool Ret = false;
-  auto *DefNode = RD->getNode(Def);
-  for (auto &DefSite : DefNode->getDefines()) {
-    auto *Target = RD->getValue(DefSite.target);
-    Ret |= ProtectInfo->hasAlignedTarget((llvm::Value *)Target);
+  auto *Val = Node->getValue();
+  auto Defs = RD->getLLVMDefinitions(Val);
+  LLVM_DEBUG(dbgs() << "DfiDefUseAnalysis::" << __func__ << ": " << *Val << "\n");
+  for (auto *Def : Defs) {
+    LLVM_DEBUG(dbgs() << " - Def: " << *Def << "\n");
+    assert(RD->isDef(Def) && "No def value");
+    DfiDefUseKind Kind = analyzeDefKind(Def);
+    if (Kind.isAlignedOnlyDef())
+      ProtectInfo->insertAlignedOnlyDef(Def);
+    else if (Kind.isUnalignedOnlyDef())
+      ProtectInfo->insertUnalignedOnlyDef(Def);
+    else if (Kind.isBothOnlyDef())
+      ProtectInfo->insertBothOnlyDef(Def);
+    else if (Kind.isAlignedOrNoTargetDef())
+      ProtectInfo->insertAlignedOrNoTargetDef(Def);
+    else if (Kind.isUnalignedOrNoTargetDef())
+      ProtectInfo->insertUnalignedOrNoTargetDef(Def);
+    else if (Kind.isBothOrNoTargetDef())
+      ProtectInfo->insertBothOrNoTargetDef(Def);
   }
-  return Ret;
 }
 
-bool DfiDefUseAnalysis::isUnalignedDef(Value *Def) {
-  assert(RD->isDef(Def) && "No def instruction");
-  bool Ret = false;
-  auto *DefNode = RD->getNode(Def);
-  for (auto &DefSite : DefNode->getDefines()) {
-    auto *Target = RD->getValue(DefSite.target);
-    Ret |= ProtectInfo->hasUnalignedTarget((llvm::Value *)Target);
-  }
-  return Ret;
-}
-
-bool DfiDefUseAnalysis::isNoTargetDef(Value *Def) {
-  assert(RD->isDef(Def) && "No def instruction");
-  bool Ret = false;
-  auto *DefNode = RD->getNode(Def);
-  for (auto &DefSite : DefNode->getDefines()) {
-    auto *Target = RD->getValue(DefSite.target);
-    Ret |= !(ProtectInfo->hasTarget((llvm::Value *)Target));
-  }
-  return Ret;
-}
-
-bool DfiDefUseAnalysis::isAlignedUse(Value *Use) {
-  assert(RD->isUse(Use) && "No use instruction");
-  bool Ret = false;
-  auto *UseNode = RD->getNode(Use);
-  for (auto &UseSite : UseNode->getUses()) {
-    auto *Target = RD->getValue(UseSite.target);
-    Ret |= ProtectInfo->hasAlignedTarget((llvm::Value *)Target);
-  }
-  return Ret;
-}
-
-bool DfiDefUseAnalysis::isUnalignedUse(Value *Use) {
-  assert(RD->isUse(Use) && "No use instruction");
-  bool Ret = false;
-  auto *UseNode = RD->getNode(Use);
-  for (auto &UseSite : UseNode->getUses()) {
-    auto *Target = RD->getValue(UseSite.target);
-    Ret |= ProtectInfo->hasUnalignedTarget((llvm::Value *)Target);
-  }
-  return Ret;
-}
-
-bool DfiDefUseAnalysis::isNoTargetUse(Value *Use) {
-  assert(RD->isUse(Use) && "No use instruction");
-  bool Ret = false;
-  auto *UseNode = RD->getNode(Use);
-  for (auto &UseSite : UseNode->getUses()) {
-    auto *Target = RD->getValue(UseSite.target);
-    Ret |= !(ProtectInfo->hasTarget((llvm::Value *)Target));
-  }
-  return Ret;
-}
-*/
-
-DfiDefUseKind
-DfiDefUseAnalysis::analyzeDefUseKind(Value *Val) {
+DfiDefUseKind DfiDefUseAnalysis::analyzeDefKind(Value *Val) {
+  LLVM_DEBUG(dbgs() << "DfiDefUseAnalysis::" << __func__ << ": " << *Val << "\n");
+  assert(RD->isDef(Val) && "No def value");
   struct DfiDefUseKind Kind;
   auto *RWNode = RD->getNode(Val);
-  dg::dda::DefSiteSet *Targets;
-  if (RD->isDef(Val)) {
-    Kind.IsDef = true;
-    Targets = &RWNode->getDefines();
-  }
-  if (RD->isUse(Val)) {
-    Kind.IsUse = true;
-    Targets = &RWNode->getUses();
-  }
-  for (auto &TargetSite : *Targets) {
+  Kind.IsDef = true;
+  for (auto &TargetSite : RWNode->getDefines()) {
     auto *Target = (llvm::Value *)RD->getValue(TargetSite.target);
     Kind.IsAligned   |= ProtectInfo->hasAlignedTarget(Target);
     Kind.IsUnaligned |= ProtectInfo->hasUnalignedTarget(Target);
     Kind.IsNoTarget  |= !(ProtectInfo->hasTarget(Target));
+    LLVM_DEBUG(dbgs() << " - Target: " << (Kind.IsAligned ? "aligned" : "") << " "
+                                       << (Kind.IsUnaligned ? "unaligned" : "") << " "
+                                       << (Kind.IsNoTarget ? "no-target" : "") << " "
+                                       << *Target << "\n");
   }
   return Kind;
 }
 
-
+DfiDefUseKind DfiDefUseAnalysis::analyzeUseKind(Value *Val) {
+  LLVM_DEBUG(dbgs() << "DfiDefUseAnalysis::" << __func__ << ": " << *Val << "\n");
+  assert(RD->isUse(Val) && "No use value");
+  struct DfiDefUseKind Kind;
+  auto *RWNode = RD->getNode(Val);
+  Kind.IsUse = true;
+  for (auto &TargetSite : RWNode->getUses()) {
+    auto *Target = (llvm::Value *)RD->getValue(TargetSite.target);
+    Kind.IsAligned   |= ProtectInfo->hasAlignedTarget(Target);
+    Kind.IsUnaligned |= ProtectInfo->hasUnalignedTarget(Target);
+    Kind.IsNoTarget  |= !(ProtectInfo->hasTarget(Target));
+    LLVM_DEBUG(dbgs() << " - Target: " << (Kind.IsAligned ? "aligned" : "") << " "
+                                       << (Kind.IsUnaligned ? "unaligned" : "") << " "
+                                       << (Kind.IsNoTarget ? "no-target" : "") << " "
+                                       << *Target << "\n");
+  }
+  return Kind;
+}
 } // namespace dg

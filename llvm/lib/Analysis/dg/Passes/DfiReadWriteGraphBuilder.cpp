@@ -75,12 +75,14 @@ static bool isRelevantCall(const llvm::Instruction *Inst, OptsT &opts) {
 NodesSeq<RWNode> DfiReadWriteGraphBuilder::createNode(const llvm::Value *V) {
   using namespace llvm;
   if (isa<GlobalVariable>(V)) {
-      // global variables are like allocations
-      // and store initial values.
-      auto &GlobalNode = create(RWNodeType::GLOBAL);
-      DefSite Site{&GlobalNode};
-      GlobalNode.addDef(Site);
-      return {&GlobalNode};
+    // global variables are like allocations
+    // and store initial values.
+    auto &GlobalNode = create(RWNodeType::GLOBAL);
+    if (ProtectInfo->hasTarget((llvm::Value *)V)) {
+        GlobalNode.addDef(&GlobalNode, Offset::getUnknown(), Offset::getUnknown());
+        assert(GlobalNode.isDef() && "GlobalNode is not def");
+    }
+    return {&GlobalNode};
   }
 
   const auto *I = dyn_cast<Instruction>(V);
@@ -123,8 +125,9 @@ void DfiReadWriteGraphBuilder::buildSubgraph(const llvm::Function &F) {
         auto *Main = getSubgraph(&F);
         auto *MainEntryBlock = Main->getBBlocks().begin()->get();
         for (auto *GlobalNode : getGlobals()) {
-            if (GlobalNode->isDef())
+            if (GlobalNode->isDef()) {
                 MainEntryBlock->prepend(GlobalNode);
+            }
         }
     }
 }

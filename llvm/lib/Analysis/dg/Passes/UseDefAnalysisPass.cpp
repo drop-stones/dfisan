@@ -40,7 +40,7 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   debug::UseDefLogger Logger{M};
   Logger.logDefInfo(Builder->getDDA(), Builder->getProtectInfo());
 
-  UseDefAnalysisPass::Result Result { std::move(Builder->moveDG()), std::move(Builder->moveProtectInfo()) };
+  UseDefAnalysisPass::Result Result { std::move(Builder->moveDG()), std::move(Builder->moveDgBuilder()), std::move(Builder->moveProtectInfo()) };
 
   return Result;
 }

@@ -52,15 +52,8 @@ protected:
   void addDataDependencies(LLVMNode *Node) override;
 
 private:
-/*
-  bool isAlignedDef(llvm::Value *Def);
-  bool isAlignedUse(llvm::Value *Use);
-  bool isUnalignedDef(llvm::Value *Def);
-  bool isUnalignedUse(llvm::Value *Use);
-  bool isNoTargetDef(llvm::Value *Def);
-  bool isNoTargetUse(llvm::Value *Use);
-*/
-  DfiDefUseKind analyzeDefUseKind(llvm::Value *Val);
+  DfiDefUseKind analyzeDefKind(llvm::Value *Val);
+  DfiDefUseKind analyzeUseKind(llvm::Value *Val);
 };
 
 } // namespace dg

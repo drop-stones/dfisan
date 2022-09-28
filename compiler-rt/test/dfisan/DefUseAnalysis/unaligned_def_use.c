@@ -17,15 +17,15 @@ struct Unaligned {
 };
 
 int main(int argc, char **argv) {
-  struct Unaligned *alignedOnly = (argc == 1) ? (struct Unaligned *)safe_malloc(sizeof(struct Unaligned))
-                                              : (struct Unaligned *)safe_calloc(1, sizeof(struct Unaligned));
-  alignedOnly->c = 'a'; alignedOnly->s = 100; // UnalignedOnly Def
-  alignedOnly->c; alignedOnly->s;             // UnalignedOnly Use
+  struct Unaligned *unalignedOnly = (argc == 1) ? (struct Unaligned *)safe_malloc(sizeof(struct Unaligned))
+                                                : (struct Unaligned *)safe_calloc(1, sizeof(struct Unaligned));
+  unalignedOnly->c = 'a'; unalignedOnly->s = 100; // UnalignedOnly Def
+  unalignedOnly->c; unalignedOnly->s;             // UnalignedOnly Use
 
-  struct Unaligned *alignedOrNoTarget = (argc == 1) ? (struct Unaligned *)safe_malloc(sizeof(struct Unaligned))
-                                                    : (struct Unaligned *)malloc(sizeof(struct Unaligned));
-  alignedOrNoTarget->c = 'b'; alignedOrNoTarget->s = 200; // UnalignedOrNoTarget Def
-  alignedOrNoTarget->c; alignedOrNoTarget->s;             // UnalignedOrNoTarget Use
+  struct Unaligned *unalignedOrNoTarget = (argc == 1) ? (struct Unaligned *)safe_malloc(sizeof(struct Unaligned))
+                                                      : (struct Unaligned *)malloc(sizeof(struct Unaligned));
+  unalignedOrNoTarget->c = 'b'; unalignedOrNoTarget->s = 200; // UnalignedOrNoTarget Def
+  unalignedOrNoTarget->c; unalignedOrNoTarget->s;             // UnalignedOrNoTarget Use
 
   return 0;
 }

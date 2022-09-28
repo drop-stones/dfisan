@@ -132,7 +132,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   insertDfiInitFn();
 
   // no instrumentations for dlmalloc tests.
-  return PreservedAnalyses::all();
+  // return PreservedAnalyses::all();
 
   // Instrument store functions.
   for (auto *AlignedOnlyDef : ProtectInfo->AlignedOnlyDefs) {
@@ -253,24 +253,25 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   LLVMContext &Ctx = M->getContext();
 
   int LongSize = M->getDataLayout().getPointerSizeInBits();
-  PtrTy  = Type::getIntNTy(Ctx, LongSize);
-  VoidTy = Type::getVoidTy(Ctx);
-  ArgTy  = Type::getInt16Ty(Ctx);
-  Int8Ty = Type::getInt8Ty(Ctx);
+  VoidTy  = Type::getVoidTy(Ctx);
+  Int8Ty  = Type::getInt8Ty(Ctx);
   Int16Ty = Type::getInt16Ty(Ctx);
   Int32Ty = Type::getInt32Ty(Ctx);
   Int64Ty = Type::getInt64Ty(Ctx);
+  PtrTy   = Type::getIntNTy(Ctx, LongSize);
 
-  SmallVector<Type *, 8> StoreArgTypes{PtrTy, ArgTy};
+  SmallVector<Type *, 8> StoreArgTypes{PtrTy, Int16Ty};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
-  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int64Ty, ArgTy};
+  SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int64Ty, Int16Ty};
   FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
-  SmallVector<Type *, 8> LoadArgTypes{PtrTy, ArgTy};
+  SmallVector<Type *, 8> LoadArgTypes{PtrTy, Int32Ty};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
+  SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int32Ty};
+  FunctionType *LoadNFnTy = FunctionType::get(VoidTy, LoadNArgTypes, true);
 
   DfiInitFn  = M->getOrInsertFunction(DfisanInitFnName, VoidTy);
   DfiStoreNFn = M->getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
-  DfiLoadNFn  = M->getOrInsertFunction(DfisanLoadNFnName, LoadFnTy); // VarArg Function
+  DfiLoadNFn  = M->getOrInsertFunction(DfisanLoadNFnName, LoadNFnTy); // VarArg Function
 
   DfiStore1Fn = M->getOrInsertFunction(DfisanStore1FnName, StoreFnTy);
   DfiStore2Fn = M->getOrInsertFunction(DfisanStore2FnName, StoreFnTy);
@@ -330,42 +331,42 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
 
   // Load functions
   // aligned
-  AlignedLoadNFn = M->getOrInsertFunction(DfisanAlignedLoadNFnName, LoadFnTy);
+  AlignedLoadNFn = M->getOrInsertFunction(DfisanAlignedLoadNFnName, LoadNFnTy);
   AlignedLoad1Fn = M->getOrInsertFunction(DfisanAlignedLoad1FnName, LoadFnTy);
   AlignedLoad2Fn = M->getOrInsertFunction(DfisanAlignedLoad2FnName, LoadFnTy);
   AlignedLoad4Fn = M->getOrInsertFunction(DfisanAlignedLoad4FnName, LoadFnTy);
   AlignedLoad8Fn = M->getOrInsertFunction(DfisanAlignedLoad8FnName, LoadFnTy);
   AlignedLoad16Fn = M->getOrInsertFunction(DfisanAlignedLoad16FnName, LoadFnTy);
   // unaligned
-  UnalignedLoadNFn = M->getOrInsertFunction(DfisanAlignedLoadNFnName, LoadFnTy);
-  UnalignedLoad1Fn = M->getOrInsertFunction(DfisanAlignedLoad1FnName, LoadFnTy);
-  UnalignedLoad2Fn = M->getOrInsertFunction(DfisanAlignedLoad2FnName, LoadFnTy);
-  UnalignedLoad4Fn = M->getOrInsertFunction(DfisanAlignedLoad4FnName, LoadFnTy);
-  UnalignedLoad8Fn = M->getOrInsertFunction(DfisanAlignedLoad8FnName, LoadFnTy);
-  UnalignedLoad16Fn = M->getOrInsertFunction(DfisanAlignedLoad16FnName, LoadFnTy);
+  UnalignedLoadNFn = M->getOrInsertFunction(DfisanUnalignedLoadNFnName, LoadNFnTy);
+  UnalignedLoad1Fn = M->getOrInsertFunction(DfisanUnalignedLoad1FnName, LoadFnTy);
+  UnalignedLoad2Fn = M->getOrInsertFunction(DfisanUnalignedLoad2FnName, LoadFnTy);
+  UnalignedLoad4Fn = M->getOrInsertFunction(DfisanUnalignedLoad4FnName, LoadFnTy);
+  UnalignedLoad8Fn = M->getOrInsertFunction(DfisanUnalignedLoad8FnName, LoadFnTy);
+  UnalignedLoad16Fn = M->getOrInsertFunction(DfisanUnalignedLoad16FnName, LoadFnTy);
   // aligned or unaligned
-  AlignedOrUnalignedLoadNFn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadNFnName, LoadFnTy);
+  AlignedOrUnalignedLoadNFn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadNFnName, LoadNFnTy);
   AlignedOrUnalignedLoad1Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoad1FnName, LoadFnTy);
   AlignedOrUnalignedLoad2Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoad2FnName, LoadFnTy);
   AlignedOrUnalignedLoad4Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoad4FnName, LoadFnTy);
   AlignedOrUnalignedLoad8Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoad8FnName, LoadFnTy);
   AlignedOrUnalignedLoad16Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoad16FnName, LoadFnTy);
   // conditional aligned
-  CondAlignedLoadNFn = M->getOrInsertFunction(DfisanCondAlignedLoadNFnName, LoadFnTy);
+  CondAlignedLoadNFn = M->getOrInsertFunction(DfisanCondAlignedLoadNFnName, LoadNFnTy);
   CondAlignedLoad1Fn = M->getOrInsertFunction(DfisanCondAlignedLoad1FnName, LoadFnTy);
   CondAlignedLoad2Fn = M->getOrInsertFunction(DfisanCondAlignedLoad2FnName, LoadFnTy);
   CondAlignedLoad4Fn = M->getOrInsertFunction(DfisanCondAlignedLoad4FnName, LoadFnTy);
   CondAlignedLoad8Fn = M->getOrInsertFunction(DfisanCondAlignedLoad8FnName, LoadFnTy);
   CondAlignedLoad16Fn = M->getOrInsertFunction(DfisanCondAlignedLoad16FnName, LoadFnTy);
   // conditional unaligned
-  CondUnalignedLoadNFn = M->getOrInsertFunction(DfisanCondUnalignedLoadNFnName, LoadFnTy);
+  CondUnalignedLoadNFn = M->getOrInsertFunction(DfisanCondUnalignedLoadNFnName, LoadNFnTy);
   CondUnalignedLoad1Fn = M->getOrInsertFunction(DfisanCondUnalignedLoad1FnName, LoadFnTy);
   CondUnalignedLoad2Fn = M->getOrInsertFunction(DfisanCondUnalignedLoad2FnName, LoadFnTy);
   CondUnalignedLoad4Fn = M->getOrInsertFunction(DfisanCondUnalignedLoad4FnName, LoadFnTy);
   CondUnalignedLoad8Fn = M->getOrInsertFunction(DfisanCondUnalignedLoad8FnName, LoadFnTy);
   CondUnalignedLoad16Fn = M->getOrInsertFunction(DfisanCondUnalignedLoad16FnName, LoadFnTy);
   // conditional aligned or unaligned
-  CondAlignedOrUnalignedLoadNFn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadNFnName, LoadFnTy);
+  CondAlignedOrUnalignedLoadNFn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadNFnName, LoadNFnTy);
   CondAlignedOrUnalignedLoad1Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad1FnName, LoadFnTy);
   CondAlignedOrUnalignedLoad2Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad2FnName, LoadFnTy);
   CondAlignedOrUnalignedLoad4Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad4FnName, LoadFnTy);
@@ -494,8 +495,10 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Instruction *Use, UseDefKin
   // collect def-id's
   ValueVector DefIDs;
   for (auto *Def : DDA->getLLVMDefinitions(Use)) {
-    Value *DefID = ConstantInt::get(ArgTy, ProtectInfo->getDefID(Def), false);
-    DefIDs.push_back(DefID);
+    if (ProtectInfo->hasDefID(Def)) { // Def may be a no-target instruction.
+      Value *DefID = ConstantInt::get(Int32Ty, ProtectInfo->getDefID(Def), false);
+      DefIDs.push_back(DefID);
+    }
   }
 
   if (LoadInst *Load = dyn_cast<LoadInst>(Use)) {
@@ -536,7 +539,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
       SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
   }
   Value *StoreAddr = Builder->CreatePtrToInt(StoreTarget, PtrTy);
-  Value *DefIDVal = ConstantInt::get(ArgTy, DefID);
+  Value *DefIDVal = ConstantInt::get(Int16Ty, DefID);
   ValueVector Args {StoreAddr, DefIDVal};
   ValueVector NArgs = {StoreAddr, SizeArg, DefIDVal};
 
@@ -651,12 +654,19 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
   if (InsertPoint != nullptr)
     Builder->SetInsertPoint(InsertPoint);
   unsigned Size = llvm::isa<ConstantInt>(SizeVal) ? llvm::cast<ConstantInt>(SizeVal)->getZExtValue() : 0;
+  Value *SizeArg = SizeVal;
+  if (SizeVal->getType() != Int64Ty) {
+    if (llvm::isa<ConstantInt>(SizeVal))
+      SizeArg = ConstantInt::get(Int64Ty, Size);
+    else
+      SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
+  }
   Value *LoadAddr = Builder->CreatePtrToInt(LoadTarget, PtrTy);
-  Value *Argc = ConstantInt::get(ArgTy, DefIDs.size(), false);
+  Value *Argc = ConstantInt::get(Int32Ty, DefIDs.size(), false);
 
   ValueVector Args{LoadAddr, Argc};
   Args.append(DefIDs);
-  ValueVector NArgs{LoadAddr, SizeVal, Argc};
+  ValueVector NArgs{LoadAddr, SizeArg, Argc};
   NArgs.append(DefIDs);
 
   switch(Kind) {

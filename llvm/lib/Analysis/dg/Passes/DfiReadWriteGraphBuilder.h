@@ -9,6 +9,8 @@ namespace dda {
 
 class DfiReadWriteGraphBuilder : public LLVMReadWriteGraphBuilder {
 private:
+  DfiProtectInfo *ProtectInfo = nullptr;
+
   NodesSeq<RWNode> createNode(const llvm::Value *) override;
   RWNode *createLoad(const llvm::Instruction *Inst);
 
@@ -17,8 +19,9 @@ protected:
 
 public:
   DfiReadWriteGraphBuilder(const llvm::Module *M, dg::LLVMPointerAnalysis *PTA,
-                           const LLVMDataDependenceAnalysisOptions &Opts)
-    : LLVMReadWriteGraphBuilder(M, PTA, Opts) {}
+                           const LLVMDataDependenceAnalysisOptions &Opts,
+                           DfiProtectInfo *ProtectInfo)
+    : LLVMReadWriteGraphBuilder(M, PTA, Opts), ProtectInfo(ProtectInfo) {}
 };
 
 } // namespace dda

@@ -15,12 +15,13 @@ public:
   UseDefBuilder(llvm::Module *M, ValueSet &Aligned, ValueSet &Unaligned)
     : UseDefBuilder(M, Aligned, Unaligned, {}) {}
   UseDefBuilder(llvm::Module *M, ValueSet &Aligned, ValueSet &Unaligned, const llvmdg::LLVMDependenceGraphOptions &Opts)
-    : ProtectInfo(std::make_unique<DfiProtectInfo>(Aligned, Unaligned)), DgBuilder(new llvmdg::DfiLLVMDependenceGraphBuilder(ProtectInfo.get(), M, Opts)),  M(M) {}
+    : ProtectInfo(std::make_unique<DfiProtectInfo>(Aligned, Unaligned)), DgBuilder(std::make_unique<llvmdg::DfiLLVMDependenceGraphBuilder>(ProtectInfo.get(), M, Opts)),  M(M) {}
   
   LLVMDependenceGraph *getDG() { return DG.get(); }
   LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
   LLVMPointerAnalysis *getPTA() { return (getDG() != nullptr) ? DG->getPTA() : DgBuilder->getPTA(); }
   std::unique_ptr<LLVMDependenceGraph> &&moveDG() { return std::move(DG); }
+  std::unique_ptr<llvmdg::DfiLLVMDependenceGraphBuilder> &&moveDgBuilder() { return std::move(DgBuilder); }
 
   DfiProtectInfo *getProtectInfo() { return ProtectInfo.get(); }
   std::unique_ptr<DfiProtectInfo> &&moveProtectInfo() { return std::move(ProtectInfo); }

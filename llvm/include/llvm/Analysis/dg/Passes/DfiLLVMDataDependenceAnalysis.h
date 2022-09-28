@@ -11,12 +11,15 @@ class DfiReadWriteGraphBuilder;
 
 class DfiLLVMDataDependenceAnalysis : public LLVMDataDependenceAnalysis {
 private:
+  DfiProtectInfo *ProtectInfo = nullptr;
+
   LLVMReadWriteGraphBuilder *createBuilder();
   DataDependenceAnalysis *createDDA() override;
 
 public:
   DfiLLVMDataDependenceAnalysis(const llvm::Module *M, 
                                 dg::LLVMPointerAnalysis *PTA,
+                                DfiProtectInfo *ProtectInfo,
                                 LLVMDataDependenceAnalysisOptions Opts = {});
   
   // We can override isDef conditions.

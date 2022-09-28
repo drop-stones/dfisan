@@ -27,11 +27,12 @@ class UseDefAnalysisPass : public AnalysisInfoMixin<UseDefAnalysisPass> {
 public:
   class Result {
     std::unique_ptr<dg::LLVMDependenceGraph> DG{nullptr};
+    std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> DgBuilder{nullptr};
     std::unique_ptr<dg::DfiProtectInfo> ProtectInfo{nullptr};
 
   public:
-    Result(std::unique_ptr<dg::LLVMDependenceGraph> &&DG, std::unique_ptr<dg::DfiProtectInfo> &&ProtectInfo)
-      : DG(std::move(DG)), ProtectInfo(std::move(ProtectInfo)) {}
+    Result(std::unique_ptr<dg::LLVMDependenceGraph> &&DG, std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> &&DgBuilder, std::unique_ptr<dg::DfiProtectInfo> &&ProtectInfo)
+      : DG(std::move(DG)), DgBuilder(std::move(DgBuilder)), ProtectInfo(std::move(ProtectInfo)) {}
 
     dg::LLVMDependenceGraph *getDG() { return DG.get(); }
     dg::dda::LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
