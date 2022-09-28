@@ -1,13 +1,7 @@
 #ifndef RUNTIME_INFO_H
 #define RUNTIME_INFO_H
 
-#include <stdlib.h>
-
-/// Safe alloc functions
-void *safe_malloc(size_t size);
-void *safe_calloc(size_t nmemb, size_t size);
-void *safe_realloc(void *ptr, size_t size);
-
+#include "../safe_alloc.h"
 
 /// Copy from "compiler-rt/lib/dfisan/dfisan_mapping.h"
 const char kAlignedShiftWidth = 1;

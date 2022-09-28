@@ -5,7 +5,8 @@
 
 // Tests that dfisan can support memset().
 
-#include <stdlib.h>
+#include "../../safe_alloc.h"
+#include <string.h>
 
 struct S {
   char c;
@@ -18,28 +19,20 @@ char gstr[100];
 struct S gs;
 
 int main(void) {
-  char str[100];
-  struct S s;
+  char str[100] __attribute__((annotate("dfi_protection")));
+  struct S s __attribute__((annotate("dfi_protection")));
 
-  memset(str, 0, sizeof(str));
+  memset((void *)str, 0, sizeof(str));
   memset(&s, 0, sizeof(struct S));
 
-  str[0];
-  str[50];
-  s.c;
-  s.s;
-  s.i;
-  s.l;
+  str[0]; str[50];
+  s.c; s.s; s.i; s.l;
 
   memset(gstr, 0, sizeof(gstr));
   memset(&gs, 0, sizeof(gs));
 
-  gstr[0];
-  gstr[50];
-  gs.c;
-  gs.s;
-  gs.i;
-  gs.l;
+  gstr[0]; gstr[50];
+  gs.c; gs.s; gs.i; gs.l;
 
   return 0;
 }

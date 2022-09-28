@@ -93,16 +93,8 @@ DfiDefUseKind DfiDefUseAnalysis::analyzeDefKind(Value *Val) {
   struct DfiDefUseKind Kind;
   auto *RWNode = RD->getNode(Val);
   Kind.IsDef = true;
-  for (auto &TargetSite : RWNode->getDefines()) {
-    auto *Target = (llvm::Value *)RD->getValue(TargetSite.target);
-    Kind.IsAligned   |= ProtectInfo->hasAlignedTarget(Target);
-    Kind.IsUnaligned |= ProtectInfo->hasUnalignedTarget(Target);
-    Kind.IsNoTarget  |= !(ProtectInfo->hasTarget(Target));
-    LLVM_DEBUG(dbgs() << " - Target: " << (Kind.IsAligned ? "aligned" : "") << " "
-                                       << (Kind.IsUnaligned ? "unaligned" : "") << " "
-                                       << (Kind.IsNoTarget ? "no-target" : "") << " "
-                                       << *Target << "\n");
-  }
+  analyzeDefUseKindFromDefSiteSet(Kind, RWNode->getDefines());
+  analyzeDefUseKindFromDefSiteSet(Kind, RWNode->getOverwrites());
   return Kind;
 }
 
@@ -112,16 +104,24 @@ DfiDefUseKind DfiDefUseAnalysis::analyzeUseKind(Value *Val) {
   struct DfiDefUseKind Kind;
   auto *RWNode = RD->getNode(Val);
   Kind.IsUse = true;
-  for (auto &TargetSite : RWNode->getUses()) {
+  analyzeDefUseKindFromDefSiteSet(Kind, RWNode->getUses());
+  return Kind;
+}
+
+void DfiDefUseAnalysis::analyzeDefUseKindFromDefSiteSet(DfiDefUseKind &Kind, dg::dda::DefSiteSet &DefSites) {
+  if (DefSites.empty())
+    return;
+
+  for (auto &TargetSite : DefSites) {
     auto *Target = (llvm::Value *)RD->getValue(TargetSite.target);
     Kind.IsAligned   |= ProtectInfo->hasAlignedTarget(Target);
     Kind.IsUnaligned |= ProtectInfo->hasUnalignedTarget(Target);
     Kind.IsNoTarget  |= !(ProtectInfo->hasTarget(Target));
-    LLVM_DEBUG(dbgs() << " - Target: " << (Kind.IsAligned ? "aligned" : "") << " "
-                                       << (Kind.IsUnaligned ? "unaligned" : "") << " "
-                                       << (Kind.IsNoTarget ? "no-target" : "") << " "
-                                       << *Target << "\n");
+    LLVM_DEBUG(dbgs() << " - Target: " << *Target << "\n");
   }
-  return Kind;
+  LLVM_DEBUG(dbgs() << " - Kind: " << (Kind.IsAligned ? "aligned" : "") << " "
+                                   << (Kind.IsUnaligned ? "unaligned" : "") << " "
+                                   << (Kind.IsNoTarget ? "no-target" : "") << "\n");
 }
+
 } // namespace dg

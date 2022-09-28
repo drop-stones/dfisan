@@ -18,11 +18,12 @@ struct Unaligned g __attribute__((annotate("dfi_protection")));
 
 int main(void) {
   struct Unaligned l __attribute__((annotate("dfi_protection"))) = { 'a', 'b' };
+  struct Unaligned *h = (struct Unaligned *)safe_malloc(sizeof(struct Unaligned));
+  h->c1 = 'c'; h->c2 = 'd';
 
-  l.c1;
-  l.c2;
-  g.c1;
-  g.c2;
+  l.c1; l.c2;
+  h->c1; h->c2;
+  g.c1; g.c2;
 
   return 0;
 }

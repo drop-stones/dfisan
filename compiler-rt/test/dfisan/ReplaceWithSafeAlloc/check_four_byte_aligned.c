@@ -6,6 +6,7 @@
 #include "runtime_info.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 struct AlignFour {
   int i;

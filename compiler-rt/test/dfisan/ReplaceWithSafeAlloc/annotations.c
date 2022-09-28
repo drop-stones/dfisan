@@ -8,6 +8,7 @@
 #include "runtime_info.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // global
 int gsafe __attribute__((annotate("dfi_protection")));

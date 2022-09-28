@@ -5,6 +5,7 @@
 
 #include "runtime_info.h"
 #include <assert.h>
+#include <stdlib.h>
 
 struct AlignFour {
   char c;   // offset: 0

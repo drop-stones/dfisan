@@ -8,6 +8,7 @@ namespace dg {
 // class UseDefBuilder;
 class LLVMDependenceGraph;
 class DfiProtectInfo;
+struct AnalysisOptions;
 using DefID = uint16_t;
 namespace dda {
 class LLVMDataDependenceAnalysis;
@@ -43,10 +44,10 @@ private:
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty;
-  // dg::UseDefBuilder *UseDef;
   dg::LLVMDependenceGraph *DG = nullptr;
   dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
   dg::DfiProtectInfo *ProtectInfo = nullptr;
+  const dg::AnalysisOptions *Opts = nullptr;
   Module *M = nullptr;
   std::unique_ptr<IRBuilder<>> Builder{nullptr};
   Function *Ctor = nullptr;

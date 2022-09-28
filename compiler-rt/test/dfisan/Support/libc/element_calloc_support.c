@@ -5,7 +5,7 @@
 
 // Tests that dfisan can manage calloc() of struct elements.
 
-#include <stdlib.h>
+#include "../../safe_alloc.h"
 
 struct arc {
   int ident;
@@ -16,12 +16,12 @@ struct network_t {
   int size;
 };
 
-struct network_t net;
+struct network_t net __attribute__((annotate("dfi_protection")));
 
 // Write net
 void read_min(struct network_t *net) {
   net->size = 100;
-  net->arcs = (struct arc *)calloc(net->size, sizeof(struct arc));
+  net->arcs = (struct arc *)safe_calloc(net->size, sizeof(struct arc));
   net->stop_arcs = net->arcs + net->size;
 }
 
@@ -34,7 +34,6 @@ void primal_start_artificial(struct network_t *net) {
 }
 
 int main(void) {
-  // memset( (void *)(&net), 0, sizeof(struct network_t));
   read_min(&net);
   primal_start_artificial(&net);
 

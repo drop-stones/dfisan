@@ -54,6 +54,9 @@ protected:
 private:
   DfiDefUseKind analyzeDefKind(llvm::Value *Val);
   DfiDefUseKind analyzeUseKind(llvm::Value *Val);
+
+  // Helper function to analyze UseDefKind
+  void analyzeDefUseKindFromDefSiteSet(DfiDefUseKind &Kind, dda::DefSiteSet &DefSites);
 };
 
 } // namespace dg

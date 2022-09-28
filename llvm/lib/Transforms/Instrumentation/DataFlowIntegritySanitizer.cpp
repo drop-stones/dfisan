@@ -7,6 +7,7 @@
 #include "dg/Passes/UseDefAnalysisPass.h"
 #include "dg/Passes/UseDefBuilder.h"
 #include "dg/Passes/DfiUtils.h"
+#include "dg/AnalysisOptions.h"
 
 #define DEBUG_TYPE "dfi-instrument"
 
@@ -125,6 +126,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   DG = Result.getDG();
   DDA = Result.getDDA();
   ProtectInfo = Result.getProtectInfo();
+  Opts = &DDA->getOptions();
   this->M = &M;
   Builder = std::make_unique<IRBuilder<>>(M.getContext());
 
@@ -439,7 +441,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
       createDfiStoreFn(ProtectInfo->getDefID(Memset), StoreTarget, SizeVal, Kind, Memset->getNextNode());
     } else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
       auto *Callee = Call->getCalledFunction();
-      if (Callee->getName() == "calloc") {
+      if (Opts->getAllocationFunction(Callee->getName().str()) == dg::AllocationFunction::CALLOC) {
         auto *Nmem = Call->getOperand(0);
         auto *Size = Call->getOperand(1);
         Builder->SetInsertPoint(Call->getNextNode());

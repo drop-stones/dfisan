@@ -5,11 +5,7 @@
 
 // Test for analysis of def-use of aligned targets.
 
-#include <stdlib.h>
-
-/// Safe malloc
-void *safe_malloc(size_t size);
-void *safe_calloc(size_t nmemb, size_t size);
+#include "../safe_alloc.h"
 
 struct Aligned {
   int x, y;
