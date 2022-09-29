@@ -137,6 +137,9 @@ extern "C" {
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_ids_8 (uptr LoadAddr, u32 Argc, ...);
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ...);
 
+  // Unsafe access check function which guarantees the access is in unsafe region
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_unsafe_access(uptr Addr);
+
   // Old check functions
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id_n (uptr StoreAddr, u64 Size, u16 DefID);
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id_1 (uptr StoreAddr, u16 DefID);

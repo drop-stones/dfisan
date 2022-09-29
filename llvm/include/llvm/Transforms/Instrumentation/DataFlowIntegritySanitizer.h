@@ -42,7 +42,8 @@ private:
                  CondAlignedLoadNFn, CondAlignedLoad1Fn, CondAlignedLoad2Fn, CondAlignedLoad4Fn, CondAlignedLoad8Fn, CondAlignedLoad16Fn,
                  CondUnalignedLoadNFn, CondUnalignedLoad1Fn, CondUnalignedLoad2Fn, CondUnalignedLoad4Fn, CondUnalignedLoad8Fn, CondUnalignedLoad16Fn,
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
-                 CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn;
+                 CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
+                 CheckUnsafeAccessFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty;
   dg::LLVMDependenceGraph *DG = nullptr;
   dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
@@ -77,13 +78,9 @@ private:
   void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
   void createDfiLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
-  /// Create DfiStoreFn for aggregate data.
-  //void createDfiStoreFnForAggregateData(Value *Store);
-  //void createDfiStoreFnForAggregateData(Value *Store, Instruction *InsertPoint);
-
-  /// Create the StructGEP and return the target register.
-  /// Called only by createDfiStoreFnForAggregateData().
-  //Value *createStructGep(oreVFGNode *StoreNode, const std::vector<struct SVF::FieldOffset *> &OffsetVec);
+  /// Insert unsafe access func before each unsafe access.
+  inline bool isUnsafeAccess(Instruction *Inst);
+  void insertCheckUnsafeAccessFn(Instruction *Inst);
 };
 
 } // namespace llvm

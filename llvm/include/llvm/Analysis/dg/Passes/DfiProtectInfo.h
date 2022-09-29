@@ -57,6 +57,15 @@ public:
     return DefToInfo[Def].ID;
   }
 
+  bool hasDef(llvm::Value *Def) {
+    return hasDefID(Def);
+  }
+  bool hasUse(llvm::Instruction *Use) {
+    return AlignedOnlyUses.count(Use) != 0 || UnalignedOnlyUses.count(Use) != 0
+        || BothOnlyUses.count(Use) != 0    || AlignedOrNoTargetUses.count(Use) != 0
+        || UnalignedOrNoTargetUses.count(Use) != 0 || BothOrNoTargetUses.count(Use) != 0;
+  }
+
   void dump(llvm::raw_ostream &OS) {
     OS << "DfiProtectInfo::" << __func__ << "\n";
     OS << "Aligned Targets:\n";

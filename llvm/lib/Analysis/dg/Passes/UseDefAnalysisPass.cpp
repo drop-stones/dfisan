@@ -34,7 +34,7 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &AnalysisResult = MAM.getResult<CollectProtectionTargetPass>(M);
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, AnalysisResult.getAlignedTargets(), AnalysisResult.getUnalignedTargets());
   if (Builder->getProtectInfo()->emptyTarget()) { // skip use-def analysis
-    UseDefAnalysisPass::Result Result;
+    UseDefAnalysisPass::Result Result{ std::move(Builder->moveProtectInfo()) };
     return Result;
   }
 

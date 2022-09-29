@@ -1,5 +1,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/TypeFinder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/Transforms/Instrumentation/DataFlowIntegritySanitizer.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"  /* appendToUsed */
 #include "llvm/Support/Debug.h"
@@ -118,6 +119,9 @@ constexpr char DfisanCondAlignedOrUnalignedLoad4FnName[]  = "__dfisan_cond_align
 constexpr char DfisanCondAlignedOrUnalignedLoad8FnName[]  = "__dfisan_cond_aligned_or_unaligned_check_ids_8";
 constexpr char DfisanCondAlignedOrUnalignedLoad16FnName[] = "__dfisan_cond_aligned_or_unaligned_check_ids_16";
 
+/// Unsafe access check
+constexpr char DfisanCheckUnsafeAccessFnName[] = "__dfisan_check_unsafe_access";
+
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   LLVM_DEBUG(dbgs() << "DataFlowIntegritySanitizerPass: Insert check functions to enforce data flow integrity\n");
@@ -129,12 +133,21 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   insertDfiInitFn();
 
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  if (Result.emptyResult()) // skip instrumentation
+  ProtectInfo = Result.getProtectInfo();
+
+  // Instrument unsafe access
+  for (auto &Func : M.getFunctionList()) {
+    for (auto &Inst : instructions(&Func)) {
+      if (isUnsafeAccess(&Inst))
+        insertCheckUnsafeAccessFn(&Inst);
+    }
+  }
+
+  if (Result.emptyResult()) // skip use-def instrumentation
     return PreservedAnalyses::all();
 
   DG = Result.getDG();
   DDA = Result.getDDA();
-  ProtectInfo = Result.getProtectInfo();
   Opts = &DDA->getOptions();
 
   // Instrument store functions.
@@ -199,6 +212,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
   SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int32Ty};
   FunctionType *LoadNFnTy = FunctionType::get(VoidTy, LoadNArgTypes, true);
+  FunctionType *CheckUnsafeAcessFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
 
   DfiInitFn  = M->getOrInsertFunction(DfisanInitFnName, VoidTy);
   DfiStoreNFn = M->getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
@@ -303,6 +317,9 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   CondAlignedOrUnalignedLoad4Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad4FnName, LoadFnTy);
   CondAlignedOrUnalignedLoad8Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad8FnName, LoadFnTy);
   CondAlignedOrUnalignedLoad16Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad16FnName, LoadFnTy);
+
+  // Unsafe access check
+  CheckUnsafeAccessFn = M->getOrInsertFunction(DfisanCheckUnsafeAccessFnName, CheckUnsafeAcessFnTy);
 }
 
 /// Insert a constructor function in comdat
@@ -608,4 +625,41 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
   }
   // default: llvm_unreachable("Invalid UseDefKind");
   }
+}
+
+inline bool DataFlowIntegritySanitizerPass::isUnsafeAccess(Instruction *Inst) {
+  Value *Target = nullptr;
+  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
+    if (ProtectInfo->hasUse(Load))
+      return false;
+    Target = Load->getPointerOperand();
+  } else if (auto *Store = dyn_cast<StoreInst>(Inst)) {
+    if (ProtectInfo->hasDef(Store))
+      return false;
+    Target = Store->getPointerOperand();
+  } else {  // TODO: function calls which use or def
+    return false;
+  }
+
+  if (isa<GlobalValue>(Target)) // global value are constant pointers
+    return false;
+  // if (isa<AllocaInst>(Target))  // access to local variables are safe
+  //   return false;
+  
+  return true;
+}
+
+void DataFlowIntegritySanitizerPass::insertCheckUnsafeAccessFn(Instruction *Inst) {
+  Value *Target = nullptr;
+  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
+    Target = Load->getPointerOperand();
+  } else if (auto *Store = dyn_cast<StoreInst>(Inst)) {
+    Target = Store->getPointerOperand();
+  } else {  // TODO: function calls which use or def
+    llvm_unreachable("No unsafe access");
+  }
+
+  Builder->SetInsertPoint(Inst);
+  Value *TgtAddr = Builder->CreatePtrToInt(Target, PtrTy);
+  Builder->CreateCall(CheckUnsafeAccessFn, {TgtAddr});
 }

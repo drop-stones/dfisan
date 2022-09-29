@@ -528,6 +528,27 @@ void __dfisan_cond_aligned_or_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ..
   CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 16);
 }
 
+/* --- Unsafe access check --- */
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_check_unsafe_access(uptr Addr) {
+  if (__dfisan::AddrIsInSafeRegion(Addr)) {
+    GET_CALLER_PC_BP;
+    Decorator d;
+    Printf("\n%s", d.Error());
+    Printf("ERROR: Invalid unsafe access to safe region (%p)\n", (void *)Addr);
+    Printf("%s", d.Default());
+
+    Printf("\n%s", d.StackTrace());
+    Printf("StackTrace:\n");
+    Printf("%s", d.Default());
+    BufferedStackTrace stack;
+    stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal);
+    stack.Print();
+
+    exit(1);
+  }
+}
+
 static void DfisanInitInternal() {
   CHECK(dfisan_init_is_running == false);
   if (dfisan_inited == true)
