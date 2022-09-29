@@ -148,33 +148,6 @@ static inline bool checkUnalignedRDT(uptr Addr, u32 Argc, va_list IDList) {
     CHECK_UNALIGNED_ID_LIST(LoadAddr, Argc, Size);                      \
   }
 
-/*
-static inline void setRDT(uptr Addr, u16 ID) {
-  u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  *shadow_memory = ID;
-  // Report("SET: %d at %p\n", ID, (void *)shadow_memory);
-}
-static inline void setRDT(uptr Addr, u16 ID, u32 Length) {
-  u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  for (u32 i = 0; i < Length; i++)
-    *(shadow_memory + i) = ID;
-  // Report("SET: %d at %p - %p\n", ID, (void *)shadow_memory, (void *)(shadow_memory + Length - 1));
-}
-static inline bool checkRDT(uptr Addr, u16 ID) {
-  u16 *shadow_memory = (u16 *)__dfisan::MemToShadow(Addr);
-  // Report("CHECK: %d == %d at %p\n", ID, *shadow_memory, (void *)shadow_memory);
-  return *shadow_memory == ID;
-}
-static inline bool checkRDT(uptr Addr, u16 Argc, va_list IDList) {
-  bool NoErr = false;
-  for (u16 i = 0; i < Argc; i++) {
-    u16 ID = va_arg(IDList, u16);
-    NoErr |= checkRDT(Addr, ID);
-  }
-  return NoErr;
-}
-*/
-
 // ------------- Runtime check ---------------------
 namespace __dfisan {
 
@@ -554,105 +527,6 @@ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 void __dfisan_cond_aligned_or_unaligned_check_ids_16(uptr LoadAddr, u32 Argc, ...) {
   CHECK_COND_ALIGNED_OR_UNALIGNED_ID_LIST(LoadAddr, Argc, 16);
 }
-
-/*
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_n(uptr StoreAddr, u64 Size, u16 DefID) {
-  setRDT(StoreAddr, DefID, ceil((double)Size / (double)4));
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_1 (uptr StoreAddr, u16 DefID) {
-  uptr AlignedAddr = AlignAddr(StoreAddr);
-  setRDT(AlignedAddr, DefID);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_2 (uptr StoreAddr, u16 DefID) {
-  uptr AlignedAddr = AlignAddr(StoreAddr);
-  setRDT(AlignedAddr, DefID);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_4 (uptr StoreAddr, u16 DefID) {
-  setRDT(StoreAddr, DefID);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_8 (uptr StoreAddr, u16 DefID) {
-  setRDT(StoreAddr, DefID, 2);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_store_id_16(uptr StoreAddr, u16 DefID) {
-  setRDT(StoreAddr, DefID, 4);
-}
-
-// TODO: va_arg cannot use `u16` (these values are converted to i32)
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_n(uptr LoadAddr, u64 Size, u16 Argc, ...) {
-  va_list IDList;
-  for (u8 i = 0; i < (u8)ceil((double)Size / (double)4); i++) {
-    va_start(IDList, Argc);
-    if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
-      REPORT_ERROR(LoadAddr, Argc, IDList);
-    }
-  }
-  va_end(IDList);
-}
-
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_1 (uptr LoadAddr, u16 Argc, ...) {
-  uptr AlignedAddr = AlignAddr(LoadAddr);
-  va_list IDList;
-  va_start(IDList, Argc);
-  if (checkRDT(AlignedAddr, Argc, IDList) == false) {
-    REPORT_ERROR(LoadAddr, Argc, IDList);
-  }
-  va_end(IDList);
-}
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_2 (uptr LoadAddr, u16 Argc, ...) {
-  uptr AlignedAddr = AlignAddr(LoadAddr);
-  va_list IDList;
-  va_start(IDList, Argc);
-  if (checkRDT(AlignedAddr, Argc, IDList) == false) {
-    REPORT_ERROR(LoadAddr, Argc, IDList);
-  }
-  va_end(IDList);
-}
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_4 (uptr LoadAddr, u16 Argc, ...) {
-  va_list IDList;
-  va_start(IDList, Argc);
-  if (checkRDT(LoadAddr, Argc, IDList) == false) {
-    REPORT_ERROR(LoadAddr, Argc, IDList);
-  }
-  va_end(IDList);
-}
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_8 (uptr LoadAddr, u16 Argc, ...) {
-  va_list IDList;
-  va_start(IDList, Argc);
-  for (uptr i = 0; i < 2; i++) {
-    va_start(IDList, Argc);
-    if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
-      REPORT_ERROR(LoadAddr, Argc, IDList);
-    }
-  }
-}
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfisan_check_ids_16(uptr LoadAddr, u16 Argc, ...) {
-  va_list IDList;
-  for (uptr i = 0; i < 4; i++) {
-    va_start(IDList, Argc);
-    if (checkRDT(LoadAddr + (i * 4), Argc, IDList) == false) {
-      REPORT_ERROR(LoadAddr, Argc, IDList);
-    }
-  }
-  va_end(IDList);
-}
-*/
 
 static void DfisanInitInternal() {
   CHECK(dfisan_init_is_running == false);

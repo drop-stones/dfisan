@@ -31,9 +31,11 @@ public:
     std::unique_ptr<dg::DfiProtectInfo> ProtectInfo{nullptr};
 
   public:
+    Result() {}
     Result(std::unique_ptr<dg::LLVMDependenceGraph> &&DG, std::unique_ptr<dg::llvmdg::LLVMDependenceGraphBuilder> &&DgBuilder, std::unique_ptr<dg::DfiProtectInfo> &&ProtectInfo)
       : DG(std::move(DG)), DgBuilder(std::move(DgBuilder)), ProtectInfo(std::move(ProtectInfo)) {}
 
+    bool emptyResult() { return DG == nullptr && DgBuilder == nullptr && ProtectInfo == nullptr; }
     dg::LLVMDependenceGraph *getDG() { return DG.get(); }
     dg::dda::LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
     dg::DfiProtectInfo *getProtectInfo() { return ProtectInfo.get(); }

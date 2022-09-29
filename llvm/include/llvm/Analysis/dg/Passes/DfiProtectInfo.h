@@ -30,6 +30,7 @@ public:
   DfiProtectInfo(ValueSet &Aligned, ValueSet &Unaligned)
     : AlignedTargets(Aligned), UnalignedTargets(Unaligned) {}
 
+  bool emptyTarget() { return AlignedTargets.empty() && UnalignedTargets.empty(); }
   bool hasAlignedTarget(llvm::Value *V)   { return AlignedTargets.count(V) != 0; }
   bool hasUnalignedTarget(llvm::Value *V) { return UnalignedTargets.count(V) != 0; }
   bool hasTarget(llvm::Value *V) { return hasAlignedTarget(V) || hasUnalignedTarget(V); }
@@ -123,20 +124,6 @@ public:
   InstSet AlignedOrNoTargetUses;
   InstSet UnalignedOrNoTargetUses;
   InstSet BothOrNoTargetUses;
-
-/*
-  /// Def and Use of aligned targets.
-  ValueSet AlignedDefs;
-  InstSet AlignedUses;
-
-  /// Def and Use of unaligned targets.
-  ValueSet UnalignedDefs;
-  InstSet UnalignedUses;
-
-  /// Def and Use of both aligned and unaligned targets.
-  ValueSet BothDefs;
-  InstSet BothUses;
-*/
 
   DefInfoMap DefToInfo;
 

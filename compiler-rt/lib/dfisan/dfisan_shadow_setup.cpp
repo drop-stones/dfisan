@@ -20,19 +20,6 @@ using namespace __sanitizer;
 namespace __dfisan {
 
 void InitializeShadowMemory() {
-/*
-  // mmap the low shadow
-  ReserveShadowMemoryRange(kLowShadowBeg, kHighShadowEnd, "low shadow");
-  Report("INFO: Reserve low shadow\n");
-  // mmap the high shadow
-  ReserveShadowMemoryRange(kHighShadowBeg, kHighShadowEnd, "high shadow");
-  Report("INFO: Reserve high shadow\n");
-  // mmap the shadow gap
-  ProtectGap(kShadowGapBeg, kShadowGapEnd - kShadowGapBeg + 1, 0, (1 << 18));
-  Report("INFO: Reserve shadow gap\n");
-  CHECK_EQ(kShadowGapEnd, kHighShadowBeg - 1);
-*/
-
   // mmap the unsafe heap
   ReserveUnsafeRegion(kUnsafeHeapBeg, kUnsafeHeapEnd);
   // mmap the safe aligned heap

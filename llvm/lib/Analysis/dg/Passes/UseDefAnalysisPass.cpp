@@ -33,6 +33,11 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   auto &AnalysisResult = MAM.getResult<CollectProtectionTargetPass>(M);
   std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, AnalysisResult.getAlignedTargets(), AnalysisResult.getUnalignedTargets());
+  if (Builder->getProtectInfo()->emptyTarget()) { // skip use-def analysis
+    UseDefAnalysisPass::Result Result;
+    return Result;
+  }
+
   Builder->buildDG();
 
   Builder->getProtectInfo()->dump(llvm::outs());
@@ -59,6 +64,9 @@ PreservedAnalyses
 UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   OS << "UseDefPrinterPass::print " << M.getName() << "\n";
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
+  if (Result.emptyResult()) // skip printer pass
+    return PreservedAnalyses::all();
+
   auto *DG = Result.getDG();
   auto *DDA = DG->getDDA();
   auto *ProtectInfo = Result.getProtectInfo();
@@ -73,11 +81,6 @@ UseDefPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   printUseDefFromDDA(OS, ProtectInfo->AlignedOrNoTargetUses, DDA, ProtectInfo);
   printUseDefFromDDA(OS, ProtectInfo->UnalignedOrNoTargetUses, DDA, ProtectInfo);
   printUseDefFromDDA(OS, ProtectInfo->BothOrNoTargetUses, DDA, ProtectInfo);
-
-  // auto *Builder = Result.getBuilder();
-  // Builder->printUseDef(OS);
-  // Builder->printDefInfoMap(OS);
-  // Builder->dump(OS);
 
   return PreservedAnalyses::all();
 }
