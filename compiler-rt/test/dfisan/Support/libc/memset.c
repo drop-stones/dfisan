@@ -15,8 +15,8 @@ struct S {
   long l;
 };
 
-char gstr[100];
-struct S gs;
+char gstr[100] __attribute__((annotate("dfi_protection")));
+struct S gs    __attribute__((annotate("dfi_protection")));
 
 int main(void) {
   char str[100] __attribute__((annotate("dfi_protection")));

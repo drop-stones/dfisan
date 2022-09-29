@@ -42,6 +42,10 @@ void collectGlobalTargetsWithAnnotation(Module &M, ValueSet &GlobalTargets) {
     for (Value *CArrOp : CArr->operands()) {
       ConstantStruct *AnnoStruct = dyn_cast<ConstantStruct>(CArrOp);
       Value *GlobalTarget = AnnoStruct->getOperand(0)->getOperand(0);
+      if (!isa<GlobalVariable>(GlobalTarget)) {
+        LLVM_DEBUG(dbgs() << "Skip global target: " << *GlobalTarget << "\n");
+        continue;
+      }
       GlobalVariable *Anno = dyn_cast<GlobalVariable>(AnnoStruct->getOperand(1)->getOperand(0));
       ConstantDataArray *AnnoCharArr = dyn_cast<ConstantDataArray>(Anno->getOperand(0));
       StringRef AnnoName = AnnoCharArr->getAsString();

@@ -19,17 +19,15 @@ void side_effect(int *i, struct S *s, char *str, int size) {
 }
 
 int main(void) {
-  int i = 100;
-  struct S s = {200, 300};
-  char arr[8] = "Bob";
+  int i       __attribute__((annotate("dfi_protection"))) = 100;
+  struct S s  __attribute__((annotate("dfi_protection"))) = {200, 300};
+  char arr[8] __attribute__((annotate("dfi_protection"))) = "Bob";
 
   side_effect(&i, &s, arr, 8);
 
   i;
-  s.i;
-  s.l;
-  arr[0];
-  arr[7];
+  s.i; s.l;
+  arr[0]; arr[7];
 
   return 0;
 }
