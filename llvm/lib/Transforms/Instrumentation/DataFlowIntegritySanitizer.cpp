@@ -134,12 +134,15 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
   ProtectInfo = Result.getProtectInfo();
+  Opts = Result.getOptions();
 
   // Instrument unsafe access
   for (auto &Func : M.getFunctionList()) {
     for (auto &Inst : instructions(&Func)) {
-      if (isUnsafeAccess(&Inst))
-        insertCheckUnsafeAccessFn(&Inst);
+      ValueVector Targets;
+      getUnsafeAccessTargets(&Inst, Targets);
+      if (!Targets.empty())
+        insertCheckUnsafeAccessFn(&Inst, Targets);
     }
   }
 
@@ -148,7 +151,6 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   DG = Result.getDG();
   DDA = Result.getDDA();
-  Opts = &DDA->getOptions();
 
   // Instrument store functions.
   for (auto *AlignedOnlyDef : ProtectInfo->AlignedOnlyDefs) {
@@ -356,43 +358,44 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
       auto *StoreTarget = Store->getPointerOperand();
       unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
       createDfiStoreFn(ProtectInfo->getDefID(Store), StoreTarget, Size, Kind, Store->getNextNode());
-    } else if (MemCpyInst *Memcpy = dyn_cast<MemCpyInst>(DefInst)) {
-      auto *StoreTarget = Memcpy->getOperand(0);
-      auto *SizeVal = Memcpy->getOperand(2);
-      createDfiStoreFn(ProtectInfo->getDefID(Memcpy), StoreTarget, SizeVal, Kind, Memcpy->getNextNode());
-    } else if (MemSetInst *Memset = dyn_cast<MemSetInst>(DefInst)) {
-      auto *StoreTarget = Memset->getOperand(0);
-      auto *SizeVal = Memset->getOperand(2);
-      createDfiStoreFn(ProtectInfo->getDefID(Memset), StoreTarget, SizeVal, Kind, Memset->getNextNode());
-    } else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
+    }
+    else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
       auto *Callee = Call->getCalledFunction();
-      if (Opts->getAllocationFunction(Callee->getName().str()) == dg::AllocationFunction::CALLOC) {
+      auto FnName = Callee->getName().str();
+      if (Opts->getAllocationFunction(Callee->getName().str()) == dg::AllocationFunction::CALLOC) { // Handling of calloc
         auto *Nmem = Call->getOperand(0);
         auto *Size = Call->getOperand(1);
         Builder->SetInsertPoint(Call->getNextNode());
         auto *SizeVal = Builder->CreateNUWMul(Nmem, Size);
         createDfiStoreFn(ProtectInfo->getDefID(Call), Def, SizeVal, Kind);
-      } else if (Callee->getName() == "fgets") {
-        auto *StoreTarget = Call->getOperand(0);
-        auto *SizeVal = Call->getOperand(1);
-        createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
-      } else if (Callee->getName() == "__isoc99_sscanf") {
-        for (unsigned Idx = 2; Idx < Call->arg_size(); Idx++) {
-          auto *StoreTarget = Call->getOperand(Idx);
-          unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-          createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, Size, Kind, Call->getNextNode());
+      } else if (const dg::FunctionModel *Model = Opts->getFunctionModel(FnName)) { // Handling of stdlib functions
+        for (const auto &Iter : Model->getDefines()) {
+          auto &Ope = Iter.second;
+          unsigned OpeNum = Ope.operand;
+          if (OpeNum == dg::VARARG) {
+            assert(Ope.from.isOperand() && "VARARG's from must be operand");
+            unsigned FromOpe = Ope.from.getOperand();
+            for (unsigned Idx = FromOpe; Idx < Call->arg_size(); Idx++) {
+              auto *StoreTarget = Call->getOperand(Idx);
+              unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
+              createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, Size, Kind, Call->getNextNode());
+            }
+          } else {
+            auto *StoreTarget = (OpeNum == dg::RETURN) ? Call : Call->getOperand(OpeNum);
+            if (Ope.to.isOperand()) {
+              auto *SizeVal = Call->getOperand(Ope.to.getOperand());
+              createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
+            } else if (Ope.to.isOffset()) {
+              unsigned Size = Ope.to.getOffset().offset -  Ope.from.getOffset().offset + 1;
+              createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, Size, Kind, Call->getNextNode());
+            }
+          }
         }
-      } else if (Callee->getName() == "read") {
-        auto *StoreTarget = Call->getOperand(1);
-        auto *SizeVal = Def;
-        llvm::errs() << "Instrument " << Callee->getName() << "\n";
-        llvm::errs() << " - Target: " << *StoreTarget << ", Size: " << *SizeVal << "\n";
-        createDfiStoreFn(ProtectInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
       } else {
-        llvm::errs() << "No support Def function: " << Callee->getName() << "\n";
-        // llvm_unreachable("No support Def function");
+        llvm::errs() << "TODO: Support Def-stdlib function: " << FnName << "\n";
       }
-    } else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Def)) {
+    }
+    else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Def)) {
       // Do nothing
     } else {
       llvm::errs() << "No support DefInst: " << *DefInst << "\n";
@@ -432,6 +435,20 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Instruction *Use, UseDefKin
     auto *LoadTarget = Load->getPointerOperand();
     unsigned Size = M->getDataLayout().getTypeStoreSize(LoadTarget->getType()->getNonOpaquePointerElementType());
     createDfiLoadFn(LoadTarget, Size, DefIDs, Kind, Load);
+  } else if (CallInst *Call = dyn_cast<CallInst>(Use)) {  // Handling of stdlib functions
+    auto *Callee = Call->getCalledFunction();
+    auto FnName = Callee->getName().str();
+    if (const dg::FunctionModel *Model = Opts->getFunctionModel(FnName)) {
+      for (const auto &Iter : Model->getUses()) {
+        auto &Ope = Iter.second;
+        unsigned OpeNum = Ope.operand;
+        if (OpeNum == dg::VARARG) {
+          llvm::errs() << "TODO: Support VARARG use: " << FnName << "\n";
+        } else {
+          llvm::errs() << "TODO: Support Use-stdlib function: " << FnName << "\n";
+        }
+      }
+    }
   } else {
     llvm::errs() << "No support Use: " << *Use << "\n";
     // llvm_unreachable("No support Use");
@@ -628,41 +645,76 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
   }
 }
 
-inline bool DataFlowIntegritySanitizerPass::isUnsafeAccess(Instruction *Inst) {
-  Value *Target = nullptr;
-  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
-    if (ProtectInfo->hasUse(Load))
-      return false;
-    Target = Load->getPointerOperand();
-  } else if (auto *Store = dyn_cast<StoreInst>(Inst)) {
-    if (ProtectInfo->hasDef(Store))
-      return false;
-    Target = Store->getPointerOperand();
-  } else {  // TODO: function calls which use or def
+inline bool DataFlowIntegritySanitizerPass::isUnsafeAccessTarget(Value *Target) {
+  if (ProtectInfo->hasTarget(Target))
     return false;
-  }
-
-  if (isa<GlobalValue>(Target)) // global value are constant pointers
+  if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Target))
     return false;
-  // if (isa<AllocaInst>(Target))  // access to local variables are safe
-  //   return false;
-  
+  if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Target))
+    return false;
   return true;
 }
 
-void DataFlowIntegritySanitizerPass::insertCheckUnsafeAccessFn(Instruction *Inst) {
-  Value *Target = nullptr;
-  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
-    Target = Load->getPointerOperand();
-  } else if (auto *Store = dyn_cast<StoreInst>(Inst)) {
-    Target = Store->getPointerOperand();
-  } else {  // TODO: function calls which use or def
-    llvm_unreachable("No unsafe access");
-  }
+inline void DataFlowIntegritySanitizerPass::addIfUnsafeAccessTarget(ValueVector &Targets, Value *Target) {
+  if (isUnsafeAccessTarget(Target))
+    Targets.push_back(Target);
+}
 
+inline void DataFlowIntegritySanitizerPass::getUnsafeAccessTargets(Instruction *Inst, ValueVector &Targets) {
+  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
+    if (!ProtectInfo->hasUse(Load))
+      addIfUnsafeAccessTarget(Targets, Load->getPointerOperand());
+  } else if (auto *Store = dyn_cast<StoreInst>(Inst)) {
+    if (!ProtectInfo->hasDef(Store))
+      addIfUnsafeAccessTarget(Targets, Store->getPointerOperand());
+  }
+  else if (auto *Call = dyn_cast<CallInst>(Inst)) {
+    auto *Callee = Call->getCalledOperand();
+    auto FnName = Callee->getName().str();
+    if (const auto *Model = Opts->getFunctionModel(FnName)) {
+      if (!Model->getUses().empty() && !ProtectInfo->hasUse(Call)) {
+        for (const auto &Iter : Model->getUses()) {
+          auto &Ope = Iter.second;
+          unsigned OpeNum = Ope.operand;
+          if (OpeNum == dg::VARARG) {
+            assert(Ope.from.isOperand() && "VARARG's from must be operand");
+            unsigned FromOpe = Ope.from.getOperand();
+            for (unsigned Idx = FromOpe; Idx < Call->arg_size(); Idx++) {
+              addIfUnsafeAccessTarget(Targets, Call->getOperand(Idx)->stripPointerCasts());
+            }
+          } else if (OpeNum == dg::RETURN) {
+            addIfUnsafeAccessTarget(Targets, Call);
+          } else {
+            addIfUnsafeAccessTarget(Targets, Call->getOperand(OpeNum)->stripPointerCasts());
+          }
+        }
+      }
+      if (!Model->getDefines().empty() && !ProtectInfo->hasDef(Call)) {
+        for (const auto &Iter : Model->getDefines()) {
+          auto &Ope = Iter.second;
+          unsigned OpeNum = Ope.operand;
+          if (OpeNum == dg::VARARG) {
+            assert(Ope.from.isOperand() && "VARARG's from must be operand");
+            unsigned FromOpe = Ope.from.getOperand();
+            for (unsigned Idx = FromOpe; Idx < Call->arg_size(); Idx++)
+              addIfUnsafeAccessTarget(Targets, Call->getOperand(Idx)->stripPointerCasts());
+          } else if (OpeNum == dg::RETURN) {
+            addIfUnsafeAccessTarget(Targets, Call);
+          } else {
+            addIfUnsafeAccessTarget(Targets, Call->getOperand(OpeNum)->stripPointerCasts());
+          }
+        }
+      }
+    }
+  }
+}
+
+void DataFlowIntegritySanitizerPass::insertCheckUnsafeAccessFn(Instruction *Inst, ValueVector &Targets) {
   Builder->SetInsertPoint(Inst);
-  Value *TgtAddr = Builder->CreatePtrToInt(Target, PtrTy);
-  Builder->CreateCall(CheckUnsafeAccessFn, {TgtAddr});
+  for (auto *Target : Targets) {
+    Value *TgtAddr = Builder->CreatePtrToInt(Target, PtrTy);
+    Builder->CreateCall(CheckUnsafeAccessFn, {TgtAddr});
+  }
 }
 
 // Insert global variable inits for protection targets.

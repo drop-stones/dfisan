@@ -14,7 +14,8 @@ class DfiLLVMDependenceGraphBuilder : public LLVMDependenceGraphBuilder {
 public:
   DfiLLVMDependenceGraphBuilder(DfiProtectInfo *ProtectInfo, llvm::Module *M, const LLVMDependenceGraphOptions &Opts = {})
     : LLVMDependenceGraphBuilder(M, Opts), ProtectInfo(ProtectInfo) {
-    _DDA.reset(new dda::DfiLLVMDataDependenceAnalysis(M, _PTA.get(), ProtectInfo, _options.DDAOptions));
+    // _DDA.reset(new dda::DfiLLVMDataDependenceAnalysis(M, _PTA.get(), ProtectInfo, _options.DDAOptions));
+    _DDA.reset(new dda::DfiLLVMDataDependenceAnalysis(M, _PTA.get(), ProtectInfo, {}));
     _dg.reset(new DfiLLVMDependenceGraph(ProtectInfo, Opts.threads));
     llvm::errs() << "BuildType: " << ((Opts.PTAOptions.isSVF()) ? "SVF" : "DG") << "\n";
   }

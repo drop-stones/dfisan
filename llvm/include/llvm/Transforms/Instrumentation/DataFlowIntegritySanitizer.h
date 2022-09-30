@@ -9,6 +9,7 @@ namespace dg {
 class LLVMDependenceGraph;
 class DfiProtectInfo;
 struct AnalysisOptions;
+struct LLVMDataDependenceAnalysisOptions;
 using DefID = uint16_t;
 namespace dda {
 class LLVMDataDependenceAnalysis;
@@ -48,7 +49,7 @@ private:
   dg::LLVMDependenceGraph *DG = nullptr;
   dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
   dg::DfiProtectInfo *ProtectInfo = nullptr;
-  const dg::AnalysisOptions *Opts = nullptr;
+  const dg::LLVMDataDependenceAnalysisOptions *Opts = nullptr;
   Module *M = nullptr;
   std::unique_ptr<IRBuilder<>> Builder{nullptr};
   Function *Ctor = nullptr;
@@ -78,9 +79,14 @@ private:
   void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
   void createDfiLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
+  /// Return true if the target is unsafe
+  inline bool isUnsafeAccessTarget(Value *Target);
+  /// Add a target if the targets is unsafe
+  inline void addIfUnsafeAccessTarget(ValueVector &Targets, Value *Target);
+  /// Get unsafe access target or return nullptr
+  inline void getUnsafeAccessTargets(Instruction *Inst, ValueVector &Targets);
   /// Insert unsafe access func before each unsafe access.
-  inline bool isUnsafeAccess(Instruction *Inst);
-  void insertCheckUnsafeAccessFn(Instruction *Inst);
+  void insertCheckUnsafeAccessFn(Instruction *Inst, ValueVector &Targets);
 
   /// Insert global init (because global targets are not initialized)
   void insertGlobalInit(GlobalVariable *GlobVar);

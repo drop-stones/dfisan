@@ -3,6 +3,7 @@
 
 #include "dg/llvm/DataDependence/DataDependence.h"
 #include "dg/Passes/DfiProtectInfo.h"
+#include "dg/Passes/DfiOptions.h"
 
 namespace dg {
 namespace dda {
@@ -20,7 +21,7 @@ public:
   DfiLLVMDataDependenceAnalysis(const llvm::Module *M, 
                                 dg::LLVMPointerAnalysis *PTA,
                                 DfiProtectInfo *ProtectInfo,
-                                LLVMDataDependenceAnalysisOptions Opts = {});
+                                DfiLLVMDataDependenceAnalysisOptions Opts = {});
   
   // We can override isDef conditions.
   bool isDef(const llvm::Value *Val) const override {

@@ -13,6 +13,8 @@ private:
 
   NodesSeq<RWNode> createNode(const llvm::Value *) override;
   RWNode *createLoad(const llvm::Instruction *Inst);
+  RWNode *createDynAlloc(const llvm::Instruction *Inst, AllocationFunction Type) override;
+  RWNode *funcFromModel(const FunctionModel *Model, const llvm::CallInst *Call) override;
 
 protected:
   void buildSubgraph(const llvm::Function &F) override;

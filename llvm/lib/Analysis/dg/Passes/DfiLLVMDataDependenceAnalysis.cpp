@@ -8,10 +8,14 @@
 namespace dg {
 namespace dda {
 
+// DfiLLVMDataDependenceAnalysis::DfiLLVMDataDependenceAnalysis(const llvm::Module *M,
+//                                                              dg::LLVMPointerAnalysis *PTA,
+//                                                              DfiProtectInfo *ProtectInfo,
+//                                                              LLVMDataDependenceAnalysisOptions Opts)
 DfiLLVMDataDependenceAnalysis::DfiLLVMDataDependenceAnalysis(const llvm::Module *M,
                                                              dg::LLVMPointerAnalysis *PTA,
                                                              DfiProtectInfo *ProtectInfo,
-                                                             LLVMDataDependenceAnalysisOptions Opts)
+                                                             DfiLLVMDataDependenceAnalysisOptions Opts)
   : LLVMDataDependenceAnalysis(M, PTA, Opts), ProtectInfo(ProtectInfo) {
   if (builder != nullptr)
     delete(builder);
