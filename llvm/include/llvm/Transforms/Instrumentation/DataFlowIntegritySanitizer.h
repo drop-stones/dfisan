@@ -44,7 +44,7 @@ private:
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
                  CheckUnsafeAccessFn;
-  Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty;
+  Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
   dg::LLVMDependenceGraph *DG = nullptr;
   dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
   dg::DfiProtectInfo *ProtectInfo = nullptr;
@@ -81,6 +81,9 @@ private:
   /// Insert unsafe access func before each unsafe access.
   inline bool isUnsafeAccess(Instruction *Inst);
   void insertCheckUnsafeAccessFn(Instruction *Inst);
+
+  /// Insert global init (because global targets are not initialized)
+  void insertGlobalInit(GlobalVariable *GlobVar);
 };
 
 } // namespace llvm

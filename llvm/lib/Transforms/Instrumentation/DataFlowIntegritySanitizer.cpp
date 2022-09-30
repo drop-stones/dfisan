@@ -203,6 +203,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   Int32Ty = Type::getInt32Ty(Ctx);
   Int64Ty = Type::getInt64Ty(Ctx);
   PtrTy   = Type::getIntNTy(Ctx, LongSize);
+  Int8PtrTy = Type::getInt8PtrTy(Ctx);
 
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, Int16Ty};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
@@ -343,7 +344,6 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   // Put the constructor in GlobalCtors
   appendToGlobalCtors(*M, Ctor, 1);
 
-  // Test for dlmalloc
   return;
 }
 
@@ -401,6 +401,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
     createDfiStoreFn(ProtectInfo->getDefID(GlobVar), GlobVar, Size, Kind, Ctor->getEntryBlock().getTerminator());
+    insertGlobalInit(GlobVar);
   } else {
     llvm::errs() << "No support Def: " << *Def << "\n";
     // llvm_unreachable("No support Def");
@@ -662,4 +663,25 @@ void DataFlowIntegritySanitizerPass::insertCheckUnsafeAccessFn(Instruction *Inst
   Builder->SetInsertPoint(Inst);
   Value *TgtAddr = Builder->CreatePtrToInt(Target, PtrTy);
   Builder->CreateCall(CheckUnsafeAccessFn, {TgtAddr});
+}
+
+// Insert global variable inits for protection targets.
+void DataFlowIntegritySanitizerPass::insertGlobalInit(GlobalVariable *GlobVar) {
+  if (!GlobVar->hasInitializer())
+    return;
+  
+  Type *ValTy = GlobVar->getValueType();
+  Constant *InitVal = GlobVar->getInitializer();
+  LLVM_DEBUG(dbgs() << __func__ << " GlobVar: " << *GlobVar << ", InitVal: " << *InitVal << "\n");
+  Builder->SetInsertPoint(Ctor->getEntryBlock().getTerminator());
+  if (ValTy->isIntOrPtrTy()) {
+    Builder->CreateStore(InitVal, GlobVar);
+  } else if (ValTy->isAggregateType()) {
+    TypeSize Size = M->getDataLayout().getTypeStoreSize(ValTy);
+    Value *SizeVal = ConstantInt::get(Int64Ty, Size.getFixedSize());
+    Value *CastedGlobVar = Builder->CreateBitCast(GlobVar, Int8PtrTy);
+    GlobalVariable *GlobInitVal = new GlobalVariable(*M, InitVal->getType(), true, GlobalValue::PrivateLinkage, InitVal, GlobVar->getName() + "_init");
+    Value *CastedGlobInitVal = Builder->CreateBitCast(GlobInitVal, Int8PtrTy);
+    Builder->CreateMemCpyInline(CastedGlobVar, GlobVar->getAlign(), CastedGlobInitVal, GlobVar->getAlign(), SizeVal);
+  }
 }
