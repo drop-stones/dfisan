@@ -549,6 +549,25 @@ void __dfisan_check_unsafe_access(uptr Addr) {
   }
 }
 
+/* --- Error report --- */
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfisan_invalid_safe_access_report(uptr Addr) {
+  GET_CALLER_PC_BP;
+  Decorator d;
+  Printf("\n%s", d.Error());
+  Printf("ERROR: Invalid access to safe region (%p)\n", (void *)Addr);
+  Printf("%s", d.Default());
+
+  Printf("\n%s", d.StackTrace());
+  Printf("StackTrace:\n");
+  Printf("%s", d.Default());
+  BufferedStackTrace stack;
+  stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal);
+  stack.Print();
+
+  exit(1);
+}
+
 static void DfisanInitInternal() {
   CHECK(dfisan_init_is_running == false);
   if (dfisan_inited == true)

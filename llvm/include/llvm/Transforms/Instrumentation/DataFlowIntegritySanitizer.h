@@ -44,7 +44,7 @@ private:
                  CondUnalignedLoadNFn, CondUnalignedLoad1Fn, CondUnalignedLoad2Fn, CondUnalignedLoad4Fn, CondUnalignedLoad8Fn, CondUnalignedLoad16Fn,
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
-                 CheckUnsafeAccessFn;
+                 CheckUnsafeAccessFn, InvalidSafeAccessReportFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
   dg::LLVMDependenceGraph *DG = nullptr;
   dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
@@ -58,6 +58,22 @@ private:
     Aligned, Unaligned, AlignedOrUnaligned,
     CondAligned, CondUnaligned, CondAlignedOrUnaligned,
   };
+
+  ///
+  //  Runtime check functions
+  ///
+  // Value *createAddrIsInSafeRegion(Value *Addr);
+  Instruction *generateCrashCode(Instruction *InsertBefore, Value *Addr, bool IsUnsafe = false);
+
+  /// Instrument an unsafe access
+  void instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr);
+
+  /// Instrument unsafe accesses in function
+  void instrumentFunction(Function &F);
+
+  ///
+  //  Instrumentation functions
+  ///
 
   /// Initialize member variables.
   void initializeSanitizerFuncs();

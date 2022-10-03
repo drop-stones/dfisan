@@ -3,6 +3,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Transforms/Instrumentation/DataFlowIntegritySanitizer.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"  /* appendToUsed */
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"  /* SplitBlockAndInsertIfThen */
 #include "llvm/Support/Debug.h"
 
 #include "dg/Passes/UseDefAnalysisPass.h"
@@ -122,6 +123,91 @@ constexpr char DfisanCondAlignedOrUnalignedLoad16FnName[] = "__dfisan_cond_align
 /// Unsafe access check
 constexpr char DfisanCheckUnsafeAccessFnName[] = "__dfisan_check_unsafe_access";
 
+/// Error report functions
+constexpr char DfisanInvalidSafeAccessReportFnName[] = "__dfisan_invalid_safe_access_report";
+constexpr char DfisanInvalidUseReportFnName[]        = "__dfisan_invalid_use_report";
+
+/// Memory mapping addresses
+constexpr uintptr_t kUnsafeStackEnd     = 0x7fffffffffff;
+constexpr uintptr_t kUnsafeStackBeg     = 0x70007fff8000;
+constexpr uintptr_t kUnsafeHeapEnd      = 0x10007fffffff;
+constexpr uintptr_t kUnsafeHeapBeg      = 0x100000000000;
+constexpr uintptr_t kSafeAlignedEnd     = 0x87fffffff;
+constexpr uintptr_t kSafeAlignedBeg     = 0x800000000;
+  constexpr uintptr_t kSafeAlignedHeapEnd   = kSafeAlignedEnd;
+  constexpr uintptr_t kSafeAlignedHeapBeg   = 0x810000000;
+  constexpr uintptr_t kSafeAlignedGlobalEnd = 0x80fffffff;
+  constexpr uintptr_t kSafeAlignedGlobalBeg = kSafeAlignedBeg;
+constexpr uintptr_t kShadowAlignedEnd   = 0x43fffffff;
+constexpr uintptr_t kShadowAlignedBeg   = 0x400000000;
+constexpr uintptr_t kShadowGapEnd       = 0x3ffffffff;
+constexpr uintptr_t kShadowGapBeg       = 0x200000000;
+constexpr uintptr_t kShadowUnalignedEnd = 0x1ffffffff;
+constexpr uintptr_t kShadowUnalignedBeg = 0x100000000;
+constexpr uintptr_t kSafeUnalignedEnd   = 0xffffffff;
+constexpr uintptr_t kSafeUnalignedBeg   = 0x80000000;
+  constexpr uintptr_t kSafeUnalignedHeapEnd   = kSafeUnalignedEnd;
+  constexpr uintptr_t kSafeUnalignedHeapBeg   = 0x90000000;
+  constexpr uintptr_t kSafeUnalignedGlobalEnd = 0x8fffffff;
+  constexpr uintptr_t kSafeUnalignedGlobalBeg = kSafeUnalignedBeg;
+constexpr uintptr_t kLowUnsafeEnd       = 0x7fff7fff;
+constexpr uintptr_t kLowUnsafeBeg       = 0x0;
+
+///
+//  Runtime check functions
+///
+static Value *createAddrIsInSafeRegion(IRBuilder<> *IRB, Value *Addr) {
+  Type *AddrTy = IRB->getInt64Ty();
+  Value *AddrLong = IRB->CreatePtrToInt(Addr, AddrTy);
+  Value *SafeBeg  = ConstantInt::get(AddrTy, kSafeUnalignedBeg);
+  Value *SafeEnd  = ConstantInt::get(AddrTy, kSafeAlignedEnd);
+  Value *Cmp1 = IRB->CreateICmpULE(SafeBeg, AddrLong);  // SafeBeg <= Addr
+  Value *Cmp2 = IRB->CreateICmpULE(AddrLong, SafeEnd);  // Addr <= SafeEnd
+  Value *Ret  = IRB->CreateLogicalAnd(Cmp1, Cmp2);
+  return Ret;
+}
+
+Instruction *DataFlowIntegritySanitizerPass::generateCrashCode(Instruction *InsertBefore, Value *Addr, bool IsUnsafe) {
+  Builder->SetInsertPoint(InsertBefore);
+  Value *AddrLong = Builder->CreatePtrToInt(Addr, Int64Ty);
+  CallInst *Call = nullptr;
+  if (IsUnsafe) {
+    Call = Builder->CreateCall(InvalidSafeAccessReportFn, {AddrLong});
+  } else {
+    // Call = Builder->CreateCall();
+    llvm_unreachable("TODO: Implement generateCrashCode of invalid use");
+  }
+  return Call;
+}
+
+void DataFlowIntegritySanitizerPass::instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr) {
+  Builder->SetInsertPoint(OrigInst);
+  Value *Cmp = createAddrIsInSafeRegion(Builder.get(), Addr);
+  Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cmp, OrigInst, /* unreachable */ true);
+  Instruction *Crash = generateCrashCode(CrashTerm, Addr, /* IsUnsafe */ true);
+  Crash->setDebugLoc(OrigInst->getDebugLoc());
+}
+
+void DataFlowIntegritySanitizerPass::instrumentFunction(Function &Func) {
+  using UnsafeInstMap = std::unordered_map<Instruction *, ValueVector>;
+  UnsafeInstMap UnsafeMap;
+  // Collect unsafe instructions
+  for (auto &Inst : instructions(&Func)) {
+    getUnsafeAccessTargets(&Inst, UnsafeMap[&Inst]);
+  }
+  // Instrument unsafe instructions
+  for (auto &Iter : UnsafeMap) {
+    Instruction *UnsafeInst = Iter.first;
+    ValueVector &Targets = Iter.second;
+    if (!Targets.empty())
+      insertCheckUnsafeAccessFn(UnsafeInst, Targets);
+  }
+}
+
+///
+//  Instrumentation Pass
+///
+
 PreservedAnalyses
 DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   LLVM_DEBUG(dbgs() << "DataFlowIntegritySanitizerPass: Insert check functions to enforce data flow integrity\n");
@@ -138,12 +224,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   // Instrument unsafe access
   for (auto &Func : M.getFunctionList()) {
-    for (auto &Inst : instructions(&Func)) {
-      ValueVector Targets;
-      getUnsafeAccessTargets(&Inst, Targets);
-      if (!Targets.empty())
-        insertCheckUnsafeAccessFn(&Inst, Targets);
-    }
+    instrumentFunction(Func);
   }
 
   if (Result.emptyResult()) // skip use-def instrumentation
@@ -216,6 +297,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int32Ty};
   FunctionType *LoadNFnTy = FunctionType::get(VoidTy, LoadNArgTypes, true);
   FunctionType *CheckUnsafeAcessFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
+  FunctionType *InvalidSafeAccessReportFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
 
   DfiInitFn  = M->getOrInsertFunction(DfisanInitFnName, VoidTy);
   DfiStoreNFn = M->getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
@@ -323,6 +405,9 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
 
   // Unsafe access check
   CheckUnsafeAccessFn = M->getOrInsertFunction(DfisanCheckUnsafeAccessFnName, CheckUnsafeAcessFnTy);
+
+  // Error report
+  InvalidSafeAccessReportFn = M->getOrInsertFunction(DfisanInvalidSafeAccessReportFnName, InvalidSafeAccessReportFnTy);
 }
 
 /// Insert a constructor function in comdat
@@ -712,8 +797,7 @@ inline void DataFlowIntegritySanitizerPass::getUnsafeAccessTargets(Instruction *
 void DataFlowIntegritySanitizerPass::insertCheckUnsafeAccessFn(Instruction *Inst, ValueVector &Targets) {
   Builder->SetInsertPoint(Inst);
   for (auto *Target : Targets) {
-    Value *TgtAddr = Builder->CreatePtrToInt(Target, PtrTy);
-    Builder->CreateCall(CheckUnsafeAccessFn, {TgtAddr});
+    instrumentUnsafeAccess(Inst, Target);
   }
 }
 

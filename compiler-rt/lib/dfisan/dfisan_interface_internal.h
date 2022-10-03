@@ -140,6 +140,9 @@ extern "C" {
   // Unsafe access check function which guarantees the access is in unsafe region
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_unsafe_access(uptr Addr);
 
+  // Error report functions
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_invalid_safe_access_report(uptr Addr);
+
   // Old check functions
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id_n (uptr StoreAddr, u64 Size, u16 DefID);
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_store_id_1 (uptr StoreAddr, u16 DefID);
