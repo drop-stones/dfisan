@@ -24,6 +24,7 @@
 // || `[0x0000_7fff_8000, 0x0000_7fff_ffff]` || Gap ||
 // || `[0x0000_0000_0000, 0x0000_7fff_7fff]` || LowUnsafe       ||
 
+#include "dfisan_interface_internal.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 using __sanitizer::u8;
@@ -121,12 +122,16 @@ static inline bool AddrIsInShadow(uptr addr) {
 }
 
 static inline uptr AlignedMemToShadow(uptr addr) {
-  CHECK(AddrIsInSafeAlignedRegion(addr));
+  // CHECK(AddrIsInSafeAlignedRegion(addr));
+  if (!AddrIsInSafeAlignedRegion(addr))
+    __dfisan_invalid_safe_access_report(addr);
   return (addr >> kAlignedShiftWidth);
 }
 
 static inline uptr UnalignedMemToShadow(uptr addr) {
-  CHECK(AddrIsInSafeUnalignedRegion(addr));
+  // CHECK(AddrIsInSafeUnalignedRegion(addr));
+  if (!AddrIsInSafeUnalignedRegion(addr))
+    __dfisan_invalid_safe_access_report(addr);
   return (addr << kUnalignedShiftWidth);
 }
 

@@ -15,6 +15,7 @@ struct move_s {
 };
 
 void readMoveS(struct move_s m) {
+  // Not checked because byval pointer is not a protection target.
   m.from;
   m.target;
   m.captured;
@@ -24,9 +25,10 @@ void readMoveS(struct move_s m) {
 }
 
 int main(void) {
-  struct move_s m = { 100, 200, 300, 400, 500, 600 };
+  struct move_s m __attribute__((annotate("dfi_protection")))
+    = { 100, 200, 300, 400, 500, 600 };
 
-  m.from;     // OK
+  m.from;
   m.target;
   m.captured;
   m.promoted;

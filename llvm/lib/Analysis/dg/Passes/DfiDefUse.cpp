@@ -5,6 +5,27 @@
 
 namespace dg {
 
+/// Return true if the value access memory using byval pointer
+static bool accessByVal(const Value *Val) {
+  Value *Ptr = nullptr;
+  if (auto *Store = dyn_cast<StoreInst>(Val))
+    Ptr = Store->getOperand(1)->stripInBoundsConstantOffsets();
+  else if (auto *Load = dyn_cast<LoadInst>(Val))
+    Ptr = Load->getOperand(0)->stripInBoundsConstantOffsets();
+  else if (isa<CallInst>(Val)) // TODO: check byval attributes
+    return false;
+  else
+    return false;
+
+  if (auto *Arg = dyn_cast<Argument>(Ptr)) {
+    if (Arg->hasByValAttr()) {
+      LLVM_DEBUG(dbgs() << "Found byval access: " << *Val << "\n");
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Copy from DefUse.cpp
 /// Add def-use edges between instruction and its operands
 static void handleOperands(const Instruction *Inst, LLVMNode *node) {
@@ -39,6 +60,7 @@ bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
   // collect def-use of targets
   if (RD->isUse(Val)) {
     assert(isa<Instruction>(Val) && "Use is not instruction");
+    if (accessByVal(Val)) return false;   // byval is not protection target
     Instruction *Inst = dyn_cast<Instruction>(Val);
     DfiDefUseKind Kind = analyzeUseKind(Inst);
     if (Kind.isAlignedOnlyUse())
@@ -66,6 +88,7 @@ void DfiDefUseAnalysis::addDataDependencies(LLVMNode *Node) {
   LLVMDefUseAnalysis::addDataDependencies(Node);
 
   auto *Val = Node->getValue();
+  if (accessByVal(Val)) return;   // byval is not protection target
   auto Defs = RD->getLLVMDefinitions(Val);
   LLVM_DEBUG(dbgs() << "DfiDefUseAnalysis::" << __func__ << ": " << *Val << "\n");
   for (auto *Def : Defs) {
@@ -114,10 +137,10 @@ void DfiDefUseAnalysis::analyzeDefUseKindFromDefSiteSet(DfiDefUseKind &Kind, dg:
 
   for (auto &TargetSite : DefSites) {
     auto *Target = (llvm::Value *)RD->getValue(TargetSite.target);
+    LLVM_DEBUG(dbgs() << " - Target: " << *Target << "\n");
     Kind.IsAligned   |= ProtectInfo->hasAlignedTarget(Target);
     Kind.IsUnaligned |= ProtectInfo->hasUnalignedTarget(Target);
     Kind.IsNoTarget  |= !(ProtectInfo->hasTarget(Target));
-    LLVM_DEBUG(dbgs() << " - Target: " << *Target << "\n");
   }
   LLVM_DEBUG(dbgs() << " - Kind: " << (Kind.IsAligned ? "aligned" : "") << " "
                                    << (Kind.IsUnaligned ? "unaligned" : "") << " "
