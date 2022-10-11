@@ -85,11 +85,47 @@ bool DfiDefUseAnalysis::runOnNode(LLVMNode *Node, LLVMNode *Prev) {
 
 // Collect defs of targets into ProtectInfo.
 void DfiDefUseAnalysis::addDataDependencies(LLVMNode *Node) {
-  LLVMDefUseAnalysis::addDataDependencies(Node);
+  /// Copy from LLVMDefUseAnalysis::addDataDependencies().
+  static std::set<const llvm::Value *> reported_mappings;
 
   auto *Val = Node->getValue();
-  if (accessByVal(Val)) return;   // byval is not protection target
   auto Defs = RD->getLLVMDefinitions(Val);
+
+  // add data dependence
+  for (auto *Def : Defs) {
+      LLVMNode *rdNode = dg->getNode(Def);
+      if (!rdNode) {
+          // that means that the Value is not from this graph.
+          // We need to add interprocedural edge
+          llvm::Function *F = llvm::cast<llvm::Instruction>(Def)
+                                      ->getParent()
+                                      ->getParent();
+          assert(F != nullptr && "Func is nullptr");
+          LLVMNode *entryNode = dg->getGlobalNode(F);
+          if (entryNode == nullptr) {
+              llvm::errs() << "Skip no-called function: " << F->getName() << "\n";
+              continue;
+          }
+          assert(entryNode && "Don't have built function");
+
+          // get the graph where the Node lives
+          LLVMDependenceGraph *graph = entryNode->getDG();
+          assert(graph != dg && "Cannot find a Node");
+          rdNode = graph->getNode(Def);
+          if (!rdNode) {
+              // llvmutils::printerr("[DU] error: DG doesn't have val: ", Def);
+              llvm::errs() << "[DU] error: DG doesn't have Val: " << *Def << "\n";
+              abort();
+              return;
+          }
+      }
+
+      assert(rdNode);
+      rdNode->addDataDependence(Node);
+  }
+
+  /// Collect defs of targets into ProtectInfo.
+  if (accessByVal(Val)) return;   // byval is not protection target
   LLVM_DEBUG(dbgs() << "DfiDefUseAnalysis::" << __func__ << ": " << *Val << "\n");
   for (auto *Def : Defs) {
     LLVM_DEBUG(dbgs() << " - Def: " << *Def << "\n");

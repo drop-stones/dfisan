@@ -17,6 +17,7 @@
 #include "dg/Passes/UseDefBuilder.h"
 #include "dg/Passes/UseDefLogger.h"
 #include "dg/Passes/DfiUtils.h"
+#include "dg/llvm/PointerAnalysis/LLVMPointerAnalysisOptions.h"
 
 using namespace llvm;
 using namespace dg;
@@ -26,13 +27,14 @@ AnalysisKey UseDefAnalysisPass::Key;
 
 UseDefAnalysisPass::Result
 UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  /// Error at assert(entryNode) in dda::LLVMDefUseAnalysis::addDataDependencies().
-  // llvmdg::LLVMDependenceGraphOptions Opts;
-  // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::svf;
-  // std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, Opts);
-
   auto &AnalysisResult = MAM.getResult<CollectProtectionTargetPass>(M);
-  std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, AnalysisResult.getAlignedTargets(), AnalysisResult.getUnalignedTargets());
+  llvmdg::LLVMDependenceGraphOptions Opts;
+  /// Error at assert(entryNode) in dda::LLVMDefUseAnalysis::addDataDependencies().
+  // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::svf;
+  // Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::fs;
+  Opts.PTAOptions.analysisType = dg::LLVMPointerAnalysisOptions::AnalysisType::fi;
+  std::unique_ptr<dg::UseDefBuilder> Builder = std::make_unique<dg::UseDefBuilder>(&M, AnalysisResult.getAlignedTargets(), AnalysisResult.getUnalignedTargets(), Opts);
+
   if (Builder->getProtectInfo()->emptyTarget()) { // skip use-def analysis
     UseDefAnalysisPass::Result Result{ std::move(Builder->moveProtectInfo()) };
     return Result;
