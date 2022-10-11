@@ -42,6 +42,7 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   Builder->buildDG();
   Builder->collectFSUseDef();
+  Builder->getProtectInfo()->renameDefIDs();  // Rename optimization
 
   Builder->getProtectInfo()->dump(llvm::outs());
 

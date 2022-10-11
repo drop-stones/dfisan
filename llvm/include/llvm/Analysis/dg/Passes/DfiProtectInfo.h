@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include "llvm/ADT/SparseBitVector.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -50,7 +51,11 @@ public:
   void insertUnalignedOrNoTargetUse(llvm::Instruction *Use) { Uses.insert(Use); UnalignedOrNoTargetUses.insert(Use); }
   void insertBothOrNoTargetUse(llvm::Instruction *Use)      { Uses.insert(Use); BothOrNoTargetUses.insert(Use); }
 
-  void insertUseDef(llvm::Instruction *Use, llvm::Value *Def) { UseDef[Use].insert(Def); }
+  void insertUseDef(llvm::Instruction *Use, llvm::Value *Def) {
+    if (!hasDef(Def) || !hasUse(Use)) // the Def or Use is not an access of protection targets
+      return;
+    UseDef[Use].insert(Def); 
+  }
 
   bool hasDefID(llvm::Value *Def) {
     return DefToInfo.count(Def) != 0;
@@ -117,8 +122,13 @@ public:
     OS << "UseDef\n";
     for (const auto &Iter : UseDef) {
       OS << "Use: " << *Iter.first << "\n";
+      std::set<DefID> IDs;
       for (auto *Def : Iter.second)
-        OS << " - Def: " << *Def << "\n";
+        IDs.insert(getDefID(Def));
+      OS << " - DefID: { ";
+      for (auto ID : IDs)
+        OS << ID << ", ";
+      OS << "}\n";
     }
   }
 
@@ -145,6 +155,63 @@ public:
   DefInfoMap DefToInfo;
   InstSet Uses;
   UseDefMap UseDef;
+
+  struct UseSet {
+    llvm::SparseBitVector<> Uses;
+    ValueSet Defs;
+    UseSet(llvm::SparseBitVector<> Uses, ValueSet Defs) : Uses(Uses), Defs(Defs) {}
+  };
+
+  // Rename optimization:
+  //   Rename DefID-a to DefID-b if the Def-a instruction and the Def-b instruction
+  //   has the same use sets.
+  void renameDefIDs() {
+    using DefToUse = std::unordered_map<llvm::Value *, llvm::SparseBitVector<>>;
+    using UseToDef = std::vector<UseSet>;
+    using UseVec = std::vector<llvm::Instruction *>;
+    DefToUse DefUse;
+    UseToDef RenameVec;
+    UseVec Uses;
+    // Construct Def-Use map from Use-Def.
+    for (auto &Iter : UseDef) {
+      auto *Use = Iter.first;
+      auto &Defs = Iter.second;
+      Uses.push_back(Use);
+      unsigned int UseID = Uses.size() - 1;
+      for (auto *Def : Defs)
+        DefUse[Def].test_and_set(UseID);
+    }
+    // Construct a map of UseSet to Defs.
+    for (auto &Iter : DefUse) {
+      auto *Def = Iter.first;
+      auto &Uses = Iter.second;
+      UseToDef::iterator Ptr;
+      for (Ptr = RenameVec.begin(); Ptr != RenameVec.end(); Ptr++) {
+        if (Ptr->Uses == Uses) {
+          Ptr->Defs.insert(Def);
+          break;
+        }
+      }
+      if (Ptr == RenameVec.end()) { // new element of RenameVec
+        RenameVec.emplace_back(Uses, ValueSet{Def});
+      }
+    }
+    // Rename DefIDs
+    for (auto &UseSet : RenameVec) {
+      assert(!UseSet.Defs.empty() && "UseSet.Defs is empty");
+      auto *Representative = *UseSet.Defs.begin();
+      DefID ID = getDefID(Representative);
+      for (auto *Def : UseSet.Defs) {
+        DefToInfo[Def].ID = ID;
+      }
+    }
+    // Print for debug
+    // for (auto &UseSet : RenameVec) {
+    //   llvm::errs() << "Same DefID set:\n";
+    //   for (auto *Def : UseSet.Defs)
+    //     llvm::errs() << " - " << *Def << "\n";
+    // }
+  }
 
 private:
   const DefID InitID = 1;

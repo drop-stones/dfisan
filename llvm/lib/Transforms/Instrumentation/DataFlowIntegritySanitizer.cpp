@@ -508,12 +508,17 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Instruction *Use, UseDefKin
   }
 
   // collect def-id's
-  ValueVector DefIDs;
+  std::set<dg::DefID> DefIDSet;   // Use std::set to prevent duplicate
   for (auto *Def : ProtectInfo->UseDef[Use]) {
-    if (ProtectInfo->hasDefID(Def)) { // Def may be a no-target instruction.
-      Value *DefID = ConstantInt::get(Int32Ty, ProtectInfo->getDefID(Def), false);
-      DefIDs.push_back(DefID);
-    }
+    if (ProtectInfo->hasDefID(Def)) // Def may be a no-target instruction.
+      DefIDSet.insert(ProtectInfo->getDefID(Def));
+  }
+
+  // create vector from DefIDSet
+  ValueVector DefIDs;
+  for (auto DefID : DefIDSet) {
+    Value *IDVal = ConstantInt::get(Int32Ty, DefID, false);
+    DefIDs.push_back(IDVal);
   }
 
   if (LoadInst *Load = dyn_cast<LoadInst>(Use)) {
