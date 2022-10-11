@@ -15,7 +15,7 @@ public:
   UseDefBuilder(llvm::Module *M, ValueSet &Aligned, ValueSet &Unaligned)
     : UseDefBuilder(M, Aligned, Unaligned, {}) {}
   UseDefBuilder(llvm::Module *M, ValueSet &Aligned, ValueSet &Unaligned, const llvmdg::LLVMDependenceGraphOptions &Opts)
-    : ProtectInfo(std::make_unique<DfiProtectInfo>(Aligned, Unaligned)), DgBuilder(std::make_unique<llvmdg::DfiLLVMDependenceGraphBuilder>(ProtectInfo.get(), M, Opts)),  M(M) {}
+    : ProtectInfo(std::make_unique<DfiProtectInfo>(Aligned, Unaligned)), DgBuilder(std::make_unique<llvmdg::DfiLLVMDependenceGraphBuilder>(ProtectInfo.get(), M, Opts)), Opts(Opts), M(M) {}
   
   LLVMDependenceGraph *getDG() { return DG.get(); }
   LLVMDataDependenceAnalysis *getDDA() { return DG->getDDA(); }
@@ -31,6 +31,9 @@ public:
     return DG.get();
   }
 
+  /// Collect field-sensitive def-use and store them into ProtectInfo.
+  void collectFSUseDef();
+
   const std::vector<dda::RWNode *> &getGlobals() {
     return getDDA()->getGlobals();
   }
@@ -44,6 +47,7 @@ private:
   std::unique_ptr<DfiProtectInfo> ProtectInfo{nullptr};
   std::unique_ptr<llvmdg::DfiLLVMDependenceGraphBuilder> DgBuilder{nullptr};
   std::unique_ptr<LLVMDependenceGraph> DG{nullptr};
+  const llvmdg::LLVMDependenceGraphOptions &Opts;
   llvm::Module *M;
 
 public:

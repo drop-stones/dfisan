@@ -8,6 +8,10 @@ using namespace llvm;
 
 namespace dg {
 
+// Return an access pointer or nullptr if the value is CallInst.
+Value *getAccessPtr(const Value *Val);
+// Return an access stripped object or nullptr if the value is CallInst.
+Value *getAccessObj(const Value *Val);
 bool isMemoryAllocCall(llvm::Value *V);
 
 void printUseDefFromDebugLoc(dda::LLVMDataDependenceAnalysis *DDA, Value *Val, unsigned int Col, unsigned int Line);

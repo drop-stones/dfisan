@@ -13,6 +13,7 @@ namespace dg {
 
 using ValueSet = std::unordered_set<llvm::Value *>;
 using InstSet = std::unordered_set<llvm::Instruction *>;
+using UseDefMap = std::unordered_map<llvm::Instruction *, ValueSet>;
 
 using DefID = uint16_t;
 struct DefInfo {
@@ -42,12 +43,14 @@ public:
   void insertUnalignedOrNoTargetDef(llvm::Value *Def) { UnalignedOrNoTargetDefs.insert(Def); assignDefID(Def); }
   void insertBothOrNoTargetDef(llvm::Value *Def)      { BothOrNoTargetDefs.insert(Def); assignDefID(Def); }
 
-  void insertAlignedOnlyUse(llvm::Instruction *Use)         { AlignedOnlyUses.insert(Use); }
-  void insertUnalignedOnlyUse(llvm::Instruction *Use)       { UnalignedOnlyUses.insert(Use); }
-  void insertBothOnlyUse(llvm::Instruction *Use)            { BothOnlyUses.insert(Use); }
-  void insertAlignedOrNoTargetUse(llvm::Instruction *Use)   { AlignedOrNoTargetUses.insert(Use); }
-  void insertUnalignedOrNoTargetUse(llvm::Instruction *Use) { UnalignedOrNoTargetUses.insert(Use); }
-  void insertBothOrNoTargetUse(llvm::Instruction *Use)      { BothOrNoTargetUses.insert(Use); }
+  void insertAlignedOnlyUse(llvm::Instruction *Use)         { Uses.insert(Use); AlignedOnlyUses.insert(Use); }
+  void insertUnalignedOnlyUse(llvm::Instruction *Use)       { Uses.insert(Use); UnalignedOnlyUses.insert(Use); }
+  void insertBothOnlyUse(llvm::Instruction *Use)            { Uses.insert(Use); BothOnlyUses.insert(Use); }
+  void insertAlignedOrNoTargetUse(llvm::Instruction *Use)   { Uses.insert(Use); AlignedOrNoTargetUses.insert(Use); }
+  void insertUnalignedOrNoTargetUse(llvm::Instruction *Use) { Uses.insert(Use); UnalignedOrNoTargetUses.insert(Use); }
+  void insertBothOrNoTargetUse(llvm::Instruction *Use)      { Uses.insert(Use); BothOrNoTargetUses.insert(Use); }
+
+  void insertUseDef(llvm::Instruction *Use, llvm::Value *Def) { UseDef[Use].insert(Def); }
 
   bool hasDefID(llvm::Value *Def) {
     return DefToInfo.count(Def) != 0;
@@ -61,9 +64,7 @@ public:
     return hasDefID(Def);
   }
   bool hasUse(llvm::Instruction *Use) {
-    return AlignedOnlyUses.count(Use) != 0 || UnalignedOnlyUses.count(Use) != 0
-        || BothOnlyUses.count(Use) != 0    || AlignedOrNoTargetUses.count(Use) != 0
-        || UnalignedOrNoTargetUses.count(Use) != 0 || BothOrNoTargetUses.count(Use) != 0;
+    return Uses.count(Use) != 0;
   }
 
   void dump(llvm::raw_ostream &OS) {
@@ -112,6 +113,13 @@ public:
     OS << "BothOrNoTarget Use instructions:\n";
     for (auto *Use : BothOrNoTargetUses)
       OS << " - " << *Use << "\n";
+
+    OS << "UseDef\n";
+    for (const auto &Iter : UseDef) {
+      OS << "Use: " << *Iter.first << "\n";
+      for (auto *Def : Iter.second)
+        OS << " - Def: " << *Def << "\n";
+    }
   }
 
   /// Protection Targets
@@ -135,6 +143,8 @@ public:
   InstSet BothOrNoTargetUses;
 
   DefInfoMap DefToInfo;
+  InstSet Uses;
+  UseDefMap UseDef;
 
 private:
   const DefID InitID = 1;

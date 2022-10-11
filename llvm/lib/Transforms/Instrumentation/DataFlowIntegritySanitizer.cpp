@@ -509,7 +509,7 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Instruction *Use, UseDefKin
 
   // collect def-id's
   ValueVector DefIDs;
-  for (auto *Def : DDA->getLLVMDefinitions(Use)) {
+  for (auto *Def : ProtectInfo->UseDef[Use]) {
     if (ProtectInfo->hasDefID(Def)) { // Def may be a no-target instruction.
       Value *DefID = ConstantInt::get(Int32Ty, ProtectInfo->getDefID(Def), false);
       DefIDs.push_back(DefID);

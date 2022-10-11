@@ -14,6 +14,34 @@ UseDefBuilder::isUse(llvm::Value *Val) {
 }
 
 void
+UseDefBuilder::collectFSUseDef() {
+  SVFPointerAnalysis Svf{M, Opts.PTAOptions};
+  Svf.run();
+  auto *DDA = DG->getDDA();
+
+  for (auto *Use : ProtectInfo->Uses) {
+    assert(llvm::isa<Instruction>(Use) && "Use must be instruction");
+    Instruction *UseInst = dyn_cast<Instruction>(Use);
+    auto *UseTarget = getAccessPtr(Use);
+    if (UseTarget == nullptr) continue;
+    auto Defs = DDA->getLLVMDefinitions(Use);
+    auto *Node = DDA->getNode(Use);
+    assert((Node != nullptr && Node->defuse.initialized()) && "Use node is nullptr");
+    // llvm::errs() << "Use: " << *Use << ", Target: " << *UseTarget << "\n";
+    for (auto *Def : Defs) {
+      auto *DefTarget = getAccessPtr(Def);
+      // llvm::errs() << " - Def: " << *Def << ", Target: " << *DefTarget << "\n";
+      if (DefTarget == nullptr || Svf.alias(UseTarget, DefTarget)) {
+        // llvm::errs() << " Alias: " << *UseTarget << " ++ " << *DefTarget << "\n";
+        ProtectInfo->insertUseDef(UseInst, Def);
+      }
+    }
+  }
+
+  return;
+}
+
+void
 UseDefBuilder::dump(llvm::raw_ostream &OS) {
   OS << __func__ << "\n";
   auto *DDA = getDDA();

@@ -12,6 +12,24 @@ namespace dg {
 static constexpr unsigned MemoryAllocFuncCount = 3;
 static constexpr char MemoryAllocFunc[MemoryAllocFuncCount][10] = {"malloc", "calloc", "realloc"};
 
+Value *getAccessPtr(const Value *Val) {
+  Value *Ptr = nullptr;
+  if (auto *Store = dyn_cast<StoreInst>(Val))
+    Ptr = Store->getOperand(1);
+  else if (auto *Load = dyn_cast<LoadInst>(Val))
+    Ptr = Load->getOperand(0);
+  else if (isa<CallInst>(Val)) // TODO: check byval attributes
+    Ptr = nullptr;
+
+  return Ptr;
+}
+
+Value *getAccessObj(const Value *Val) {
+  Value *Ptr = getAccessPtr(Val);
+  if (Ptr == nullptr) return nullptr;
+  return Ptr->stripInBoundsConstantOffsets();
+}
+
 bool isMemoryAllocCall(Value *V) {
   if (const auto *Call = dyn_cast<llvm::CallInst>(V)) {
     const Function *Func = Call->getCalledFunction();

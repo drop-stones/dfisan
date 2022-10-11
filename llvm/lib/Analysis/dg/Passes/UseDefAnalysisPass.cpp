@@ -41,6 +41,7 @@ UseDefAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
 
   Builder->buildDG();
+  Builder->collectFSUseDef();
 
   Builder->getProtectInfo()->dump(llvm::outs());
 

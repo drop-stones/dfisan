@@ -163,12 +163,21 @@ class SVFPointerAnalysis : public LLVMPointerAnalysis {
         PAGBuilder builder;
         PAG *pag = builder.build(_svfModule);
 
-        _pta.reset(new Andersen(pag));
+        // _pta.reset(new Andersen(pag));
+        _pta.reset(new AndersenWaveDiff(pag));
         _pta->disablePrintStat();
         _pta->analyze();
 
         DBG_SECTION_END(pta, "Done running SVF pointer analysis (Andersen)");
         return true;
+    }
+
+    bool alias(const llvm::Value *Rhs, const llvm::Value *Lhs) const {
+        auto RhsNode = _pta->getPAG()->getValueNode(Rhs);
+        auto &RhsPts = _pta->getPts(RhsNode);
+        auto LhsNode = _pta->getPAG()->getValueNode(Lhs);
+        auto &LhsPts = _pta->getPts(LhsNode);
+        return RhsPts.intersects(LhsPts);
     }
 };
 

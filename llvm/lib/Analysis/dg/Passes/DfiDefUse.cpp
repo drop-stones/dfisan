@@ -7,15 +7,8 @@ namespace dg {
 
 /// Return true if the value access memory using byval pointer
 static bool accessByVal(const Value *Val) {
-  Value *Ptr = nullptr;
-  if (auto *Store = dyn_cast<StoreInst>(Val))
-    Ptr = Store->getOperand(1)->stripInBoundsConstantOffsets();
-  else if (auto *Load = dyn_cast<LoadInst>(Val))
-    Ptr = Load->getOperand(0)->stripInBoundsConstantOffsets();
-  else if (isa<CallInst>(Val)) // TODO: check byval attributes
-    return false;
-  else
-    return false;
+  Value *Ptr = getAccessObj(Val);
+  if (Ptr == nullptr) return false;
 
   if (auto *Arg = dyn_cast<Argument>(Ptr)) {
     if (Arg->hasByValAttr()) {

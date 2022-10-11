@@ -7,7 +7,7 @@
 namespace dg {
 // class UseDefBuilder;
 class LLVMDependenceGraph;
-class DfiProtectInfo;
+struct DfiProtectInfo;
 struct AnalysisOptions;
 struct LLVMDataDependenceAnalysisOptions;
 using DefID = uint16_t;
