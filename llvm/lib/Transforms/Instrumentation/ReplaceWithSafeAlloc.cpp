@@ -11,6 +11,14 @@
 
 using namespace llvm;
 
+///
+// Command-line flags
+///
+
+static cl::opt<bool> ClUnalignedRegionOnly(
+  "unaligned-region-only", cl::desc("Protection targets are placed in unaligned region only"),
+  cl::Hidden, cl::init(false));
+
 namespace {
 
 const DataLayout *DL;
@@ -34,6 +42,13 @@ bool isFourAligned(Type *TargetType) {
   }
   LLVM_DEBUG(dbgs() << (Ret ? "Four Align" : "Not Four Align") << "\n");
   return Ret;
+}
+
+// Check whether the given Type should be in aligned region or not.
+bool isInAlignedRegion(Type *TargetType) {
+  if (ClUnalignedRegionOnly)  // if the option is on, all targets should be in unaligned region
+    return false;
+  return isFourAligned(TargetType);
 }
 
 void initTypes(Module &M) {
@@ -68,8 +83,8 @@ Value *createSafeAllocAndFree(Instruction *OrigInst, Type *OrigTy) {
     // Create safe malloc for local alloca
     TypeSize Size = DL->getTypeAllocSize(OrigTy);
     Constant *SizeVal = ConstantInt::get(Int64Ty, Size);
-    CallInst *SafeAlloc = isFourAligned(OrigTy) ? Builder.CreateCall(MallocTy, SafeAlignedMalloc.getCallee(), {SizeVal})
-                                                : Builder.CreateCall(MallocTy, SafeUnalignedMalloc.getCallee(), {SizeVal});
+    CallInst *SafeAlloc = isInAlignedRegion(OrigTy) ? Builder.CreateCall(MallocTy, SafeAlignedMalloc.getCallee(), {SizeVal})
+                                                    : Builder.CreateCall(MallocTy, SafeUnalignedMalloc.getCallee(), {SizeVal});
     NewVal = Builder.CreateBitCast(SafeAlloc, Alloca->getType(), Alloca->getName() + "_replaced");
 
     // Insert free for safe malloc before return
@@ -83,8 +98,8 @@ Value *createSafeAllocAndFree(Instruction *OrigInst, Type *OrigTy) {
     // Insert free before return
     for (auto *Ret : Rets) {
       Builder.SetInsertPoint(Ret);
-      isFourAligned(OrigTy) ? Builder.CreateCall(SafeAlignedFree, SafeAlloc)
-                            : Builder.CreateCall(SafeUnalignedFree, SafeAlloc);
+      isInAlignedRegion(OrigTy) ? Builder.CreateCall(SafeAlignedFree, SafeAlloc)
+                                : Builder.CreateCall(SafeUnalignedFree, SafeAlloc);
     }
   } else if (CallInst *Call = dyn_cast<CallInst>(OrigInst)) {
     // Create safe alloc for heap alloc
@@ -92,18 +107,18 @@ Value *createSafeAllocAndFree(Instruction *OrigInst, Type *OrigTy) {
     assert(Callee != nullptr && "Invalid Callee");
     if (Callee->getName() == "safe_malloc") {
       Value *SizeVal = Call->getArgOperand(0);
-      NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(MallocTy, SafeAlignedMalloc.getCallee(), {SizeVal})
-                                     : Builder.CreateCall(MallocTy, SafeUnalignedMalloc.getCallee(), {SizeVal});
+      NewVal = isInAlignedRegion(OrigTy) ? Builder.CreateCall(MallocTy, SafeAlignedMalloc.getCallee(), {SizeVal})
+                                         : Builder.CreateCall(MallocTy, SafeUnalignedMalloc.getCallee(), {SizeVal});
     } else if (Callee->getName() == "safe_calloc") {
       Value *SizeVal = Call->getArgOperand(0);
       Value *ElemSizeVal = Call->getArgOperand(1);
-      NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(CallocTy, SafeAlignedCalloc.getCallee(), {SizeVal, ElemSizeVal})
-                                     : Builder.CreateCall(CallocTy, SafeUnalignedCalloc.getCallee(), {SizeVal, ElemSizeVal});
+      NewVal = isInAlignedRegion(OrigTy) ? Builder.CreateCall(CallocTy, SafeAlignedCalloc.getCallee(), {SizeVal, ElemSizeVal})
+                                         : Builder.CreateCall(CallocTy, SafeUnalignedCalloc.getCallee(), {SizeVal, ElemSizeVal});
     } else if (Callee->getName() == "safe_realloc") {
       Value *PtrVal = Call->getArgOperand(0);
       Value *SizeVal = Call->getArgOperand(1);
-      NewVal = isFourAligned(OrigTy) ? Builder.CreateCall(ReallocTy, SafeAlignedRealloc.getCallee(), {PtrVal, SizeVal})
-                                     : Builder.CreateCall(ReallocTy, SafeUnalignedRealloc.getCallee(), {PtrVal, SizeVal});
+      NewVal = isInAlignedRegion(OrigTy) ? Builder.CreateCall(ReallocTy, SafeAlignedRealloc.getCallee(), {PtrVal, SizeVal})
+                                         : Builder.CreateCall(ReallocTy, SafeUnalignedRealloc.getCallee(), {PtrVal, SizeVal});
     } else {
       llvm_unreachable("No support function call");
     }
@@ -162,7 +177,7 @@ void setSafeSectionToGlobalTargets(ValueSet &GlobalTargets) {
       if (GlobVar->getName() == "stdout")
         continue;
     Type *TargetType = GlobVar->getValueType();
-    if (isFourAligned(TargetType)) {
+    if (isInAlignedRegion(TargetType)) {
       GlobVar->setSection(SafeAlignedGlobalSecName);
       LLVM_DEBUG(dbgs() << "Set section " << SafeAlignedGlobalSecName << " for " << *GlobVar << "\n");
     } else {

@@ -24,6 +24,23 @@ $ ninja
 $ bin/clang -fsanitize=dfi foo.c
 ```
 
+#### Some options
+
+Output def-use to sqlite3
+```
+$ bin/clang -fsanitize=dfi -mllvm --debug-only=usedef-log foo.c
+```
+
+Use a single unaligned region only
+```
+$ bin/clang -fsanitize=dfi -mllvm -unaligned-region-only foo.c
+```
+
+Instrument all unsafe accesses (default: instrument only variable-offset accesses)
+```
+$ bin/clang -fsanitize=dfi -mllvm -check-all-unsafe-access foo.c
+```
+
 ### Testing
 
 ```

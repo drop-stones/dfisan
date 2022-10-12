@@ -130,6 +130,7 @@ public:
         OS << ID << ", ";
       OS << "}\n";
     }
+    OS.flush();
   }
 
   /// Protection Targets

@@ -154,6 +154,14 @@ constexpr uintptr_t kLowUnsafeEnd       = 0x7fff7fff;
 constexpr uintptr_t kLowUnsafeBeg       = 0x0;
 
 ///
+// Command-line flags
+///
+
+static cl::opt<bool> ClCheckAllUnsafeAccess(
+  "check-all-unsafe-access", cl::desc("Instrument all unsafe accesses to protect targets"),
+  cl::Hidden, cl::init(false));
+
+///
 //  Runtime check functions
 ///
 static Value *createAddrIsInSafeRegion(IRBuilder<> *IRB, Value *Addr) {
@@ -738,6 +746,9 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
 inline bool DataFlowIntegritySanitizerPass::isUnsafeAccessTarget(Value *Target) {
   if (ProtectInfo->hasTarget(Target))
     return false;
+  if (ClCheckAllUnsafeAccess)
+    return true;
+  // Do not check these constant offset access.
   if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Target))
     return false;
   if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Target))
