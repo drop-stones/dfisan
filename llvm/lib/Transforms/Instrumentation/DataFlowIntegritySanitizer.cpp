@@ -5,6 +5,7 @@
 #include "llvm/Transforms/Utils/ModuleUtils.h"  /* appendToUsed */
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"  /* SplitBlockAndInsertIfThen */
 #include "llvm/Support/Debug.h"
+#include "llvm/ADT/Statistic.h"
 
 #include "dg/Passes/UseDefAnalysisPass.h"
 #include "dg/Passes/UseDefBuilder.h"
@@ -154,7 +155,7 @@ constexpr uintptr_t kLowUnsafeEnd       = 0x7fff7fff;
 constexpr uintptr_t kLowUnsafeBeg       = 0x0;
 
 ///
-// Command-line flags
+//  Command-line flags
 ///
 
 static cl::opt<bool> ClCheckAllUnsafeAccess(
@@ -162,8 +163,27 @@ static cl::opt<bool> ClCheckAllUnsafeAccess(
   cl::Hidden, cl::init(false));
 
 ///
+//  Statistics
+///
+
+STATISTIC(NumInstrumentedUnsafeAccesses,               "Number of instrumented unsafe accesses");
+STATISTIC(NumInstrumentedAlignedStores,                "Number of instrumented aligned stores");
+STATISTIC(NumInstrumentedUnalignedStores,              "Number of instrumented unaligned stores");
+STATISTIC(NumInstrumentedAlignedOrUnalignedStores,     "Number of instrumented aligned-or-unaligned stores");
+STATISTIC(NumInstrumentedCondAlignedStores,            "Number of instrumented conditional aligned stores");
+STATISTIC(NumInstrumentedCondUnalignedStores,          "Number of instrumented conditional unaligned stores");
+STATISTIC(NumInstrumentedCondAlignedOrUnalignedStores, "Number of instrumented conditional aligned or unaligned stores");
+STATISTIC(NumInstrumentedAlignedLoads,                 "Number of instrumented aligned loads");
+STATISTIC(NumInstrumentedUnalignedLoads,               "Number of instrumented unaligned loads");
+STATISTIC(NumInstrumentedAlignedOrUnalignedLoads,      "Number of instrumented aligned-or-unaligned loads");
+STATISTIC(NumInstrumentedCondAlignedLoads,             "Number of instrumented conditional aligned loads");
+STATISTIC(NumInstrumentedCondUnalignedLoads,           "Number of instrumented conditional unaligned loads");
+STATISTIC(NumInstrumentedCondAlignedOrUnalignedLoads,  "Number of instrumented conditional aligned or unaligned loads");
+
+///
 //  Runtime check functions
 ///
+
 static Value *createAddrIsInSafeRegion(IRBuilder<> *IRB, Value *Addr) {
   Type *AddrTy = IRB->getInt64Ty();
   Value *AddrLong = IRB->CreatePtrToInt(Addr, AddrTy);
@@ -194,6 +214,8 @@ void DataFlowIntegritySanitizerPass::instrumentUnsafeAccess(Instruction *OrigIns
   Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cmp, OrigInst, /* unreachable */ true);
   Instruction *Crash = generateCrashCode(CrashTerm, Addr, /* IsUnsafe */ true);
   Crash->setDebugLoc(OrigInst->getDebugLoc());
+
+  NumInstrumentedUnsafeAccesses++;
 }
 
 void DataFlowIntegritySanitizerPass::instrumentFunction(Function &Func) {
@@ -585,6 +607,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
     case 16:  Builder->CreateCall(AlignedStore16Fn, Args); break;
     default:  Builder->CreateCall(AlignedStoreNFn, NArgs); break;
     }
+    NumInstrumentedAlignedStores++;
     break;
   }
   case UseDefKind::Unaligned: {
@@ -596,6 +619,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
     case 16:  Builder->CreateCall(UnalignedStore16Fn, Args); break;
     default:  Builder->CreateCall(UnalignedStoreNFn, NArgs); break;
     }
+    NumInstrumentedUnalignedStores++;
     break;
   } 
   case UseDefKind::AlignedOrUnaligned: {
@@ -607,6 +631,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
     case 16:  Builder->CreateCall(AlignedOrUnalignedStore16Fn, Args); break;
     default:  Builder->CreateCall(AlignedOrUnalignedStoreNFn, NArgs); break;
     }
+    NumInstrumentedAlignedOrUnalignedStores++;
     break;
   }
   case UseDefKind::CondAligned: {
@@ -618,6 +643,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
     case 16:  Builder->CreateCall(CondAlignedStore16Fn, Args); break;
     default:  Builder->CreateCall(CondAlignedStoreNFn, NArgs); break;
     }
+    NumInstrumentedCondAlignedStores++;
     break;
   }
   case UseDefKind::CondUnaligned: {
@@ -629,6 +655,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
     case 16:  Builder->CreateCall(CondUnalignedStore16Fn, Args); break;
     default:  Builder->CreateCall(CondUnalignedStoreNFn, NArgs); break;
     }
+    NumInstrumentedCondUnalignedStores++;
     break;
   }
   case UseDefKind::CondAlignedOrUnaligned: {
@@ -640,6 +667,7 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
     case 16:  Builder->CreateCall(CondAlignedOrUnalignedStore16Fn, Args); break;
     default:  Builder->CreateCall(CondAlignedOrUnalignedStoreNFn, NArgs); break;
     }
+    NumInstrumentedCondAlignedOrUnalignedStores++;
     break;
   }
   // default: llvm_unreachable("Invalid UseDefKind");
@@ -682,6 +710,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     case 16:  Builder->CreateCall(AlignedLoad16Fn, Args); break;
     default:  Builder->CreateCall(AlignedLoadNFn, NArgs); break;
     }
+    NumInstrumentedAlignedLoads++;
     break;
   }
   case UseDefKind::Unaligned: {
@@ -693,6 +722,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     case 16:  Builder->CreateCall(UnalignedLoad16Fn, Args); break;
     default:  Builder->CreateCall(UnalignedLoadNFn, NArgs); break;
     }
+    NumInstrumentedUnalignedLoads++;
     break;
   } 
   case UseDefKind::AlignedOrUnaligned: {
@@ -704,6 +734,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     case 16:  Builder->CreateCall(AlignedOrUnalignedLoad16Fn, Args); break;
     default:  Builder->CreateCall(AlignedOrUnalignedLoadNFn, NArgs); break;
     }
+    NumInstrumentedAlignedOrUnalignedLoads++;
     break;
   }
   case UseDefKind::CondAligned: {
@@ -715,6 +746,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     case 16:  Builder->CreateCall(CondAlignedLoad16Fn, Args); break;
     default:  Builder->CreateCall(CondAlignedLoadNFn, NArgs); break;
     }
+    NumInstrumentedCondAlignedLoads++;
     break;
   }
   case UseDefKind::CondUnaligned: {
@@ -726,6 +758,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     case 16:  Builder->CreateCall(CondUnalignedLoad16Fn, Args); break;
     default:  Builder->CreateCall(CondUnalignedLoadNFn, NArgs); break;
     }
+    NumInstrumentedCondUnalignedLoads++;
     break;
   }
   case UseDefKind::CondAlignedOrUnaligned: {
@@ -737,6 +770,7 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     case 16:  Builder->CreateCall(CondAlignedOrUnalignedLoad16Fn, Args); break;
     default:  Builder->CreateCall(CondAlignedOrUnalignedLoadNFn, NArgs); break;
     }
+    NumInstrumentedCondAlignedOrUnalignedLoads++;
     break;
   }
   // default: llvm_unreachable("Invalid UseDefKind");
@@ -744,14 +778,15 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
 }
 
 inline bool DataFlowIntegritySanitizerPass::isUnsafeAccessTarget(Value *Target) {
-  if (ProtectInfo->hasTarget(Target))
+  Value *Base = Target->stripInBoundsConstantOffsets(); // strip constant offsets and get base object
+  if (ProtectInfo->hasTarget(Base))
     return false;
   if (ClCheckAllUnsafeAccess)
     return true;
   // Do not check these constant offset access.
-  if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Target))
+  if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Base))
     return false;
-  if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Target))
+  if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Base))
     return false;
   return true;
 }
