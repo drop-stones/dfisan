@@ -128,6 +128,12 @@ constexpr char DfisanCheckUnsafeAccessFnName[] = "__dfisan_check_unsafe_access";
 constexpr char DfisanInvalidSafeAccessReportFnName[] = "__dfisan_invalid_safe_access_report";
 constexpr char DfisanInvalidUseReportFnName[]        = "__dfisan_invalid_use_report";
 
+/// Shift Width
+constexpr unsigned kAlignedShiftWidth = 1;
+constexpr unsigned kUnalignedShiftWidth = 1;
+constexpr unsigned kAlignedMemGranularity = 4;
+constexpr unsigned kShadowGranularity = 2;
+
 /// Memory mapping addresses
 constexpr uintptr_t kUnsafeStackEnd     = 0x7fffffffffff;
 constexpr uintptr_t kUnsafeStackBeg     = 0x70007fff8000;
@@ -162,6 +168,10 @@ static cl::opt<bool> ClCheckAllUnsafeAccess(
   "check-all-unsafe-access", cl::desc("Instrument all unsafe accesses to protect targets"),
   cl::Hidden, cl::init(false));
 
+static cl::opt<bool> ClCheckWithCall(
+  "check-with-call", cl::desc("Instrument function calls to check data-flow integrity before load and after store"),
+  cl::Hidden, cl::init(false));
+
 ///
 //  Statistics
 ///
@@ -186,7 +196,7 @@ STATISTIC(NumInstrumentedCondAlignedOrUnalignedLoads,  "Number of instrumented c
 
 static Value *createAddrIsInSafeRegion(IRBuilder<> *IRB, Value *Addr) {
   Type *AddrTy = IRB->getInt64Ty();
-  Value *AddrLong = IRB->CreatePtrToInt(Addr, AddrTy);
+  Value *AddrLong = (Addr->getType()->isPointerTy()) ? IRB->CreatePtrToInt(Addr, AddrTy) : Addr;
   Value *SafeBeg  = ConstantInt::get(AddrTy, kSafeUnalignedBeg);
   Value *SafeEnd  = ConstantInt::get(AddrTy, kSafeAlignedEnd);
   Value *Cmp1 = IRB->CreateICmpULE(SafeBeg, AddrLong);  // SafeBeg <= Addr
@@ -194,16 +204,38 @@ static Value *createAddrIsInSafeRegion(IRBuilder<> *IRB, Value *Addr) {
   Value *Ret  = IRB->CreateLogicalAnd(Cmp1, Cmp2);
   return Ret;
 }
+static Value *createAddrIsInSafeAlignedRegion(IRBuilder<> *IRB, Value *Addr) {
+  Type *AddrTy = IRB->getInt64Ty();
+  Value *AddrLong = (Addr->getType()->isPointerTy()) ? IRB->CreatePtrToInt(Addr, AddrTy) : Addr;
+  Value *SafeBeg  = ConstantInt::get(AddrTy, kSafeAlignedBeg);
+  Value *SafeEnd  = ConstantInt::get(AddrTy, kSafeAlignedEnd);
+  Value *Cmp1 = IRB->CreateICmpULE(SafeBeg, AddrLong);  // SafeBeg <= Addr
+  Value *Cmp2 = IRB->CreateICmpULE(AddrLong, SafeEnd);  // Addr <= SafeEnd
+  Value *Ret  = IRB->CreateLogicalAnd(Cmp1, Cmp2);
+  return Ret;
+}
+static Value *createAddrIsInSafeUnalignedRegion(IRBuilder<> *IRB, Value *Addr) {
+  Type *AddrTy = IRB->getInt64Ty();
+  Value *AddrLong = (Addr->getType()->isPointerTy()) ? IRB->CreatePtrToInt(Addr, AddrTy) : Addr;
+  Value *SafeBeg  = ConstantInt::get(AddrTy, kSafeUnalignedBeg);
+  Value *SafeEnd  = ConstantInt::get(AddrTy, kSafeUnalignedEnd);
+  Value *Cmp1 = IRB->CreateICmpULE(SafeBeg, AddrLong);  // SafeBeg <= Addr
+  Value *Cmp2 = IRB->CreateICmpULE(AddrLong, SafeEnd);  // Addr <= SafeEnd
+  Value *Ret  = IRB->CreateLogicalAnd(Cmp1, Cmp2);
+  return Ret;
+}
 
-Instruction *DataFlowIntegritySanitizerPass::generateCrashCode(Instruction *InsertBefore, Value *Addr, bool IsUnsafe) {
+Instruction *DataFlowIntegritySanitizerPass::generateCrashCode(Instruction *InsertBefore, Value *Addr, ValueVector &DefIDs, bool IsUnsafe) {
   Builder->SetInsertPoint(InsertBefore);
   Value *AddrLong = Builder->CreatePtrToInt(Addr, Int64Ty);
   CallInst *Call = nullptr;
   if (IsUnsafe) {
     Call = Builder->CreateCall(InvalidSafeAccessReportFn, {AddrLong});
   } else {
-    // Call = Builder->CreateCall();
-    llvm_unreachable("TODO: Implement generateCrashCode of invalid use");
+    Value *Argc = ConstantInt::get(Int16Ty, DefIDs.size(), false);
+    ValueVector Args{Addr, Argc};
+    Args.append(DefIDs);
+    Call = Builder->CreateCall(InvalidUseReportFn, Args);
   }
   return Call;
 }
@@ -212,7 +244,8 @@ void DataFlowIntegritySanitizerPass::instrumentUnsafeAccess(Instruction *OrigIns
   Builder->SetInsertPoint(OrigInst);
   Value *Cmp = createAddrIsInSafeRegion(Builder.get(), Addr);
   Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cmp, OrigInst, /* unreachable */ true);
-  Instruction *Crash = generateCrashCode(CrashTerm, Addr, /* IsUnsafe */ true);
+  ValueVector Empty{};
+  Instruction *Crash = generateCrashCode(CrashTerm, Addr, Empty, /* IsUnsafe */ true);
   Crash->setDebugLoc(OrigInst->getDebugLoc());
 
   NumInstrumentedUnsafeAccesses++;
@@ -232,6 +265,376 @@ void DataFlowIntegritySanitizerPass::instrumentFunction(Function &Func) {
     if (!Targets.empty())
       insertCheckUnsafeAccessFn(UnsafeInst, Targets);
   }
+}
+
+/// Get shadow memroy address
+static Value *AlignAddr(IRBuilder<> *IRB, Value *Addr) {
+  Type *MaskTy = Addr->getType();
+  uintptr_t MaskInt = ~((uintptr_t)kAlignedMemGranularity - 1);
+  Value *MaskVal = ConstantInt::get(MaskTy, MaskInt); // clear lower 2-bits
+  return IRB->CreateAnd(Addr, MaskVal);
+}
+static Value *AlignedMemToShadow(IRBuilder<> *IRB, Value *Addr) {
+  Type *WidthTy = Addr->getType();
+  Value *WidthVal = ConstantInt::get(WidthTy, kAlignedShiftWidth);
+  return IRB->CreateLShr(Addr, WidthVal);
+}
+static Value *UnalignedMemToShadow(IRBuilder<> *IRB, Value *Addr) {
+  Type *WidthTy = Addr->getType();
+  Value *WidthVal = ConstantInt::get(WidthTy, kUnalignedShiftWidth);
+  return IRB->CreateShl(Addr, WidthVal);
+}
+
+/// Get DefID
+static Value *getDefID(IRBuilder<> *IRB, Value *ShadowAddr) {
+  Type *DefIDTy = IRB->getInt16Ty();
+  Type *PtrTy = PointerType::getInt16PtrTy(IRB->getContext());
+  Value *ShadowPtr = IRB->CreateIntToPtr(ShadowAddr, PtrTy);
+  return IRB->CreateLoad(DefIDTy, ShadowPtr);
+}
+// static Value *getDefID(IRBuilder<> *IRB, Value *LoadAddr) {
+//   Value *ShadowAddr = AlignedMemToShadow(IRB, LoadAddr);
+//   return getDefIDFromShadowAddr(IRB, ShadowAddr);
+// }
+static Value *getNextDefID(IRBuilder<> *IRB, Value *ShadowAddr, unsigned Num) {
+  Type *OffsetTy = ShadowAddr->getType();
+  Value *Offset = ConstantInt::get(OffsetTy, Num * 2);
+  Value *NextShadowAddr = IRB->CreateAdd(ShadowAddr, Offset);
+  return getDefID(IRB, NextShadowAddr);
+}
+
+/// Compare two DefIDs.
+static Value *compareDefIDs(IRBuilder<> *IRB, Value *Lhs, Value *Rhs) {
+  assert(Lhs->getType() == Rhs->getType());
+  return IRB->CreateICmpEQ(Lhs, Rhs);
+}
+static Value *compareDefIDsAndSetResult(IRBuilder<> *IRB, Value *Res, Value *Lhs, Value *Rhs) {
+  Value *CmpRes = compareDefIDs(IRB, Lhs, Rhs);
+  assert(Res->getType() == CmpRes->getType());
+  return IRB->CreateLogicalOr(Res, CmpRes);
+}
+
+/// Check DefIDs and Return the result
+static Value *checkDefIDs(IRBuilder<> *IRB, Value *CurrDefID, ValueVector &DefIDs) {
+  if (DefIDs.size() == 1)
+    return IRB->CreateICmpNE(CurrDefID, DefIDs[0]);
+
+  Value *IsOK = ConstantInt::getFalse(IRB->getContext());
+  for (auto *DefID : DefIDs) {
+    IsOK = compareDefIDsAndSetResult(IRB, IsOK, CurrDefID, DefID);
+  }
+  Value *IsAttack = IRB->CreateNot(IsOK);
+  return IsAttack;
+}
+
+/// Insert `if (AddrIsInSafeAlignedRegion(Addr)) {} else {}`
+static void insertIfAddrIsInAlignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then, Instruction **Else) {
+  Value *IsInAligned = createAddrIsInSafeAlignedRegion(IRB, Addr);
+  SplitBlockAndInsertIfThenElse(IsInAligned, InsertPoint, Then, Else);
+}
+/// Insert `if (AddrIsInSafeUnalignedRegion(Addr)) {} else {}`
+static void insertIfAddrIsInUnalignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then, Instruction **Else) {
+  Value *IsInUnaligned = createAddrIsInSafeUnalignedRegion(IRB, Addr);
+  SplitBlockAndInsertIfThenElse(IsInUnaligned, InsertPoint, Then, Else);
+}
+/// Insert `if (AddrIsInSafeAlignedRegion(Addr)) {} else if (AddrIsInSafeUnalignedRegion(Addr)) {} else {}`
+static void insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then1, Instruction **Then2, Instruction **Else) {
+  Instruction *Else1;
+  insertIfAddrIsInAlignedRegion(IRB, Addr, InsertPoint, Then1, &Else1);
+  IRB->SetInsertPoint(Else1);
+  insertIfAddrIsInUnalignedRegion(IRB, Addr, Else1, Then2, Else);
+}
+
+/// Insert if-then to report error
+void DataFlowIntegritySanitizerPass::insertIfThenAndErrorReport(Value *Cond, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cond, InsertPoint, /* unreachable */ true);
+  Instruction *Crash = generateCrashCode(CrashTerm, LoadAddr, DefIDs);
+  Crash->setDebugLoc(InsertPoint->getDebugLoc());
+}
+
+/// Aligned check
+void DataFlowIntegritySanitizerPass::instrumentAlignedLoad4(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *AlignedAddr = AlignAddr(Builder.get(), LoadAddr);
+  Value *ShadowAddr = AlignedMemToShadow(Builder.get(), AlignedAddr);
+  Value *CurrDefID = getDefID(Builder.get(), ShadowAddr);
+  Value *IsAttack = checkDefIDs(Builder.get(), CurrDefID, DefIDs);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedLoad8(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = AlignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID0 = getDefID(Builder.get(), ShadowAddr);
+  Value *CurrDefID1 = getNextDefID(Builder.get(), ShadowAddr, 1);
+  Value *IsAttack0  = checkDefIDs(Builder.get(), CurrDefID0, DefIDs);
+  Value *IsAttack1  = checkDefIDs(Builder.get(), CurrDefID1, DefIDs);
+  Value *IsAttack   = Builder->CreateLogicalOr(IsAttack0, IsAttack1);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = AlignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID0 = getDefID(Builder.get(), ShadowAddr);
+  Value *CurrDefID1 = getNextDefID(Builder.get(), ShadowAddr, 1);
+  Value *CurrDefID2 = getNextDefID(Builder.get(), ShadowAddr, 2);
+  Value *CurrDefID3 = getNextDefID(Builder.get(), ShadowAddr, 3);
+  Value *IsAttack0  = checkDefIDs(Builder.get(), CurrDefID0, DefIDs);
+  Value *IsAttack1  = checkDefIDs(Builder.get(), CurrDefID1, DefIDs);
+  Value *IsAttack2  = checkDefIDs(Builder.get(), CurrDefID2, DefIDs);
+  Value *IsAttack3  = checkDefIDs(Builder.get(), CurrDefID3, DefIDs);
+  Value *IsAttack0_1 = Builder->CreateLogicalOr(IsAttack0, IsAttack1);
+  Value *IsAttack2_3 = Builder->CreateLogicalOr(IsAttack2, IsAttack3);
+  Value *IsAttack    = Builder->CreateLogicalOr(IsAttack0_1, IsAttack2_3);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedLoadN(Instruction *Load, Value *LoadAddr, unsigned Size, ValueVector &DefIDs) {
+  // TODO
+}
+
+/// Unaligned check
+void DataFlowIntegritySanitizerPass::instrumentUnalignedLoad1(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = UnalignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID  = getDefID(Builder.get(), ShadowAddr);
+  Value *IsAttack = checkDefIDs(Builder.get(), CurrDefID, DefIDs);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedLoad2(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = UnalignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID0 = getDefID(Builder.get(), ShadowAddr);
+  Value *CurrDefID1 = getNextDefID(Builder.get(), ShadowAddr, 1);
+  Value *IsAttack0 = checkDefIDs(Builder.get(), CurrDefID0, DefIDs);
+  Value *IsAttack1 = checkDefIDs(Builder.get(), CurrDefID1, DefIDs);
+  Value *IsAttack  = Builder->CreateLogicalOr(IsAttack0, IsAttack1);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedLoad4(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = UnalignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID0 = getDefID(Builder.get(), ShadowAddr);
+  Value *CurrDefID1 = getNextDefID(Builder.get(), ShadowAddr, 1);
+  Value *CurrDefID2 = getNextDefID(Builder.get(), ShadowAddr, 2);
+  Value *CurrDefID3 = getNextDefID(Builder.get(), ShadowAddr, 3);
+  Value *IsAttack0 = checkDefIDs(Builder.get(), CurrDefID0, DefIDs);
+  Value *IsAttack1 = checkDefIDs(Builder.get(), CurrDefID1, DefIDs);
+  Value *IsAttack2 = checkDefIDs(Builder.get(), CurrDefID2, DefIDs);
+  Value *IsAttack3 = checkDefIDs(Builder.get(), CurrDefID3, DefIDs);
+  Value *IsAttack01 = Builder->CreateLogicalOr(IsAttack0, IsAttack1);
+  Value *IsAttack23 = Builder->CreateLogicalOr(IsAttack2, IsAttack3);
+  Value *IsAttack   = Builder->CreateLogicalOr(IsAttack01, IsAttack23);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedLoad8(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = UnalignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID0 = getDefID(Builder.get(), ShadowAddr);
+  Value *CurrDefID1 = getNextDefID(Builder.get(), ShadowAddr, 1);
+  Value *CurrDefID2 = getNextDefID(Builder.get(), ShadowAddr, 2);
+  Value *CurrDefID3 = getNextDefID(Builder.get(), ShadowAddr, 3);
+  Value *CurrDefID4 = getNextDefID(Builder.get(), ShadowAddr, 4);
+  Value *CurrDefID5 = getNextDefID(Builder.get(), ShadowAddr, 5);
+  Value *CurrDefID6 = getNextDefID(Builder.get(), ShadowAddr, 6);
+  Value *CurrDefID7 = getNextDefID(Builder.get(), ShadowAddr, 7);
+  Value *IsAttack0 = checkDefIDs(Builder.get(), CurrDefID0, DefIDs);
+  Value *IsAttack1 = checkDefIDs(Builder.get(), CurrDefID1, DefIDs);
+  Value *IsAttack2 = checkDefIDs(Builder.get(), CurrDefID2, DefIDs);
+  Value *IsAttack3 = checkDefIDs(Builder.get(), CurrDefID3, DefIDs);
+  Value *IsAttack4 = checkDefIDs(Builder.get(), CurrDefID4, DefIDs);
+  Value *IsAttack5 = checkDefIDs(Builder.get(), CurrDefID5, DefIDs);
+  Value *IsAttack6 = checkDefIDs(Builder.get(), CurrDefID6, DefIDs);
+  Value *IsAttack7 = checkDefIDs(Builder.get(), CurrDefID7, DefIDs);
+  Value *IsAttack01 = Builder->CreateLogicalOr(IsAttack0, IsAttack1);
+  Value *IsAttack23 = Builder->CreateLogicalOr(IsAttack2, IsAttack3);
+  Value *IsAttack45 = Builder->CreateLogicalOr(IsAttack4, IsAttack5);
+  Value *IsAttack67 = Builder->CreateLogicalOr(IsAttack6, IsAttack7);
+  Value *IsAttack0123 = Builder->CreateLogicalOr(IsAttack01, IsAttack23);
+  Value *IsAttack4567 = Builder->CreateLogicalOr(IsAttack45, IsAttack67);
+  Value *IsAttack  = Builder->CreateLogicalOr(IsAttack0123, IsAttack4567);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Value *ShadowAddr = UnalignedMemToShadow(Builder.get(), LoadAddr);
+  Value *CurrDefID0 = getDefID(Builder.get(), ShadowAddr);
+  Value *CurrDefID1 = getNextDefID(Builder.get(), ShadowAddr, 1);
+  Value *CurrDefID2 = getNextDefID(Builder.get(), ShadowAddr, 2);
+  Value *CurrDefID3 = getNextDefID(Builder.get(), ShadowAddr, 3);
+  Value *CurrDefID4 = getNextDefID(Builder.get(), ShadowAddr, 4);
+  Value *CurrDefID5 = getNextDefID(Builder.get(), ShadowAddr, 5);
+  Value *CurrDefID6 = getNextDefID(Builder.get(), ShadowAddr, 6);
+  Value *CurrDefID7 = getNextDefID(Builder.get(), ShadowAddr, 7);
+  Value *CurrDefID8 = getNextDefID(Builder.get(), ShadowAddr, 8);
+  Value *CurrDefID9 = getNextDefID(Builder.get(), ShadowAddr, 9);
+  Value *CurrDefID10 = getNextDefID(Builder.get(), ShadowAddr, 10);
+  Value *CurrDefID11 = getNextDefID(Builder.get(), ShadowAddr, 11);
+  Value *CurrDefID12 = getNextDefID(Builder.get(), ShadowAddr, 12);
+  Value *CurrDefID13 = getNextDefID(Builder.get(), ShadowAddr, 13);
+  Value *CurrDefID14 = getNextDefID(Builder.get(), ShadowAddr, 14);
+  Value *CurrDefID15 = getNextDefID(Builder.get(), ShadowAddr, 15);
+  Value *IsAttack0 = checkDefIDs(Builder.get(), CurrDefID0, DefIDs);
+  Value *IsAttack1 = checkDefIDs(Builder.get(), CurrDefID1, DefIDs);
+  Value *IsAttack2 = checkDefIDs(Builder.get(), CurrDefID2, DefIDs);
+  Value *IsAttack3 = checkDefIDs(Builder.get(), CurrDefID3, DefIDs);
+  Value *IsAttack4 = checkDefIDs(Builder.get(), CurrDefID4, DefIDs);
+  Value *IsAttack5 = checkDefIDs(Builder.get(), CurrDefID5, DefIDs);
+  Value *IsAttack6 = checkDefIDs(Builder.get(), CurrDefID6, DefIDs);
+  Value *IsAttack7 = checkDefIDs(Builder.get(), CurrDefID7, DefIDs);
+  Value *IsAttack8 = checkDefIDs(Builder.get(), CurrDefID8, DefIDs);
+  Value *IsAttack9 = checkDefIDs(Builder.get(), CurrDefID9, DefIDs);
+  Value *IsAttack10 = checkDefIDs(Builder.get(), CurrDefID10, DefIDs);
+  Value *IsAttack11 = checkDefIDs(Builder.get(), CurrDefID11, DefIDs);
+  Value *IsAttack12 = checkDefIDs(Builder.get(), CurrDefID12, DefIDs);
+  Value *IsAttack13 = checkDefIDs(Builder.get(), CurrDefID13, DefIDs);
+  Value *IsAttack14 = checkDefIDs(Builder.get(), CurrDefID14, DefIDs);
+  Value *IsAttack15 = checkDefIDs(Builder.get(), CurrDefID15, DefIDs);
+  Value *IsAttack01 = Builder->CreateLogicalOr(IsAttack0, IsAttack1);
+  Value *IsAttack23 = Builder->CreateLogicalOr(IsAttack2, IsAttack3);
+  Value *IsAttack45 = Builder->CreateLogicalOr(IsAttack4, IsAttack5);
+  Value *IsAttack67 = Builder->CreateLogicalOr(IsAttack6, IsAttack7);
+  Value *IsAttack89 = Builder->CreateLogicalOr(IsAttack8, IsAttack9);
+  Value *IsAttack1011 = Builder->CreateLogicalOr(IsAttack10, IsAttack11);
+  Value *IsAttack1213 = Builder->CreateLogicalOr(IsAttack12, IsAttack13);
+  Value *IsAttack1415 = Builder->CreateLogicalOr(IsAttack14, IsAttack15);
+  Value *IsAttack0123 = Builder->CreateLogicalOr(IsAttack01, IsAttack23);
+  Value *IsAttack4567 = Builder->CreateLogicalOr(IsAttack45, IsAttack67);
+  Value *IsAttack891011 = Builder->CreateLogicalOr(IsAttack89, IsAttack1011);
+  Value *IsAttack12131415 = Builder->CreateLogicalOr(IsAttack1213, IsAttack1415);
+  Value *IsAttack01234567 = Builder->CreateLogicalOr(IsAttack0123, IsAttack4567);
+  Value *IsAttack891011121314 = Builder->CreateLogicalOr(IsAttack891011, IsAttack12131415);
+  Value *IsAttack  = Builder->CreateLogicalOr(IsAttack01234567, IsAttack891011121314);
+  insertIfThenAndErrorReport(IsAttack, Load, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  // TODO
+}
+
+/// Aligned or unaligned
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedLoad1(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad4(Then, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedLoad1(Else, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedLoad2(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad4(Then, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedLoad2(Else, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedLoad4(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad4(Then, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedLoad4(Else, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedLoad8(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad8(Then, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedLoad8(Else, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad16(Then, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedLoad16(Else, LoadAddr, DefIDs);
+}
+
+/// Conditional aligned
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedLoad4(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad4(Then, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedLoad8(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad8(Then, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedLoad16(Then, LoadAddr, DefIDs);
+}
+
+/// Conditional unaligned
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedLoad1(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedLoad1(Then, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedLoad2(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedLoad2(Then, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedLoad4(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedLoad4(Then, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedLoad8(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedLoad8(Then, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedLoad16(Then, LoadAddr, DefIDs);
+}
+
+/// Conditional aligned or unaligned
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedLoad1(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedLoad4(Then1, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedLoad1(Then2, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedLoad2(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedLoad4(Then1, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedLoad2(Then2, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedLoad4(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedLoad4(Then1, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedLoad4(Then2, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedLoad8(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedLoad8(Then1, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedLoad8(Then2, LoadAddr, DefIDs);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, Load, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedLoad16(Then1, LoadAddr, DefIDs);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedLoad16(Then2, LoadAddr, DefIDs);
 }
 
 ///
@@ -322,12 +725,15 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
   SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int64Ty, Int16Ty};
   FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
-  SmallVector<Type *, 8> LoadArgTypes{PtrTy, Int32Ty};
+  // SmallVector<Type *, 8> LoadArgTypes{PtrTy, Int32Ty};
+  SmallVector<Type *, 8> LoadArgTypes{PtrTy, Int16Ty};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
-  SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int32Ty};
+  // SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int32Ty};
+  SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int16Ty};
   FunctionType *LoadNFnTy = FunctionType::get(VoidTy, LoadNArgTypes, true);
   FunctionType *CheckUnsafeAcessFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
   FunctionType *InvalidSafeAccessReportFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
+  FunctionType *InvalidUseReportFnTy = FunctionType::get(VoidTy, {PtrTy, Int16Ty}, true);
 
   DfiInitFn  = M->getOrInsertFunction(DfisanInitFnName, VoidTy);
   DfiStoreNFn = M->getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
@@ -438,6 +844,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
 
   // Error report
   InvalidSafeAccessReportFn = M->getOrInsertFunction(DfisanInvalidSafeAccessReportFnName, InvalidSafeAccessReportFnTy);
+  InvalidUseReportFn        = M->getOrInsertFunction(DfisanInvalidUseReportFnName, InvalidUseReportFnTy);
 }
 
 /// Insert a constructor function in comdat
@@ -547,7 +954,8 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Instruction *Use, UseDefKin
   // create vector from DefIDSet
   ValueVector DefIDs;
   for (auto DefID : DefIDSet) {
-    Value *IDVal = ConstantInt::get(Int32Ty, DefID, false);
+    // Value *IDVal = ConstantInt::get(Int32Ty, DefID, false);
+    Value *IDVal = ConstantInt::get(Int16Ty, DefID, false);
     DefIDs.push_back(IDVal);
   }
 
@@ -693,87 +1101,166 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
       SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
   }
   Value *LoadAddr = Builder->CreatePtrToInt(LoadTarget, PtrTy);
-  Value *Argc = ConstantInt::get(Int32Ty, DefIDs.size(), false);
+  // Value *Argc = ConstantInt::get(Int32Ty, DefIDs.size(), false);
+  Value *Argc = ConstantInt::get(Int16Ty, DefIDs.size(), false);
 
   ValueVector Args{LoadAddr, Argc};
   Args.append(DefIDs);
   ValueVector NArgs{LoadAddr, SizeArg, Argc};
   NArgs.append(DefIDs);
 
-  switch(Kind) {
-  case UseDefKind::Aligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(AlignedLoad1Fn, Args);  break;
-    case 2:   Builder->CreateCall(AlignedLoad2Fn, Args);  break;
-    case 4:   Builder->CreateCall(AlignedLoad4Fn, Args);  break;
-    case 8:   Builder->CreateCall(AlignedLoad8Fn, Args);  break;
-    case 16:  Builder->CreateCall(AlignedLoad16Fn, Args); break;
-    default:  Builder->CreateCall(AlignedLoadNFn, NArgs); break;
+  if (ClCheckWithCall) {
+    switch(Kind) {
+    case UseDefKind::Aligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(AlignedLoad1Fn, Args);  break;
+      case 2:   Builder->CreateCall(AlignedLoad2Fn, Args);  break;
+      case 4:   Builder->CreateCall(AlignedLoad4Fn, Args);  break;
+      case 8:   Builder->CreateCall(AlignedLoad8Fn, Args);  break;
+      case 16:  Builder->CreateCall(AlignedLoad16Fn, Args); break;
+      default:  Builder->CreateCall(AlignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedLoads++;
+      break;
     }
-    NumInstrumentedAlignedLoads++;
-    break;
-  }
-  case UseDefKind::Unaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(UnalignedLoad1Fn, Args);  break;
-    case 2:   Builder->CreateCall(UnalignedLoad2Fn, Args);  break;
-    case 4:   Builder->CreateCall(UnalignedLoad4Fn, Args);  break;
-    case 8:   Builder->CreateCall(UnalignedLoad8Fn, Args);  break;
-    case 16:  Builder->CreateCall(UnalignedLoad16Fn, Args); break;
-    default:  Builder->CreateCall(UnalignedLoadNFn, NArgs); break;
+    case UseDefKind::Unaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(UnalignedLoad1Fn, Args);  break;
+      case 2:   Builder->CreateCall(UnalignedLoad2Fn, Args);  break;
+      case 4:   Builder->CreateCall(UnalignedLoad4Fn, Args);  break;
+      case 8:   Builder->CreateCall(UnalignedLoad8Fn, Args);  break;
+      case 16:  Builder->CreateCall(UnalignedLoad16Fn, Args); break;
+      default:  Builder->CreateCall(UnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedUnalignedLoads++;
+      break;
+    } 
+    case UseDefKind::AlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(AlignedOrUnalignedLoad1Fn, Args);  break;
+      case 2:   Builder->CreateCall(AlignedOrUnalignedLoad2Fn, Args);  break;
+      case 4:   Builder->CreateCall(AlignedOrUnalignedLoad4Fn, Args);  break;
+      case 8:   Builder->CreateCall(AlignedOrUnalignedLoad8Fn, Args);  break;
+      case 16:  Builder->CreateCall(AlignedOrUnalignedLoad16Fn, Args); break;
+      default:  Builder->CreateCall(AlignedOrUnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedOrUnalignedLoads++;
+      break;
     }
-    NumInstrumentedUnalignedLoads++;
-    break;
-  } 
-  case UseDefKind::AlignedOrUnaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(AlignedOrUnalignedLoad1Fn, Args);  break;
-    case 2:   Builder->CreateCall(AlignedOrUnalignedLoad2Fn, Args);  break;
-    case 4:   Builder->CreateCall(AlignedOrUnalignedLoad4Fn, Args);  break;
-    case 8:   Builder->CreateCall(AlignedOrUnalignedLoad8Fn, Args);  break;
-    case 16:  Builder->CreateCall(AlignedOrUnalignedLoad16Fn, Args); break;
-    default:  Builder->CreateCall(AlignedOrUnalignedLoadNFn, NArgs); break;
+    case UseDefKind::CondAligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(CondAlignedLoad1Fn, Args);  break;
+      case 2:   Builder->CreateCall(CondAlignedLoad2Fn, Args);  break;
+      case 4:   Builder->CreateCall(CondAlignedLoad4Fn, Args);  break;
+      case 8:   Builder->CreateCall(CondAlignedLoad8Fn, Args);  break;
+      case 16:  Builder->CreateCall(CondAlignedLoad16Fn, Args); break;
+      default:  Builder->CreateCall(CondAlignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedLoads++;
+      break;
     }
-    NumInstrumentedAlignedOrUnalignedLoads++;
-    break;
-  }
-  case UseDefKind::CondAligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(CondAlignedLoad1Fn, Args);  break;
-    case 2:   Builder->CreateCall(CondAlignedLoad2Fn, Args);  break;
-    case 4:   Builder->CreateCall(CondAlignedLoad4Fn, Args);  break;
-    case 8:   Builder->CreateCall(CondAlignedLoad8Fn, Args);  break;
-    case 16:  Builder->CreateCall(CondAlignedLoad16Fn, Args); break;
-    default:  Builder->CreateCall(CondAlignedLoadNFn, NArgs); break;
+    case UseDefKind::CondUnaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(CondUnalignedLoad1Fn, Args);  break;
+      case 2:   Builder->CreateCall(CondUnalignedLoad2Fn, Args);  break;
+      case 4:   Builder->CreateCall(CondUnalignedLoad4Fn, Args);  break;
+      case 8:   Builder->CreateCall(CondUnalignedLoad8Fn, Args);  break;
+      case 16:  Builder->CreateCall(CondUnalignedLoad16Fn, Args); break;
+      default:  Builder->CreateCall(CondUnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedCondUnalignedLoads++;
+      break;
     }
-    NumInstrumentedCondAlignedLoads++;
-    break;
-  }
-  case UseDefKind::CondUnaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(CondUnalignedLoad1Fn, Args);  break;
-    case 2:   Builder->CreateCall(CondUnalignedLoad2Fn, Args);  break;
-    case 4:   Builder->CreateCall(CondUnalignedLoad4Fn, Args);  break;
-    case 8:   Builder->CreateCall(CondUnalignedLoad8Fn, Args);  break;
-    case 16:  Builder->CreateCall(CondUnalignedLoad16Fn, Args); break;
-    default:  Builder->CreateCall(CondUnalignedLoadNFn, NArgs); break;
+    case UseDefKind::CondAlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(CondAlignedOrUnalignedLoad1Fn, Args);  break;
+      case 2:   Builder->CreateCall(CondAlignedOrUnalignedLoad2Fn, Args);  break;
+      case 4:   Builder->CreateCall(CondAlignedOrUnalignedLoad4Fn, Args);  break;
+      case 8:   Builder->CreateCall(CondAlignedOrUnalignedLoad8Fn, Args);  break;
+      case 16:  Builder->CreateCall(CondAlignedOrUnalignedLoad16Fn, Args); break;
+      default:  Builder->CreateCall(CondAlignedOrUnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedOrUnalignedLoads++;
+      break;
     }
-    NumInstrumentedCondUnalignedLoads++;
-    break;
-  }
-  case UseDefKind::CondAlignedOrUnaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(CondAlignedOrUnalignedLoad1Fn, Args);  break;
-    case 2:   Builder->CreateCall(CondAlignedOrUnalignedLoad2Fn, Args);  break;
-    case 4:   Builder->CreateCall(CondAlignedOrUnalignedLoad4Fn, Args);  break;
-    case 8:   Builder->CreateCall(CondAlignedOrUnalignedLoad8Fn, Args);  break;
-    case 16:  Builder->CreateCall(CondAlignedOrUnalignedLoad16Fn, Args); break;
-    default:  Builder->CreateCall(CondAlignedOrUnalignedLoadNFn, NArgs); break;
+    // default: llvm_unreachable("Invalid UseDefKind");
     }
-    NumInstrumentedCondAlignedOrUnalignedLoads++;
-    break;
-  }
-  // default: llvm_unreachable("Invalid UseDefKind");
+  } else {
+    switch(Kind) {
+    case UseDefKind::Aligned: {
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:   instrumentAlignedLoad4 (InsertPoint, LoadAddr, DefIDs); break;
+      case 8:   instrumentAlignedLoad8 (InsertPoint, LoadAddr, DefIDs); break;
+      case 16:  instrumentAlignedLoad16(InsertPoint, LoadAddr, DefIDs); break;
+      default:  Builder->CreateCall(AlignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedLoads++;
+      break;
+    }
+    case UseDefKind::Unaligned: {
+      switch(Size) {
+      case 1:   instrumentUnalignedLoad1 (InsertPoint, LoadAddr, DefIDs); break;
+      case 2:   instrumentUnalignedLoad2 (InsertPoint, LoadAddr, DefIDs); break;
+      case 4:   instrumentUnalignedLoad4 (InsertPoint, LoadAddr, DefIDs); break;
+      case 8:   instrumentUnalignedLoad8 (InsertPoint, LoadAddr, DefIDs); break;
+      case 16:  instrumentUnalignedLoad16(InsertPoint, LoadAddr, DefIDs); break;
+      default:  Builder->CreateCall(UnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedUnalignedLoads++;
+      break;
+    } 
+    case UseDefKind::AlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   instrumentAlignedOrUnalignedLoad1 (InsertPoint, LoadAddr, DefIDs); break;
+      case 2:   instrumentAlignedOrUnalignedLoad2 (InsertPoint, LoadAddr, DefIDs); break;
+      case 4:   instrumentAlignedOrUnalignedLoad4 (InsertPoint, LoadAddr, DefIDs); break;
+      case 8:   instrumentAlignedOrUnalignedLoad8 (InsertPoint, LoadAddr, DefIDs); break;
+      case 16:  instrumentAlignedOrUnalignedLoad16(InsertPoint, LoadAddr, DefIDs); break;
+      default:  Builder->CreateCall(AlignedOrUnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedOrUnalignedLoads++;
+      break;
+    }
+    case UseDefKind::CondAligned: {
+      switch(Size) {
+      case 1:   
+      case 2:   
+      case 4:   instrumentCondAlignedLoad4 (InsertPoint, LoadAddr, DefIDs); break;
+      case 8:   instrumentCondAlignedLoad8 (InsertPoint, LoadAddr, DefIDs); break;
+      case 16:  instrumentCondAlignedLoad16(InsertPoint, LoadAddr, DefIDs); break;
+      default:  Builder->CreateCall(CondAlignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedLoads++;
+      break;
+    }
+    case UseDefKind::CondUnaligned: {
+      switch(Size) {
+      case 1:   instrumentCondUnalignedLoad1 (InsertPoint, LoadAddr, DefIDs); break;
+      case 2:   instrumentCondUnalignedLoad2 (InsertPoint, LoadAddr, DefIDs); break;
+      case 4:   instrumentCondUnalignedLoad4 (InsertPoint, LoadAddr, DefIDs); break;
+      case 8:   instrumentCondUnalignedLoad8 (InsertPoint, LoadAddr, DefIDs); break;
+      case 16:  instrumentCondUnalignedLoad16(InsertPoint, LoadAddr, DefIDs); break;
+      default:  Builder->CreateCall(CondUnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedCondUnalignedLoads++;
+      break;
+    }
+    case UseDefKind::CondAlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   instrumentCondAlignedOrUnalignedLoad1 (InsertPoint, LoadAddr, DefIDs); break;
+      case 2:   instrumentCondAlignedOrUnalignedLoad2 (InsertPoint, LoadAddr, DefIDs); break;
+      case 4:   instrumentCondAlignedOrUnalignedLoad4 (InsertPoint, LoadAddr, DefIDs); break;
+      case 8:   instrumentCondAlignedOrUnalignedLoad8 (InsertPoint, LoadAddr, DefIDs); break;
+      case 16:  instrumentCondAlignedOrUnalignedLoad16(InsertPoint, LoadAddr, DefIDs); break;
+      default:  Builder->CreateCall(CondAlignedOrUnalignedLoadNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedOrUnalignedLoads++;
+      break;
+    }
+    // default: llvm_unreachable("Invalid UseDefKind");
+    }
   }
 }
 

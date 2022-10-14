@@ -44,7 +44,7 @@ private:
                  CondUnalignedLoadNFn, CondUnalignedLoad1Fn, CondUnalignedLoad2Fn, CondUnalignedLoad4Fn, CondUnalignedLoad8Fn, CondUnalignedLoad16Fn,
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
-                 CheckUnsafeAccessFn, InvalidSafeAccessReportFn;
+                 CheckUnsafeAccessFn, InvalidSafeAccessReportFn, InvalidUseReportFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
   dg::LLVMDependenceGraph *DG = nullptr;
   dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
@@ -63,13 +63,58 @@ private:
   //  Runtime check functions
   ///
   // Value *createAddrIsInSafeRegion(Value *Addr);
-  Instruction *generateCrashCode(Instruction *InsertBefore, Value *Addr, bool IsUnsafe = false);
+  Instruction *generateCrashCode(Instruction *InsertBefore, Value *Addr, ValueVector &DefIDs, bool IsUnsafe = false);
+  void insertIfThenAndErrorReport(Value *Cond, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs);
 
   /// Instrument an unsafe access
   void instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr);
 
   /// Instrument unsafe accesses in function
   void instrumentFunction(Function &F);
+
+  /// Instrument safe aligned load
+  void instrumentAlignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedLoadN (Instruction *Load, Value *LoadAddr, unsigned Size, ValueVector &DefIDs);
+
+  /// Instrument safe unaligned load
+  void instrumentUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+
+  /// Instrument safe aligned or unaligned load
+  void instrumentAlignedOrUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedOrUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedOrUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedOrUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedOrUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedOrUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+
+  /// Instrument conditional aligned load
+  void instrumentCondAlignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+
+  /// Instrument conditional unaligned load
+  void instrumentCondUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+
+  /// Instrument conditional aligned or unaligned load
+  void instrumentCondAlignedOrUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
 
   ///
   //  Instrumentation functions

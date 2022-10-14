@@ -163,7 +163,7 @@ public:
     UseSet(llvm::SparseBitVector<> Uses, ValueSet Defs) : Uses(Uses), Defs(Defs) {}
   };
 
-  // Rename optimization:
+  // Renaming optimization:
   //   Rename DefID-a to DefID-b if the Def-a instruction and the Def-b instruction
   //   has the same use sets.
   void renameDefIDs() {
@@ -198,13 +198,13 @@ public:
       }
     }
     // Rename DefIDs
+    CurrID = InitID;
     for (auto &UseSet : RenameVec) {
       assert(!UseSet.Defs.empty() && "UseSet.Defs is empty");
-      auto *Representative = *UseSet.Defs.begin();
-      DefID ID = getDefID(Representative);
       for (auto *Def : UseSet.Defs) {
-        DefToInfo[Def].ID = ID;
+        DefToInfo[Def].ID = CurrID;
       }
+      calcNextDefID();
     }
     // Print for debug
     // for (auto &UseSet : RenameVec) {
@@ -223,8 +223,11 @@ private:
       return;
     
     DefToInfo.emplace(Def, CurrID);
+    calcNextDefID();
+  }
 
-    // Calculate the next DefID.
+  // Calculate the next DefID.
+  void calcNextDefID() {
     if (CurrID == USHRT_MAX) {
       llvm::errs() << "DefID overflow!\n";
       CurrID = InitID;
