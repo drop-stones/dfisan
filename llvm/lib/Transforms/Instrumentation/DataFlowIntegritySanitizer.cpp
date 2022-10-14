@@ -240,6 +240,7 @@ Instruction *DataFlowIntegritySanitizerPass::generateCrashCode(Instruction *Inse
   return Call;
 }
 
+/* --- Unsafe Access --- */
 void DataFlowIntegritySanitizerPass::instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr) {
   Builder->SetInsertPoint(OrigInst);
   Value *Cmp = createAddrIsInSafeRegion(Builder.get(), Addr);
@@ -284,7 +285,286 @@ static Value *UnalignedMemToShadow(IRBuilder<> *IRB, Value *Addr) {
   Value *WidthVal = ConstantInt::get(WidthTy, kUnalignedShiftWidth);
   return IRB->CreateShl(Addr, WidthVal);
 }
+static Value *getNextShadowAddr(IRBuilder<> *IRB, Value *ShadowAddr, unsigned Num) {
+  Type *OffsetTy = ShadowAddr->getType();
+  Value *Offset = ConstantInt::get(OffsetTy, Num * 2);
+  return IRB->CreateAdd(ShadowAddr, Offset);
+}
 
+/// Insert `if (AddrIsInSafeAlignedRegion(Addr)) {} else {}`
+static void insertIfAddrIsInAlignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then, Instruction **Else) {
+  Value *IsInAligned = createAddrIsInSafeAlignedRegion(IRB, Addr);
+  SplitBlockAndInsertIfThenElse(IsInAligned, InsertPoint, Then, Else);
+}
+/// Insert `if (AddrIsInSafeUnalignedRegion(Addr)) {} else {}`
+static void insertIfAddrIsInUnalignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then, Instruction **Else) {
+  Value *IsInUnaligned = createAddrIsInSafeUnalignedRegion(IRB, Addr);
+  SplitBlockAndInsertIfThenElse(IsInUnaligned, InsertPoint, Then, Else);
+}
+/// Insert `if (AddrIsInSafeAlignedRegion(Addr)) {} else if (AddrIsInSafeUnalignedRegion(Addr)) {} else {}`
+static void insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then1, Instruction **Then2, Instruction **Else) {
+  Instruction *Else1;
+  insertIfAddrIsInAlignedRegion(IRB, Addr, InsertPoint, Then1, &Else1);
+  IRB->SetInsertPoint(Else1);
+  insertIfAddrIsInUnalignedRegion(IRB, Addr, Else1, Then2, Else);
+}
+
+/* --- Store functions --- */
+static Value *setDefID(IRBuilder<> *IRB, Value *ShadowAddr, Value *DefID) {
+  Type *DefIDTy = DefID->getType();
+  Type *PtrTy = PointerType::getInt16PtrTy(IRB->getContext());
+  Value *ShadowPtr = IRB->CreateIntToPtr(ShadowAddr, PtrTy);
+  return IRB->CreateStore(DefID, ShadowPtr);
+}
+
+/// Aligned store
+void DataFlowIntegritySanitizerPass::instrumentAlignedStore4(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *AlignedAddr = AlignAddr(Builder.get(), StoreAddr);
+  Value *ShadowAddr = AlignedMemToShadow(Builder.get(), AlignedAddr);
+  setDefID(Builder.get(), ShadowAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedStore8(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr0 = AlignedMemToShadow(Builder.get(), StoreAddr);
+  Value *ShadowAddr1 = getNextShadowAddr(Builder.get(), ShadowAddr0, 1);
+  setDefID(Builder.get(), ShadowAddr0, DefID);
+  setDefID(Builder.get(), ShadowAddr1, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr0 = AlignedMemToShadow(Builder.get(), StoreAddr);
+  Value *ShadowAddr1 = getNextShadowAddr(Builder.get(), ShadowAddr0, 1);
+  Value *ShadowAddr2 = getNextShadowAddr(Builder.get(), ShadowAddr0, 2);
+  Value *ShadowAddr3 = getNextShadowAddr(Builder.get(), ShadowAddr0, 3);
+  setDefID(Builder.get(), ShadowAddr0, DefID);
+  setDefID(Builder.get(), ShadowAddr1, DefID);
+  setDefID(Builder.get(), ShadowAddr2, DefID);
+  setDefID(Builder.get(), ShadowAddr3, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  // TODO
+}
+
+/// Unaligned store
+void DataFlowIntegritySanitizerPass::instrumentUnalignedStore1(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr = UnalignedMemToShadow(Builder.get(), StoreAddr);
+  setDefID(Builder.get(), ShadowAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedStore2(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr0 = UnalignedMemToShadow(Builder.get(), StoreAddr);
+  Value *ShadowAddr1 = getNextShadowAddr(Builder.get(), ShadowAddr0, 1);
+  setDefID(Builder.get(), ShadowAddr0, DefID);
+  setDefID(Builder.get(), ShadowAddr1, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedStore4(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr0 = UnalignedMemToShadow(Builder.get(), StoreAddr);
+  Value *ShadowAddr1 = getNextShadowAddr(Builder.get(), ShadowAddr0, 1);
+  Value *ShadowAddr2 = getNextShadowAddr(Builder.get(), ShadowAddr0, 2);
+  Value *ShadowAddr3 = getNextShadowAddr(Builder.get(), ShadowAddr0, 3);
+  setDefID(Builder.get(), ShadowAddr0, DefID);
+  setDefID(Builder.get(), ShadowAddr1, DefID);
+  setDefID(Builder.get(), ShadowAddr2, DefID);
+  setDefID(Builder.get(), ShadowAddr3, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedStore8(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr0 = UnalignedMemToShadow(Builder.get(), StoreAddr);
+  Value *ShadowAddr1 = getNextShadowAddr(Builder.get(), ShadowAddr0, 1);
+  Value *ShadowAddr2 = getNextShadowAddr(Builder.get(), ShadowAddr0, 2);
+  Value *ShadowAddr3 = getNextShadowAddr(Builder.get(), ShadowAddr0, 3);
+  Value *ShadowAddr4 = getNextShadowAddr(Builder.get(), ShadowAddr0, 4);
+  Value *ShadowAddr5 = getNextShadowAddr(Builder.get(), ShadowAddr0, 5);
+  Value *ShadowAddr6 = getNextShadowAddr(Builder.get(), ShadowAddr0, 6);
+  Value *ShadowAddr7 = getNextShadowAddr(Builder.get(), ShadowAddr0, 7);
+  setDefID(Builder.get(), ShadowAddr0, DefID);
+  setDefID(Builder.get(), ShadowAddr1, DefID);
+  setDefID(Builder.get(), ShadowAddr2, DefID);
+  setDefID(Builder.get(), ShadowAddr3, DefID);
+  setDefID(Builder.get(), ShadowAddr4, DefID);
+  setDefID(Builder.get(), ShadowAddr5, DefID);
+  setDefID(Builder.get(), ShadowAddr6, DefID);
+  setDefID(Builder.get(), ShadowAddr7, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Value *ShadowAddr0  = UnalignedMemToShadow(Builder.get(), StoreAddr);
+  Value *ShadowAddr1  = getNextShadowAddr(Builder.get(), ShadowAddr0, 1);
+  Value *ShadowAddr2  = getNextShadowAddr(Builder.get(), ShadowAddr0, 2);
+  Value *ShadowAddr3  = getNextShadowAddr(Builder.get(), ShadowAddr0, 3);
+  Value *ShadowAddr4  = getNextShadowAddr(Builder.get(), ShadowAddr0, 4);
+  Value *ShadowAddr5  = getNextShadowAddr(Builder.get(), ShadowAddr0, 5);
+  Value *ShadowAddr6  = getNextShadowAddr(Builder.get(), ShadowAddr0, 6);
+  Value *ShadowAddr7  = getNextShadowAddr(Builder.get(), ShadowAddr0, 7);
+  Value *ShadowAddr8  = getNextShadowAddr(Builder.get(), ShadowAddr0, 8);
+  Value *ShadowAddr9  = getNextShadowAddr(Builder.get(), ShadowAddr0, 9);
+  Value *ShadowAddr10 = getNextShadowAddr(Builder.get(), ShadowAddr0, 10);
+  Value *ShadowAddr11 = getNextShadowAddr(Builder.get(), ShadowAddr0, 11);
+  Value *ShadowAddr12 = getNextShadowAddr(Builder.get(), ShadowAddr0, 12);
+  Value *ShadowAddr13 = getNextShadowAddr(Builder.get(), ShadowAddr0, 13);
+  Value *ShadowAddr14 = getNextShadowAddr(Builder.get(), ShadowAddr0, 14);
+  Value *ShadowAddr15 = getNextShadowAddr(Builder.get(), ShadowAddr0, 15);
+  setDefID(Builder.get(), ShadowAddr0, DefID);
+  setDefID(Builder.get(), ShadowAddr1, DefID);
+  setDefID(Builder.get(), ShadowAddr2, DefID);
+  setDefID(Builder.get(), ShadowAddr3, DefID);
+  setDefID(Builder.get(), ShadowAddr4, DefID);
+  setDefID(Builder.get(), ShadowAddr5, DefID);
+  setDefID(Builder.get(), ShadowAddr6, DefID);
+  setDefID(Builder.get(), ShadowAddr7, DefID);
+  setDefID(Builder.get(), ShadowAddr8, DefID);
+  setDefID(Builder.get(), ShadowAddr9, DefID);
+  setDefID(Builder.get(), ShadowAddr10, DefID);
+  setDefID(Builder.get(), ShadowAddr11, DefID);
+  setDefID(Builder.get(), ShadowAddr12, DefID);
+  setDefID(Builder.get(), ShadowAddr13, DefID);
+  setDefID(Builder.get(), ShadowAddr14, DefID);
+  setDefID(Builder.get(), ShadowAddr15, DefID);
+}
+
+/// Aligned or unaligned store
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedStore1(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore4(Then, StoreAddr, DefID);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedStore1(Else, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedStore2(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore4(Then, StoreAddr, DefID);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedStore2(Else, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedStore4(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore4(Then, StoreAddr, DefID);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedStore4(Else, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedStore8(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore8(Then, StoreAddr, DefID);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedStore8(Else, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore16(Then, StoreAddr, DefID);
+  Builder->SetInsertPoint(Else);
+  instrumentUnalignedStore16(Else, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  // TODO
+}
+
+/// Conditional aligned
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedStore1(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  instrumentCondAlignedStore4(InsertPoint, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedStore2(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  instrumentCondAlignedStore4(InsertPoint, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedStore4(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore4(Then, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedStore8(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore8(Then, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentAlignedStore16(Then, StoreAddr, DefID);
+}
+
+/// Conditional unaligned
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedStore1(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedStore1(Then, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedStore2(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedStore2(Then, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedStore4(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedStore4(Then, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedStore8(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedStore8(Then, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then, &Else);
+  Builder->SetInsertPoint(Then);
+  instrumentUnalignedStore16(Then, StoreAddr, DefID);
+}
+
+/// Conditional aligned or unaligned
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedStore1(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedStore4(Then1, StoreAddr, DefID);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedStore1(Then2, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedStore2(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedStore4(Then1, StoreAddr, DefID);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedStore2(Then2, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedStore4(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedStore4(Then1, StoreAddr, DefID);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedStore4(Then2, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedStore8(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedStore8(Then1, StoreAddr, DefID);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedStore8(Then2, StoreAddr, DefID);
+}
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), StoreAddr, InsertPoint, &Then1, &Then2, &Else);
+  Builder->SetInsertPoint(Then1);
+  instrumentAlignedStore16(Then1, StoreAddr, DefID);
+  Builder->SetInsertPoint(Then2);
+  instrumentUnalignedStore16(Then2, StoreAddr, DefID);
+}
+
+
+
+/* --- Check functions --- */
 /// Get DefID
 static Value *getDefID(IRBuilder<> *IRB, Value *ShadowAddr) {
   Type *DefIDTy = IRB->getInt16Ty();
@@ -292,14 +572,11 @@ static Value *getDefID(IRBuilder<> *IRB, Value *ShadowAddr) {
   Value *ShadowPtr = IRB->CreateIntToPtr(ShadowAddr, PtrTy);
   return IRB->CreateLoad(DefIDTy, ShadowPtr);
 }
-// static Value *getDefID(IRBuilder<> *IRB, Value *LoadAddr) {
-//   Value *ShadowAddr = AlignedMemToShadow(IRB, LoadAddr);
-//   return getDefIDFromShadowAddr(IRB, ShadowAddr);
-// }
 static Value *getNextDefID(IRBuilder<> *IRB, Value *ShadowAddr, unsigned Num) {
-  Type *OffsetTy = ShadowAddr->getType();
-  Value *Offset = ConstantInt::get(OffsetTy, Num * 2);
-  Value *NextShadowAddr = IRB->CreateAdd(ShadowAddr, Offset);
+  // Type *OffsetTy = ShadowAddr->getType();
+  // Value *Offset = ConstantInt::get(OffsetTy, Num * 2);
+  // Value *NextShadowAddr = IRB->CreateAdd(ShadowAddr, Offset);
+  Value *NextShadowAddr = getNextShadowAddr(IRB, ShadowAddr, Num);
   return getDefID(IRB, NextShadowAddr);
 }
 
@@ -325,24 +602,6 @@ static Value *checkDefIDs(IRBuilder<> *IRB, Value *CurrDefID, ValueVector &DefID
   }
   Value *IsAttack = IRB->CreateNot(IsOK);
   return IsAttack;
-}
-
-/// Insert `if (AddrIsInSafeAlignedRegion(Addr)) {} else {}`
-static void insertIfAddrIsInAlignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then, Instruction **Else) {
-  Value *IsInAligned = createAddrIsInSafeAlignedRegion(IRB, Addr);
-  SplitBlockAndInsertIfThenElse(IsInAligned, InsertPoint, Then, Else);
-}
-/// Insert `if (AddrIsInSafeUnalignedRegion(Addr)) {} else {}`
-static void insertIfAddrIsInUnalignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then, Instruction **Else) {
-  Value *IsInUnaligned = createAddrIsInSafeUnalignedRegion(IRB, Addr);
-  SplitBlockAndInsertIfThenElse(IsInUnaligned, InsertPoint, Then, Else);
-}
-/// Insert `if (AddrIsInSafeAlignedRegion(Addr)) {} else if (AddrIsInSafeUnalignedRegion(Addr)) {} else {}`
-static void insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(IRBuilder<> *IRB, Value *Addr, Instruction *InsertPoint, Instruction **Then1, Instruction **Then2, Instruction **Else) {
-  Instruction *Else1;
-  insertIfAddrIsInAlignedRegion(IRB, Addr, InsertPoint, Then1, &Else1);
-  IRB->SetInsertPoint(Else1);
-  insertIfAddrIsInUnalignedRegion(IRB, Addr, Else1, Then2, Else);
 }
 
 /// Insert if-then to report error
@@ -1005,80 +1264,158 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(dg::DefID DefID, Value *St
   ValueVector Args {StoreAddr, DefIDVal};
   ValueVector NArgs = {StoreAddr, SizeArg, DefIDVal};
 
-  switch(Kind) {
-  case UseDefKind::Aligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(AlignedStore1Fn, Args);  break;
-    case 2:   Builder->CreateCall(AlignedStore2Fn, Args);  break;
-    case 4:   Builder->CreateCall(AlignedStore4Fn, Args);  break;
-    case 8:   Builder->CreateCall(AlignedStore8Fn, Args);  break;
-    case 16:  Builder->CreateCall(AlignedStore16Fn, Args); break;
-    default:  Builder->CreateCall(AlignedStoreNFn, NArgs); break;
+  if (ClCheckWithCall) {
+    switch(Kind) {
+    case UseDefKind::Aligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(AlignedStore1Fn, Args);  break;
+      case 2:   Builder->CreateCall(AlignedStore2Fn, Args);  break;
+      case 4:   Builder->CreateCall(AlignedStore4Fn, Args);  break;
+      case 8:   Builder->CreateCall(AlignedStore8Fn, Args);  break;
+      case 16:  Builder->CreateCall(AlignedStore16Fn, Args); break;
+      default:  Builder->CreateCall(AlignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedStores++;
+      break;
     }
-    NumInstrumentedAlignedStores++;
-    break;
-  }
-  case UseDefKind::Unaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(UnalignedStore1Fn, Args);  break;
-    case 2:   Builder->CreateCall(UnalignedStore2Fn, Args);  break;
-    case 4:   Builder->CreateCall(UnalignedStore4Fn, Args);  break;
-    case 8:   Builder->CreateCall(UnalignedStore8Fn, Args);  break;
-    case 16:  Builder->CreateCall(UnalignedStore16Fn, Args); break;
-    default:  Builder->CreateCall(UnalignedStoreNFn, NArgs); break;
+    case UseDefKind::Unaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(UnalignedStore1Fn, Args);  break;
+      case 2:   Builder->CreateCall(UnalignedStore2Fn, Args);  break;
+      case 4:   Builder->CreateCall(UnalignedStore4Fn, Args);  break;
+      case 8:   Builder->CreateCall(UnalignedStore8Fn, Args);  break;
+      case 16:  Builder->CreateCall(UnalignedStore16Fn, Args); break;
+      default:  Builder->CreateCall(UnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedUnalignedStores++;
+      break;
+    } 
+    case UseDefKind::AlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(AlignedOrUnalignedStore1Fn, Args);  break;
+      case 2:   Builder->CreateCall(AlignedOrUnalignedStore2Fn, Args);  break;
+      case 4:   Builder->CreateCall(AlignedOrUnalignedStore4Fn, Args);  break;
+      case 8:   Builder->CreateCall(AlignedOrUnalignedStore8Fn, Args);  break;
+      case 16:  Builder->CreateCall(AlignedOrUnalignedStore16Fn, Args); break;
+      default:  Builder->CreateCall(AlignedOrUnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedOrUnalignedStores++;
+      break;
     }
-    NumInstrumentedUnalignedStores++;
-    break;
-  } 
-  case UseDefKind::AlignedOrUnaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(AlignedOrUnalignedStore1Fn, Args);  break;
-    case 2:   Builder->CreateCall(AlignedOrUnalignedStore2Fn, Args);  break;
-    case 4:   Builder->CreateCall(AlignedOrUnalignedStore4Fn, Args);  break;
-    case 8:   Builder->CreateCall(AlignedOrUnalignedStore8Fn, Args);  break;
-    case 16:  Builder->CreateCall(AlignedOrUnalignedStore16Fn, Args); break;
-    default:  Builder->CreateCall(AlignedOrUnalignedStoreNFn, NArgs); break;
+    case UseDefKind::CondAligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(CondAlignedStore1Fn, Args);  break;
+      case 2:   Builder->CreateCall(CondAlignedStore2Fn, Args);  break;
+      case 4:   Builder->CreateCall(CondAlignedStore4Fn, Args);  break;
+      case 8:   Builder->CreateCall(CondAlignedStore8Fn, Args);  break;
+      case 16:  Builder->CreateCall(CondAlignedStore16Fn, Args); break;
+      default:  Builder->CreateCall(CondAlignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedStores++;
+      break;
     }
-    NumInstrumentedAlignedOrUnalignedStores++;
-    break;
-  }
-  case UseDefKind::CondAligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(CondAlignedStore1Fn, Args);  break;
-    case 2:   Builder->CreateCall(CondAlignedStore2Fn, Args);  break;
-    case 4:   Builder->CreateCall(CondAlignedStore4Fn, Args);  break;
-    case 8:   Builder->CreateCall(CondAlignedStore8Fn, Args);  break;
-    case 16:  Builder->CreateCall(CondAlignedStore16Fn, Args); break;
-    default:  Builder->CreateCall(CondAlignedStoreNFn, NArgs); break;
+    case UseDefKind::CondUnaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(CondUnalignedStore1Fn, Args);  break;
+      case 2:   Builder->CreateCall(CondUnalignedStore2Fn, Args);  break;
+      case 4:   Builder->CreateCall(CondUnalignedStore4Fn, Args);  break;
+      case 8:   Builder->CreateCall(CondUnalignedStore8Fn, Args);  break;
+      case 16:  Builder->CreateCall(CondUnalignedStore16Fn, Args); break;
+      default:  Builder->CreateCall(CondUnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondUnalignedStores++;
+      break;
     }
-    NumInstrumentedCondAlignedStores++;
-    break;
-  }
-  case UseDefKind::CondUnaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(CondUnalignedStore1Fn, Args);  break;
-    case 2:   Builder->CreateCall(CondUnalignedStore2Fn, Args);  break;
-    case 4:   Builder->CreateCall(CondUnalignedStore4Fn, Args);  break;
-    case 8:   Builder->CreateCall(CondUnalignedStore8Fn, Args);  break;
-    case 16:  Builder->CreateCall(CondUnalignedStore16Fn, Args); break;
-    default:  Builder->CreateCall(CondUnalignedStoreNFn, NArgs); break;
+    case UseDefKind::CondAlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   Builder->CreateCall(CondAlignedOrUnalignedStore1Fn, Args);  break;
+      case 2:   Builder->CreateCall(CondAlignedOrUnalignedStore2Fn, Args);  break;
+      case 4:   Builder->CreateCall(CondAlignedOrUnalignedStore4Fn, Args);  break;
+      case 8:   Builder->CreateCall(CondAlignedOrUnalignedStore8Fn, Args);  break;
+      case 16:  Builder->CreateCall(CondAlignedOrUnalignedStore16Fn, Args); break;
+      default:  Builder->CreateCall(CondAlignedOrUnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedOrUnalignedStores++;
+      break;
     }
-    NumInstrumentedCondUnalignedStores++;
-    break;
-  }
-  case UseDefKind::CondAlignedOrUnaligned: {
-    switch(Size) {
-    case 1:   Builder->CreateCall(CondAlignedOrUnalignedStore1Fn, Args);  break;
-    case 2:   Builder->CreateCall(CondAlignedOrUnalignedStore2Fn, Args);  break;
-    case 4:   Builder->CreateCall(CondAlignedOrUnalignedStore4Fn, Args);  break;
-    case 8:   Builder->CreateCall(CondAlignedOrUnalignedStore8Fn, Args);  break;
-    case 16:  Builder->CreateCall(CondAlignedOrUnalignedStore16Fn, Args); break;
-    default:  Builder->CreateCall(CondAlignedOrUnalignedStoreNFn, NArgs); break;
+    // default: llvm_unreachable("Invalid UseDefKind");
     }
-    NumInstrumentedCondAlignedOrUnalignedStores++;
-    break;
-  }
-  // default: llvm_unreachable("Invalid UseDefKind");
+  } else {
+    switch(Kind) {
+    case UseDefKind::Aligned: {
+      switch(Size) {
+      case 1:    
+      case 2:    
+      case 4:   instrumentAlignedStore4 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 8:   instrumentAlignedStore8 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 16:  instrumentAlignedStore16(InsertPoint, StoreAddr, DefIDVal); break;
+      default:  Builder->CreateCall(AlignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedStores++;
+      break;
+    }
+    case UseDefKind::Unaligned: {
+      switch(Size) {
+      case 1:   instrumentUnalignedStore1 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 2:   instrumentUnalignedStore2 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 4:   instrumentUnalignedStore4 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 8:   instrumentUnalignedStore8 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 16:  instrumentUnalignedStore16(InsertPoint, StoreAddr, DefIDVal); break;
+      default:  Builder->CreateCall(UnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedUnalignedStores++;
+      break;
+    } 
+    case UseDefKind::AlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   instrumentAlignedOrUnalignedStore1 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 2:   instrumentAlignedOrUnalignedStore2 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 4:   instrumentAlignedOrUnalignedStore4 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 8:   instrumentAlignedOrUnalignedStore8 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 16:  instrumentAlignedOrUnalignedStore16(InsertPoint, StoreAddr, DefIDVal); break;
+      default:  Builder->CreateCall(AlignedOrUnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedOrUnalignedStores++;
+      break;
+    }
+    case UseDefKind::CondAligned: {
+      switch(Size) {
+      case 1:   instrumentCondAlignedStore1 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 2:   instrumentCondAlignedStore2 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 4:   instrumentCondAlignedStore4 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 8:   instrumentCondAlignedStore8 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 16:  instrumentCondAlignedStore16(InsertPoint, StoreAddr, DefIDVal); break;
+      default:  Builder->CreateCall(CondAlignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedStores++;
+      break;
+    }
+    case UseDefKind::CondUnaligned: {
+      switch(Size) {
+      case 1:   instrumentCondUnalignedStore1 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 2:   instrumentCondUnalignedStore2 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 4:   instrumentCondUnalignedStore4 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 8:   instrumentCondUnalignedStore8 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 16:  instrumentCondUnalignedStore16(InsertPoint, StoreAddr, DefIDVal); break;
+      default:  Builder->CreateCall(CondUnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondUnalignedStores++;
+      break;
+    }
+    case UseDefKind::CondAlignedOrUnaligned: {
+      switch(Size) {
+      case 1:   instrumentCondAlignedOrUnalignedStore1 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 2:   instrumentCondAlignedOrUnalignedStore2 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 4:   instrumentCondAlignedOrUnalignedStore4 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 8:   instrumentCondAlignedOrUnalignedStore8 (InsertPoint, StoreAddr, DefIDVal); break;
+      case 16:  instrumentCondAlignedOrUnalignedStore16(InsertPoint, StoreAddr, DefIDVal); break;
+      default:  Builder->CreateCall(CondAlignedOrUnalignedStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedOrUnalignedStores++;
+      break;
+    }
+    // default: llvm_unreachable("Invalid UseDefKind");
+    }
   }
 }
 
