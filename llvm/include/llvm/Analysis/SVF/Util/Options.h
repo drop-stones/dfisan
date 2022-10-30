@@ -10,7 +10,6 @@
 #include "Util/NodeIDAllocator.h"
 #include "MSSA/MemSSA.h"
 #include "WPA/WPAPass.h"
-#include "Util/Conditions.h"
 
 namespace SVF
 {
@@ -121,7 +120,7 @@ public:
     // Sparse value-flow graph (VFG.cpp)
     static const llvm::cl::opt<bool> DumpVFG;
 
-     // Location set for modeling abstract memory object (LocationSet.cpp)
+    // Location set for modeling abstract memory object (LocationSet.cpp)
     static const llvm::cl::opt<bool> SingleStride;
 
     // Base class of pointer analyses (PointerAnalysis.cpp)
@@ -159,6 +158,9 @@ public:
     static const llvm::cl::opt<bool> SingleVFG;
     static llvm::cl::opt<bool> OPTSVFG;
 
+    static const llvm::cl::opt<std :: string> WriteSVFG;
+    static const llvm::cl::opt<std :: string> ReadSVFG;
+
     // FSMPTA.cpp
     static const llvm::cl::opt<bool> UsePCG;
     static const llvm::cl::opt<bool> IntraLock;
@@ -181,8 +183,8 @@ public:
 
     // MTAResultValidator.cpp
     static const llvm::cl::opt<bool> PrintValidRes;
-	
-	static const llvm::cl::opt<bool> LockValid;
+
+    static const llvm::cl::opt<bool> LockValid;
     //MTAStat.cpp
     static const llvm::cl::opt<bool> AllPairMHP;
 
@@ -235,16 +237,6 @@ public:
     static const llvm::cl::opt<bool> PtsDiff;
     static const llvm::cl::opt<bool> MergePWC;
 
-    // FlowSensitive.cpp
-    static const llvm::cl::opt<bool> CTirAliasEval;
-
-    //FlowSensitiveTBHC.cpp
-    static const llvm::cl::opt<bool> TBHCStoreReuse;
-    static const llvm::cl::opt<bool> TBHCAllReuse;
-
-    // TypeAnalysis.cpp
-    static const llvm::cl::opt<bool> GenICFG;
-
     // WPAPass.cpp
     static const llvm::cl::opt<bool> AnderSVFG;
     static const llvm::cl::opt<bool> SABERFULLSVFG;
@@ -255,8 +247,15 @@ public:
     // DOTGraphTraits
     static const llvm::cl::opt<bool> ShowHiddenNode;
 
-    // Conditions
-    static const llvm::cl::opt<CondManager::CondMgrKind> ConditionType;
+    // CFL option
+    static const llvm::cl::opt<std::string> GrammarFilename;
+    static const llvm::cl::opt<std::string> CFLGraph;
+    static const llvm::cl::opt<bool> PrintCFL;
+    static const llvm::cl::opt<bool> FlexSymMap;
+
+    // Loop Analysis
+    static const llvm::cl::opt<bool> LoopAnalysis;
+    static const llvm::cl::opt<unsigned> LoopBound;
 };
 }  // namespace SVF
 

@@ -1231,8 +1231,8 @@ static void addSanitizers(const Triple &TargetTriple,
     }
 
     if (LangOpts.Sanitize.has(SanitizerKind::DataFlowIntegrity)) {
-      MPM.addPass(ReplaceWithSafeAllocPass());
-      MPM.addPass(DataFlowIntegritySanitizerPass());
+      // MPM.addPass(ReplaceWithSafeAllocPass());
+      // MPM.addPass(DataFlowIntegritySanitizerPass());
     }
   });
 }

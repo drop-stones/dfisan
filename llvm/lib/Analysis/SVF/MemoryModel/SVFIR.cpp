@@ -82,21 +82,23 @@ CopyStmt* SVFIR::addCopyStmt(NodeID src, NodeID dst)
 }
 
 /*!
- * Add Phi statement 
+ * Add Phi statement
  */
 PhiStmt* SVFIR::addPhiStmt(NodeID res, NodeID opnd, const ICFGNode* pred)
 {
     SVFVar* opNode = getGNode(opnd);
     SVFVar* resNode = getGNode(res);
     PHINodeMap::iterator it = phiNodeMap.find(resNode);
-    if(it == phiNodeMap.end()){
+    if(it == phiNodeMap.end())
+    {
         PhiStmt* phi = new PhiStmt(resNode, {opNode}, {pred});
         addToStmt2TypeMap(phi);
         addEdge(opNode, resNode, phi);
         phiNodeMap[resNode] = phi;
         return phi;
     }
-    else{
+    else
+    {
         it->second->addOpVar(opNode,pred);
         /// return null if we already added this PhiStmt
         return nullptr;
@@ -104,7 +106,7 @@ PhiStmt* SVFIR::addPhiStmt(NodeID res, NodeID opnd, const ICFGNode* pred)
 }
 
 /*!
- * Add Phi statement 
+ * Add Phi statement
  */
 SelectStmt* SVFIR::addSelectStmt(NodeID res, NodeID op1, NodeID op2, NodeID cond)
 {
@@ -348,14 +350,13 @@ GepStmt* SVFIR::addGepStmt(NodeID src, NodeID dst, const LocationSet& ls, bool c
  */
 GepStmt* SVFIR::addNormalGepStmt(NodeID src, NodeID dst, const LocationSet& ls)
 {
-    const LocationSet& baseLS = getLocationSetFromBaseNode(src);
-    SVFVar* baseNode = getGNode(getBaseValVar(src));
+    SVFVar* baseNode = getGNode(src);
     SVFVar* dstNode = getGNode(dst);
     if(hasNonlabeledEdge(baseNode, dstNode, SVFStmt::Gep))
         return nullptr;
     else
     {
-        GepStmt* gepPE = new GepStmt(baseNode, dstNode, baseLS+ls);
+        GepStmt* gepPE = new GepStmt(baseNode, dstNode, ls);
         addToStmt2TypeMap(gepPE);
         addEdge(baseNode, dstNode, gepPE);
         return gepPE;
@@ -368,14 +369,13 @@ GepStmt* SVFIR::addNormalGepStmt(NodeID src, NodeID dst, const LocationSet& ls)
  */
 GepStmt* SVFIR::addVariantGepStmt(NodeID src, NodeID dst, const LocationSet& ls)
 {
-    const LocationSet& baseLS = getLocationSetFromBaseNode(src);
-    SVFVar* baseNode = getGNode(getBaseValVar(src));
+    SVFVar* baseNode = getGNode(src);
     SVFVar* dstNode = getGNode(dst);
     if(hasNonlabeledEdge(baseNode, dstNode, SVFStmt::Gep))
         return nullptr;
     else
     {
-        GepStmt* gepPE = new GepStmt(baseNode, dstNode,baseLS+ls, true);
+        GepStmt* gepPE = new GepStmt(baseNode, dstNode,ls, true);
         addToStmt2TypeMap(gepPE);
         addEdge(baseNode, dstNode, gepPE);
         return gepPE;
@@ -543,10 +543,12 @@ NodeID SVFIR::getBaseValVar(NodeID nodeId)
 NodeID SVFIR::getGepValVar(const Value* curInst, NodeID base, const LocationSet& ls) const
 {
     GepValueVarMap::const_iterator iter = GepValObjMap.find(curInst);
-    if(iter==GepValObjMap.end()){
+    if(iter==GepValObjMap.end())
+    {
         return UINT_MAX;
     }
-    else{
+    else
+    {
         NodeLocationSetMap::const_iterator lit = iter->second.find(std::make_pair(base, ls));
         if(lit==iter->second.end())
             return UINT_MAX;
@@ -555,28 +557,6 @@ NodeID SVFIR::getGepValVar(const Value* curInst, NodeID base, const LocationSet&
     }
 }
 
-/*!
- * Get a base SVFVar given a pointer
- * Return the source node of its connected normal gep edge
- * Otherwise return the node id itself
- * s32_t offset : gep offset
- */
-LocationSet SVFIR::getLocationSetFromBaseNode(NodeID nodeId)
-{
-    SVFVar* node  = getGNode(nodeId);
-    SVFStmt::SVFStmtSetTy& geps = node->getIncomingEdges(SVFStmt::Gep);
-    /// if this node is already a base node
-    if(geps.empty())
-        return LocationSet(0);
-
-    assert(geps.size()==1 && "one node can only be connected by at most one gep edge!");
-    SVFVar::iterator it = geps.begin();
-    const GepStmt* gepEdge = SVFUtil::cast<GepStmt>(*it);
-    if(gepEdge->isVariantFieldGep())
-        return LocationSet(0);
-    else
-        return gepEdge->getLocationSet();
-}
 
 /*!
  * Clean up memory
@@ -648,11 +628,11 @@ void SVFIR::print()
     {
         GepStmt* gep = SVFUtil::cast<GepStmt>(*iter);
         if(gep->isVariantFieldGep())
-                outs() << (*iter)->getSrcID() << " -- VariantGep --> "
-               << (*iter)->getDstID() << "\n";
+            outs() << (*iter)->getSrcID() << " -- VariantGep --> "
+                   << (*iter)->getDstID() << "\n";
         else
-                outs() << gep->getRHSVarID() << " -- Gep (" << gep->getConstantFieldIdx()
-               << ") --> " << gep->getLHSVarID() << "\n";
+            outs() << gep->getRHSVarID() << " -- Gep (" << gep->getConstantFieldIdx()
+                   << ") --> " << gep->getLHSVarID() << "\n";
     }
 
     SVFStmt::SVFStmtSetTy& loads = pag->getSVFStmtSet(SVFStmt::Load);
@@ -674,7 +654,7 @@ void SVFIR::print()
 
 }
 
-    /// Initialize candidate pointers
+/// Initialize candidate pointers
 void SVFIR::initialiseCandidatePointers()
 {
     // collect candidate pointers for demand-driven analysis
@@ -688,7 +668,7 @@ void SVFIR::initialiseCandidatePointers()
     }
 }
 /*!
- * Return true if FIObjVar can point to any object 
+ * Return true if FIObjVar can point to any object
  * Or a field GepObjVar can point to any object.
  */
 bool SVFIR::isNonPointerObj(NodeID id) const
@@ -729,7 +709,7 @@ bool SVFIR::isValidTopLevelPtr(const SVFVar* node)
     {
         if (isValidPointer(node->getId()) && node->hasValue())
         {
-            if (SVFUtil::ArgInNoCallerFunction(node->getValue()))
+            if (LLVMUtil::ArgInNoCallerFunction(node->getValue()))
                 return false;
             return true;
         }

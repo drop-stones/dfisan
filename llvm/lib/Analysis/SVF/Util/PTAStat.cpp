@@ -111,7 +111,8 @@ PTAStat::PTAStat(PointerAnalysis* p) : startTime(0), endTime(0), pta(p)
            && "PTAStat: unknown clock type!");
 }
 
-double PTAStat::getClk(bool mark) {
+double PTAStat::getClk(bool mark)
+{
     if (Options::MarkedClocksOnly && !mark) return 0.0;
 
     if (Options::ClockType == ClockType::Wall)
@@ -220,6 +221,7 @@ void PTAStat::performStat()
     generalNumMap[NumOfObjsHasConstStruct] = numOfHasConstStruct;
     generalNumMap[NumOfObjsHasConstArray] = numOfHasConstArray;
     generalNumMap[NumOfNonPtrObjs] = numOfScalar;
+    generalNumMap[NumOfConstantObjs] = numOfConstant;
 
     generalNumMap[NumOfIndirectCallSites] = pag->getIndirectCallsites().size();
     generalNumMap["TotalCallSite"] = pag->getCallSiteSet().size();
@@ -290,9 +292,17 @@ void PTAStat::callgraphStat()
 void PTAStat::printStat(string statname)
 {
 
-    StringRef fullName(SymbolTableInfo::SymbolInfo()->getModule()->getModuleIdentifier());
-    StringRef name = fullName.split('/').second;
-    moduleName = name.split('.').first.str();
+    std::string moduleName(SymbolTableInfo::SymbolInfo()->getModule()->getModuleIdentifier());
+    std::vector<std::string> names = SVFUtil::split(moduleName,'/');
+    if (names.size() > 1)
+    {
+        moduleName = names[1];
+        names = SVFUtil::split(moduleName,'.');
+        if (names.size() > 0)
+        {
+            moduleName = names[0];
+        }
+    }
 
     SVFUtil::outs() << "\n*********" << statname << "***************\n";
     SVFUtil::outs() << "################ (program : " << moduleName << ")###############\n";

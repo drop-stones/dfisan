@@ -31,6 +31,7 @@
 #include "SVF-FE/CallGraphBuilder.h"
 #include "SVF-FE/CHGBuilder.h"
 #include "SVF-FE/DCHG.h"
+#include "SVF-FE/LLVMUtil.h"
 #include "SVF-FE/CPPUtil.h"
 #include "Util/SVFModule.h"
 #include "Util/SVFUtil.h"
@@ -41,7 +42,6 @@
 #include "MemoryModel/PTAStat.h"
 #include "Graphs/ThreadCallGraph.h"
 #include "Graphs/ICFG.h"
-#include "WPA/FlowSensitiveTBHC.h"
 
 #include <iomanip>
 #include <iostream>
@@ -51,6 +51,7 @@
 using namespace SVF;
 using namespace SVFUtil;
 using namespace cppUtil;
+using namespace LLVMUtil;
 
 
 SVFIR* PointerAnalysis::pag = nullptr;
@@ -75,7 +76,7 @@ PointerAnalysis::PointerAnalysis(SVFIR* p, PTATY ty, bool alias_check) :
     svfMod(nullptr),ptaTy(ty),stat(nullptr),ptaCallGraph(nullptr),callGraphSCC(nullptr),icfg(nullptr),chgraph(nullptr),typeSystem(nullptr)
 {
     pag = p;
-	OnTheFlyIterBudgetForStat = Options::StatBudget;
+    OnTheFlyIterBudgetForStat = Options::StatBudget;
     print_stat = Options::PStat;
     ptaImplTy = BaseImpl;
     alias_validation = (alias_check && Options::EnableAliasCheck);
@@ -112,20 +113,14 @@ void PointerAnalysis::destroy()
  */
 void PointerAnalysis::initialize()
 {
-	assert(pag && "SVFIR has not been built!");
-	if (chgraph == nullptr) {
-		if (LLVMModuleSet::getLLVMModuleSet()->allCTir()) {
-			DCHGraph *dchg = new DCHGraph(pag->getModule());
-			// TODO: we might want to have an option for extending.
-			dchg->buildCHG(true);
-			chgraph = dchg;
-		} else {
-			CHGraph *chg = new CHGraph(pag->getModule());
-            CHGBuilder builder(chg);
-			builder.buildCHG();
-			chgraph = chg;
-		}
-	}
+    assert(pag && "SVFIR has not been built!");
+    if (chgraph == nullptr)
+    {
+        CHGraph *chg = new CHGraph(pag->getModule());
+        CHGBuilder builder(chg);
+        builder.buildCHG();
+        chgraph = chg;
+    }
 
     svfMod = pag->getModule();
 
@@ -145,8 +140,8 @@ void PointerAnalysis::initialize()
     callGraphSCCDetection();
 
     // dump callgraph
-	if (Options::CallGraphDotGraph)
-		getPTACallGraph()->dump("callgraph_initial");
+    if (Options::CallGraphDotGraph)
+        getPTACallGraph()->dump("callgraph_initial");
 }
 
 
@@ -155,14 +150,14 @@ void PointerAnalysis::initialize()
  */
 bool PointerAnalysis::isLocalVarInRecursiveFun(NodeID id) const
 {
-    const MemObj* obj = this->pag->getObject(id);
+    const MemObj* obj = pag->getObject(id);
     assert(obj && "object not found!!");
     if(obj->isStack())
     {
-        if(const AllocaInst* local = SVFUtil::dyn_cast<AllocaInst>(obj->getValue()))
+        if(const Function* fun = pag->getGNode(id)->getFunction())
         {
-            const SVFFunction* fun = LLVMModuleSet::getLLVMModuleSet()->getSVFFunction(local->getFunction());
-            return callGraphSCC->isInCycle(getPTACallGraph()->getCallGraphNode(fun)->getId());
+            const SVFFunction* svffun = LLVMModuleSet::getLLVMModuleSet()->getSVFFunction(fun);
+            return callGraphSCC->isInCycle(getPTACallGraph()->getCallGraphNode(svffun)->getId());
         }
     }
     return false;
@@ -203,8 +198,6 @@ void PointerAnalysis::finalize()
     /// Print statistics
     dumpStat();
 
-    SVFIR* pag = SVFIR::getPAG();
-
     /// Dump results
     if (Options::PTSPrint)
     {
@@ -224,12 +217,10 @@ void PointerAnalysis::finalize()
 
     getPTACallGraph()->verifyCallGraph();
 
-	if (Options::CallGraphDotGraph)
-		getPTACallGraph()->dump("callgraph_final");
+    if (Options::CallGraphDotGraph)
+        getPTACallGraph()->dump("callgraph_final");
 
-    // FSTBHC has its own TBHC-specific test validation.
-    if(!pag->isBuiltFromFile() && alias_validation
-            && !SVFUtil::isa<FlowSensitiveTBHC>(this))
+    if(!pag->isBuiltFromFile() && alias_validation)
         validateTests();
 
     if (!Options::UsePreCompFieldSensitive)
@@ -273,7 +264,7 @@ void PointerAnalysis::dumpAllTypes()
         Type* type = node->getValue()->getType();
         SymbolTableInfo::SymbolInfo()->printFlattenFields(type);
         if (PointerType* ptType = SVFUtil::dyn_cast<PointerType>(type))
-            SymbolTableInfo::SymbolInfo()->printFlattenFields(ptType->getElementType());
+            SymbolTableInfo::SymbolInfo()->printFlattenFields(getPtrElementType(ptType));
     }
 }
 
@@ -289,12 +280,14 @@ void PointerAnalysis::dumpPts(NodeID ptr, const PointsTo& pts)
     {
         outs() << "##<Dummy Obj > id:" << node->getId();
     }
-    else if (!SVFUtil::isa<DummyValVar>(node) && !SVFModule::pagReadFromTXT()) {
-		if (node->hasValue()) {
-			outs() << "##<" << node->getValue()->getName().str() << "> ";
-			outs() << "Source Loc: " << getSourceLoc(node->getValue());
-		}
-	}
+    else if (!SVFUtil::isa<DummyValVar>(node) && !SVFModule::pagReadFromTXT())
+    {
+        if (node->hasValue())
+        {
+            outs() << "##<" << node->getValue()->getName().str() << "> ";
+            outs() << "Source Loc: " << getSourceLoc(node->getValue());
+        }
+    }
     outs() << "\nPtr " << node->getId() << " ";
 
     if (pts.empty())
@@ -324,15 +317,18 @@ void PointerAnalysis::dumpPts(NodeID ptr, const PointsTo& pts)
             outs() << "DummyVal\n";
         else if (SVFUtil::isa<DummyObjVar>(node))
             outs() << "Dummy Obj id: " << node->getId() << "]\n";
-		else {
-			if (!SVFModule::pagReadFromTXT()) {
-				if (node->hasValue()) {
-					outs() << "<" << pagNode->getValue()->getName().str() << "> ";
-					outs() << "Source Loc: "
-							<< getSourceLoc(pagNode->getValue()) << "] \n";
-				}
-			}
-		}
+        else
+        {
+            if (!SVFModule::pagReadFromTXT())
+            {
+                if (node->hasValue())
+                {
+                    outs() << "<" << pagNode->getValue()->getName().str() << "> ";
+                    outs() << "Source Loc: "
+                           << getSourceLoc(pagNode->getValue()) << "] \n";
+                }
+            }
+        }
     }
 }
 

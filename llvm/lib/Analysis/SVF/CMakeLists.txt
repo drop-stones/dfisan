@@ -14,10 +14,12 @@ file (GLOB SOURCES
         MTA/*.cpp
         SABER/*.cpp
         DDA/*.cpp
+        CFL/*.cpp
         FastCluster/*.cpp
-        UseDefAnalysis/*.cpp
+        Dfisan/*.cpp
 )
 
+# add_llvm_library(Svf STATIC ${SOURCES} LINK_LIBS Cudd ${Z3_LIBRARIES})
 add_llvm_component_library(LLVMSvf
     ${SOURCES}
 
@@ -32,10 +34,8 @@ add_llvm_component_library(LLVMSvf
     Cudd
     BitWriter
     Core
-    # ipo
     IRReader
     InstCombine
-    # Instrumentation
     Target
     Linker
     Analysis

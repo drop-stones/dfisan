@@ -40,7 +40,6 @@
 #include "WPA/Andersen.h"
 #include "WPA/AndersenSFR.h"
 #include "WPA/FlowSensitive.h"
-#include "WPA/FlowSensitiveTBHC.h"
 #include "WPA/VersionedFlowSensitive.h"
 #include "WPA/TypeAnalysis.h"
 #include "WPA/Steensgaard.h"
@@ -93,9 +92,9 @@ bool WPAPass::runOnModule(Module& module)
  */
 void WPAPass::runPointerAnalysis(SVFModule* svfModule, u32_t kind)
 {
-	/// Build SVFIR
-	SVFIRBuilder builder;
-	SVFIR* pag = builder.build(svfModule);
+    /// Build SVFIR
+    SVFIRBuilder builder;
+    SVFIR* pag = builder.build(svfModule);
     /// Initialize pointer analysis.
     switch (kind)
     {
@@ -125,9 +124,6 @@ void WPAPass::runPointerAnalysis(SVFModule* svfModule, u32_t kind)
         break;
     case PointerAnalysis::FSSPARSE_WPA:
         _pta = new FlowSensitive(pag);
-        break;
-    case PointerAnalysis::FSTBHC_WPA:
-        _pta = new FlowSensitiveTBHC(pag);
         break;
     case PointerAnalysis::VFS_WPA:
         _pta = new VersionedFlowSensitive(pag);

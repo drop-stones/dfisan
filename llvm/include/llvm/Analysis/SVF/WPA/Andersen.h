@@ -30,6 +30,7 @@
 #ifndef ANDERSENPASS_H_
 #define ANDERSENPASS_H_
 
+#include "Util/Options.h"
 #include "MemoryModel/PointerAnalysisImpl.h"
 #include "WPA/WPAStat.h"
 #include "WPA/WPASolver.h"
@@ -85,16 +86,16 @@ public:
     static inline bool classof(const PointerAnalysis *pta)
     {
         return ( pta->getAnalysisTy() == Andersen_BASE
-				|| pta->getAnalysisTy() == Andersen_WPA
-                || pta->getAnalysisTy() == AndersenLCD_WPA
-                || pta->getAnalysisTy() == AndersenHCD_WPA
-                || pta->getAnalysisTy() == AndersenHLCD_WPA
-                || pta->getAnalysisTy() == AndersenWaveDiff_WPA
-                || pta->getAnalysisTy() == AndersenWaveDiffWithType_WPA
-                || pta->getAnalysisTy() == AndersenSCD_WPA
-                || pta->getAnalysisTy() == AndersenSFR_WPA
-				|| pta->getAnalysisTy() == TypeCPP_WPA
-				|| pta->getAnalysisTy() == Steensgaard_WPA);
+                 || pta->getAnalysisTy() == Andersen_WPA
+                 || pta->getAnalysisTy() == AndersenLCD_WPA
+                 || pta->getAnalysisTy() == AndersenHCD_WPA
+                 || pta->getAnalysisTy() == AndersenHLCD_WPA
+                 || pta->getAnalysisTy() == AndersenWaveDiff_WPA
+                 || pta->getAnalysisTy() == AndersenWaveDiffWithType_WPA
+                 || pta->getAnalysisTy() == AndersenSCD_WPA
+                 || pta->getAnalysisTy() == AndersenSFR_WPA
+                 || pta->getAnalysisTy() == TypeCPP_WPA
+                 || pta->getAnalysisTy() == Steensgaard_WPA);
     }
     //@}
 
@@ -190,7 +191,7 @@ public:
     static inline bool classof(const PointerAnalysis *pta)
     {
         return (pta->getAnalysisTy() == Andersen_WPA
-				|| pta->getAnalysisTy() == AndersenLCD_WPA
+                || pta->getAnalysisTy() == AndersenLCD_WPA
                 || pta->getAnalysisTy() == AndersenHCD_WPA
                 || pta->getAnalysisTy() == AndersenHLCD_WPA
                 || pta->getAnalysisTy() == AndersenWaveDiff_WPA
@@ -432,6 +433,8 @@ public:
         if(diffWave==nullptr)
         {
             diffWave = new AndersenWaveDiff(_pag, AndersenWaveDiff_WPA, false);
+            if (!Options::PStat)
+                diffWave->disablePrintStat();
             diffWave->analyze();
             return diffWave;
         }

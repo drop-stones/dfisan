@@ -27,8 +27,7 @@ add_llvm_component_library(LLVMPasses
   TransformUtils
   Vectorize
   Instrumentation
-  # SVF
-  Dg
+  SVF
   )
 
 add_definitions(-DENABLE_CFG)

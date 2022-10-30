@@ -35,6 +35,7 @@
 
 using namespace SVF;
 using namespace SVFUtil;
+using namespace LLVMUtil;
 
 /*!
  * Clear statistics
@@ -396,7 +397,7 @@ void FlowSensitiveStat::statInOutPtsSize(const DFInOutMap& data, ENUM_INOUT inOr
         PtsMap::const_iterator ptsEit = cptsMap.end();
         for (; ptsIt != ptsEit; ++ptsIt)
         {
-            if (ptsIt->second.empty()) 
+            if (ptsIt->second.empty())
             {
                 _NumOfVarHaveEmptyINOUTPts[inOrOut]++;
                 continue;

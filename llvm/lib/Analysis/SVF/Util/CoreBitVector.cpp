@@ -10,8 +10,8 @@
  */
 
 #include <limits.h>
-#include <llvm/Support/MathExtras.h>
 
+#include "Util/SparseBitVector.h"  // For LLVM's countPopulation.
 #include "Util/CoreBitVector.h"
 #include "Util/SVFBasicTypes.h"
 #include "Util/SVFUtil.h"
@@ -56,7 +56,7 @@ bool CoreBitVector::empty(void) const
 u32_t CoreBitVector::count(void) const
 {
     u32_t n = 0;
-    for (const Word &w : words) n += llvm::countPopulation(w);
+    for (const Word &w : words) n += countPopulation(w);
     return n;
 }
 
@@ -151,7 +151,7 @@ bool CoreBitVector::operator==(const CoreBitVector &rhs) const
         // If the first bit is not the same in the word or words are different,
         // then we have a mismatch.
         if (lhsSetIndex * WordSize + offset != rhsSetIndex * WordSize + rhs.offset
-            || words[lhsSetIndex] != rhs.words[rhsSetIndex])
+                || words[lhsSetIndex] != rhs.words[rhsSetIndex])
         {
             return false;
         }

@@ -40,6 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
@@ -55,13 +56,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <map>
 #include <utility>
 
-#define DEBUG_TYPE "break-constgeps"
-
 using namespace SVF;
 
 // Identifier variable for the pass
 char BreakConstantGEPs::ID = 0;
 char MergeFunctionRets::ID = 0;
+
+#define DEBUG_TYPE "break-constgeps"
+
 // Statistics
 STATISTIC (GEPChanges,   "Number of Converted GEP Constant Expressions");
 STATISTIC (TotalChanges, "Number of Converted Constant Expressions");

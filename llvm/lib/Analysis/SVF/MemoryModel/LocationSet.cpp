@@ -32,9 +32,11 @@
 #include "Util/Options.h"
 #include "MemoryModel/LocationSet.h"
 #include "Util/SVFUtil.h"
+#include "SVF-FE/LLVMUtil.h"
 
 using namespace SVF;
 using namespace SVFUtil;
+using namespace LLVMUtil;
 
 /*!
  * Add offset value to vector offsetValues
@@ -48,7 +50,8 @@ bool LocationSet::addOffsetValue(const Value* offsetVal, const Type* type)
 /// Return true if all offset values are constants
 bool LocationSet::isConstantOffset() const
 {
-    for(auto it : offsetValues){
+    for(auto it : offsetValues)
+    {
         if(SVFUtil::isa<ConstantInt>(it.first) == false)
             return false;
     }
@@ -57,9 +60,10 @@ bool LocationSet::isConstantOffset() const
 
 /// Return element number of a type
 /// (1) StructType or Array, return flatterned number elements.
-/// (2) PointerType, return the element number of the pointee 
+/// (2) PointerType, return the element number of the pointee
 /// (3) non-pointer SingleValueType, return 1
-u32_t LocationSet::getElementNum(const Type* type) const{
+u32_t LocationSet::getElementNum(const Type* type) const
+{
 
     if(SVFUtil::isa<ArrayType>(type) || SVFUtil::isa<StructType>(type))
     {
@@ -69,11 +73,12 @@ u32_t LocationSet::getElementNum(const Type* type) const{
     {
         /// This is a pointer arithmic
         if(const PointerType* pty = SVFUtil::dyn_cast<PointerType>(type))
-            return getElementNum(pty->getElementType());
+            return getElementNum(getPtrElementType(pty));
         else
             return 1;
     }
-    else{
+    else
+    {
         SVFUtil::outs() << "GepIter Type" << type2String(type) << "\n";
         assert(false && "What other types for this gep?");
         abort();
@@ -81,11 +86,11 @@ u32_t LocationSet::getElementNum(const Type* type) const{
 }
 
 /// Return accumulated constant offset
-/// 
+///
 /// "value" is the offset variable (must be a constant)
 /// "type" is the location where we want to compute offset
 /// Given a vector: [(value1,type1), (value2,type2), (value3,type3)]
-/// totalConstOffset = flattenOffset(value1,type1) * flattenOffset(type2,type2) + flattenOffset(type3,type3)
+/// totalConstOffset = flattenOffset(value1,type1) * flattenOffset(value2,type2) + flattenOffset(value3,type3)
 /// For a pointer type (e.g., t1 is PointerType), we will retrieve the pointee type and times the offset, i.e., getElementNum(t1) X off1
 
 /// For example,
@@ -94,43 +99,47 @@ u32_t LocationSet::getElementNum(const Type* type) const{
 // char x = studentRecord[1].studentName[3][2];
 
 /// %5 = getelementptr inbounds %struct.Student, %struct.Student* %4, i64 1
-///     value1: i64 1 type1: %struct.Student*  
+///     value1: i64 1 type1: %struct.Student*
 ///     accumulateConstantOffset = 32
-/// %6 = getelementptr inbounds %struct.Student, %struct.Student* %5, i32 0, i32 1 
-///     value1: i32 0  type1: %struct.Student* 
-///     value2: i32 1  type2: %struct.Student = type { %struct.inner, [10 x [3 x i8]] }  
+/// %6 = getelementptr inbounds %struct.Student, %struct.Student* %5, i32 0, i32 1
+///     value1: i32 0  type1: %struct.Student*
+///     value2: i32 1  type2: %struct.Student = type { %struct.inner, [10 x [3 x i8]] }
 ///     accumulateConstantOffset = 2
-/// %7 = getelementptr inbounds [10 x [3 x i8]], [10 x [3 x i8]]* %6, i64 0, i64 3 
+/// %7 = getelementptr inbounds [10 x [3 x i8]], [10 x [3 x i8]]* %6, i64 0, i64 3
 ///     value1: i64 0  type1: [10 x [3 x i8]]*
-///     value2: i64 3  type2: [10 x [3 x i8]]       
+///     value2: i64 3  type2: [10 x [3 x i8]]
 ///     accumulateConstantOffset = 9
-/// %8 = getelementptr inbounds [3 x i8], [3 x i8]* %7, i64 0, i64 2 
+/// %8 = getelementptr inbounds [3 x i8], [3 x i8]* %7, i64 0, i64 2
 ///     value1: i64 0  type1: [3 x i8]*
 ///     value2: i64 2  type2: [3 x i8]
 ///     accumulateConstantOffset = 2
-s32_t LocationSet::accumulateConstantOffset() const{
-    
+s32_t LocationSet::accumulateConstantOffset() const
+{
+
     assert(isConstantOffset() && "not a constant offset");
 
     if(offsetValues.empty())
         return accumulateConstantFieldIdx();
 
     s32_t totalConstOffset = 0;
-    for(int i = offsetValues.size() - 1; i >= 0; i--){
+    for(int i = offsetValues.size() - 1; i >= 0; i--)
+    {
         const Value* value = offsetValues[i].first;
         const Type* type = offsetValues[i].second;
         const ConstantInt *op = SVFUtil::dyn_cast<ConstantInt>(value);
         assert(op && "not a constant offset?");
-        if(type==nullptr){
+        if(type==nullptr)
+        {
             totalConstOffset += op->getSExtValue();
             continue;
         }
 
         if(const PointerType* pty = SVFUtil::dyn_cast<PointerType>(type))
-            totalConstOffset += op->getSExtValue() * getElementNum(pty->getElementType());
-        else{
+            totalConstOffset += op->getSExtValue() * getElementNum(getPtrElementType(pty));
+        else
+        {
             s32_t offset = op->getSExtValue();
-            u32_t flattenOffset = SymbolTableInfo::SymbolInfo()->getFlattenedElemIdx(type, offset); 
+            u32_t flattenOffset = SymbolTableInfo::SymbolInfo()->getFlattenedElemIdx(type, offset);
             totalConstOffset += flattenOffset;
         }
     }

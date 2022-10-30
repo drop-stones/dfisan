@@ -34,6 +34,7 @@
 #include "Util/ExtAPI.h"
 #include "SVF-FE/BasicTypes.h"
 #include "SVF-FE/ICFGBuilder.h"
+#include "Util/cJSON.h"
 
 namespace SVF
 {
@@ -130,8 +131,9 @@ public:
     {
         visitCallSite(&II);
     }
-    void visitCallBrInst(CallBrInst &I) {
-      return visitCallSite(&I);
+    void visitCallBrInst(CallBrInst &I)
+    {
+        return visitCallSite(&I);
     }
     void visitCallSite(CallSite cs);
     void visitReturnInst(ReturnInst &I);
@@ -155,9 +157,9 @@ public:
     /// TODO: var arguments need to be handled.
     /// https://llvm.org/docs/LangRef.html#id1911
     void visitVAArgInst(VAArgInst&);
-    void visitVACopyInst(VACopyInst&){}
-    void visitVAEndInst(VAEndInst&){}
-    void visitVAStartInst(VAStartInst&){}
+    void visitVACopyInst(VACopyInst&) {}
+    void visitVAEndInst(VAEndInst&) {}
+    void visitVAStartInst(VAStartInst&) {}
 
     /// <result> = freeze ty <val>
     /// If <val> is undef or poison, ‘freeze’ returns an arbitrary, but fixed value of type `ty`
@@ -239,6 +241,8 @@ protected:
 
     /// Handle external call
     //@{
+    virtual u32_t getArgPos(std::string s);
+    virtual NodeID parseNode(std::string s, CallSite cs, const Instruction *inst);
     virtual void handleExtCall(CallSite cs, const SVFFunction *F);
     void addComplexConsForExt(Value *D, Value *S, const Value* sz);
     //@}
@@ -293,7 +297,8 @@ protected:
     /// Add Address edge
     inline AddrStmt* addAddrEdge(NodeID src, NodeID dst)
     {
-        if(AddrStmt *edge = pag->addAddrStmt(src, dst)){
+        if(AddrStmt *edge = pag->addAddrStmt(src, dst))
+        {
             setCurrentBBAndValueForPAGEdge(edge);
             return edge;
         }
@@ -302,7 +307,8 @@ protected:
     /// Add Copy edge
     inline CopyStmt* addCopyEdge(NodeID src, NodeID dst)
     {
-        if(CopyStmt *edge = pag->addCopyStmt(src, dst)){
+        if(CopyStmt *edge = pag->addCopyStmt(src, dst))
+        {
             setCurrentBBAndValueForPAGEdge(edge);
             return edge;
         }
@@ -339,8 +345,9 @@ protected:
         if(UnaryOPStmt *edge = pag->addUnaryOPStmt(src, dst, opcode))
             setCurrentBBAndValueForPAGEdge(edge);
     }
-    /// Add Branch statement 
-    inline void addBranchStmt(NodeID br, NodeID cond, const BranchStmt::SuccAndCondPairVec& succs){
+    /// Add Branch statement
+    inline void addBranchStmt(NodeID br, NodeID cond, const BranchStmt::SuccAndCondPairVec& succs)
+    {
         if(BranchStmt *edge = pag->addBranchStmt(br, cond, succs))
             setCurrentBBAndValueForPAGEdge(edge);
     }
@@ -405,6 +412,7 @@ protected:
     }
     //@}
 
+    LocationSet getLocationSetFromBaseNode(NodeID nodeId);
 };
 
 } // End namespace SVF

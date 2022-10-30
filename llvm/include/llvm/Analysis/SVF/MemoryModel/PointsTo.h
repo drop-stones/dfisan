@@ -17,6 +17,7 @@
 #include "Util/SVFBasicTypes.h"
 #include "Util/BitVector.h"
 #include "Util/CoreBitVector.h"
+#include "Util/SparseBitVector.h"
 
 namespace SVF
 {
@@ -124,8 +125,14 @@ public:
     /// If not, remaps.
     void checkAndRemap(void);
 
-    const_iterator begin(void) const { return PointsToIterator(this); }
-    const_iterator end(void) const { return PointsToIterator(this, true); }
+    const_iterator begin(void) const
+    {
+        return PointsToIterator(this);
+    }
+    const_iterator end(void) const
+    {
+        return PointsToIterator(this, true);
+    }
 
     MappingPtr getNodeMapping(void) const;
 
@@ -156,7 +163,7 @@ private:
     union
     {
         /// Sparse bit vector backing.
-        SparseBitVector sbv;
+        SparseBitVector<> sbv;
         /// Core bit vector backing.
         CoreBitVector cbv;
         /// Bit vector backing.
@@ -217,7 +224,7 @@ public:
         /// TODO: std::variant when we move to C++17.
         union
         {
-            SparseBitVector::iterator sbvIt;
+            SparseBitVector<>::iterator sbvIt;
             CoreBitVector::iterator cbvIt;
             BitVector::iterator bvIt;
         };
