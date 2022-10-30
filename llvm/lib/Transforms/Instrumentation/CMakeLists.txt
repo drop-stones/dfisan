@@ -18,8 +18,8 @@ add_llvm_component_library(LLVMInstrumentation
   ValueProfileCollector.cpp
   ThreadSanitizer.cpp
   HWAddressSanitizer.cpp
-  # DataFlowIntegritySanitizer.cpp
-  # ReplaceWithSafeAlloc.cpp
+  DataFlowIntegritySanitizer.cpp
+  ReplaceWithSafeAlloc.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms
@@ -39,5 +39,5 @@ add_llvm_component_library(LLVMInstrumentation
 
 add_definitions(-DENABLE_CFG)
 target_include_directories(LLVMInstrumentation PRIVATE
-  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis/SVF
 )

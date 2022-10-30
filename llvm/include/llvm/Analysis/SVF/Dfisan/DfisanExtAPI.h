@@ -64,10 +64,18 @@ public:
   static DfisanExtAPI *getDfisanExtAPI();
   static void destroy();
 
+  /// Check ExtFun from SVFFunction
   bool isExtFun(const SVFFunction *F);
   bool isExtDefFun(const SVFFunction *F);
   bool isExtUseFun(const SVFFunction *F);
+
+  /// Check ExtFun from function name
+  bool isExtFun(std::string FnName);
+  bool isExtDefFun(std::string FnName);
+  bool isExtUseFun(std::string FnName);
+
   const ExtFun &getExtFun(const SVFFunction *F);
+  const ExtFun &getExtFun(std::string FnName);
 };
 
 } // namespace SVF

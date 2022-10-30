@@ -17,9 +17,9 @@ file (GLOB SOURCES
         CFL/*.cpp
         FastCluster/*.cpp
         Dfisan/*.cpp
+        ModulePass/*.cpp
 )
 
-# add_llvm_library(Svf STATIC ${SOURCES} LINK_LIBS Cudd ${Z3_LIBRARIES})
 add_llvm_component_library(LLVMSvf
     ${SOURCES}
 

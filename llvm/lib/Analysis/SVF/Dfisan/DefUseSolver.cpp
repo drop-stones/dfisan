@@ -62,8 +62,6 @@ void DefUseSolver::solve() {
 
   // Register UseDef to ProtectInfo
   registerUseDef(EquivalentDefs);
-
-  ProtInfo->dump(llvm::errs());
 }
 
 /// Get Value * from NodeID

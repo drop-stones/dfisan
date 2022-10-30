@@ -6,7 +6,6 @@ set(SOURCES
 	cuddInt.c
 )
 
-# add_llvm_library(Cudd ${SOURCES} LINK_LIBS m)
 add_llvm_component_library(LLVMCudd
 	${SOURCES}
 

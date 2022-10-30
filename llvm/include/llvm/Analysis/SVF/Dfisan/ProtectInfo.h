@@ -37,6 +37,8 @@ public:
   bool hasAlignedTarget(llvm::Value *V)   { return Aligned.count(V) != 0; }
   bool hasUnalignedTarget(llvm::Value *V) { return Unaligned.count(V) != 0; }
   bool hasTarget(llvm::Value *V) { return hasAlignedTarget(V) || hasUnalignedTarget(V); }
+  bool hasDef(llvm::Value *Def) { return DefToInfo.count(Def) != 0; }
+  bool hasUse(llvm::Value *Use) { return UseToDefIDs.count(Use) != 0; }
 
   void insertDef(llvm::Value *Def, DefID ID) {
     DefToInfo[Def] = DefInfo(ID);
@@ -45,6 +47,16 @@ public:
   void addUseDef(llvm::Value *Use, DefID ID) {
     UseToDefIDs[Use].insert(ID);
   }
+
+  DefID getDefID(llvm::Value *Def) {
+    assert(hasDef(Def));
+    return DefToInfo[Def].ID;
+  }
+  const DefIDSet &getDefIDsFromUse(llvm::Value *Use) {
+    assert(hasUse(Use));
+    return UseToDefIDs[Use];
+  }
+  const DefInfoMap &getDefToInfo() { return DefToInfo; }
 
   void dump(llvm::raw_ostream &OS) {
     OS << "ProtectInfo::" << __func__ << "\n";
