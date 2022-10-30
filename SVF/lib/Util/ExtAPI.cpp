@@ -565,6 +565,13 @@ static const ei_pair ei_pairs[]=
     {"valloc", ExtAPI::EFT_ALLOC},
     {"SRE_LockCreate", ExtAPI::EFT_ALLOC},
     {"VOS_MemAlloc", ExtAPI::EFT_ALLOC},
+    // dfisan functions
+    {"__dfisan_unsafe_malloc", ExtAPI::EFT_ALLOC},
+    {"__dfisan_safe_aligned_malloc", ExtAPI::EFT_ALLOC},
+    {"__dfisan_safe_unaligned_malloc", ExtAPI::EFT_ALLOC},
+    {"__dfisan_unsafe_calloc", ExtAPI::EFT_ALLOC},
+    {"__dfisan_safe_aligned_calloc", ExtAPI::EFT_ALLOC},
+    {"__dfisan_safe_unaligned_calloc", ExtAPI::EFT_ALLOC},
 
     {"\01mmap64", ExtAPI::EFT_NOSTRUCT_ALLOC},
     //FIXME: this is like realloc but with arg1.
@@ -671,6 +678,10 @@ static const ei_pair ei_pairs[]=
     //As above, but also stores the last string into *arg2.
     {"strtok_r", ExtAPI::EFT_REALLOC},
     {"xrealloc", ExtAPI::EFT_REALLOC},
+    // dfisan functions
+    {"__dfisan_unsafe_realloc", ExtAPI::EFT_REALLOC},
+    {"__dfisan_safe_aligned_realloc", ExtAPI::EFT_REALLOC},
+    {"__dfisan_safe_unaligned_realloc", ExtAPI::EFT_REALLOC},
 
     {"SSL_CTX_free", ExtAPI::EFT_FREE},
     {"SSL_free", ExtAPI::EFT_FREE},

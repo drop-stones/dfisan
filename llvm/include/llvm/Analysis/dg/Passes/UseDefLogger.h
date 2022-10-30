@@ -4,6 +4,7 @@
 #include "sqlite3.h"
 #include "llvm/Support/raw_ostream.h"
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/Passes/DfiProtectInfo.h"
 
 namespace dg {
 namespace debug {
@@ -13,7 +14,7 @@ public:
   UseDefLogger(llvm::Module &M);
   ~UseDefLogger();
 
-  void logDefInfo(UseDefBuilder *Builder);
+  void logDefInfo(dda::LLVMDataDependenceAnalysis *DDA, DfiProtectInfo *ProtectInfo);
 
 private:
   const std::string DBTableName = "DefInfoTable";

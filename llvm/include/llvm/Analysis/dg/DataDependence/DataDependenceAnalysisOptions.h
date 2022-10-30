@@ -80,6 +80,9 @@ struct FunctionModel {
         return it == _uses.end() ? nullptr : &it->second;
     }
 
+    const std::map<unsigned, Operand> &getDefines() const { return _defines; }
+    const std::map<unsigned, Operand> &getUses() const { return _uses; }
+
     bool handles(unsigned i) const { return defines(i) || uses(i); }
 
   private:

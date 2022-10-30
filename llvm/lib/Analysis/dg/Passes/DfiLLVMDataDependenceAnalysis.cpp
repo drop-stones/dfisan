@@ -8,10 +8,15 @@
 namespace dg {
 namespace dda {
 
+// DfiLLVMDataDependenceAnalysis::DfiLLVMDataDependenceAnalysis(const llvm::Module *M,
+//                                                              dg::LLVMPointerAnalysis *PTA,
+//                                                              DfiProtectInfo *ProtectInfo,
+//                                                              LLVMDataDependenceAnalysisOptions Opts)
 DfiLLVMDataDependenceAnalysis::DfiLLVMDataDependenceAnalysis(const llvm::Module *M,
                                                              dg::LLVMPointerAnalysis *PTA,
-                                                             LLVMDataDependenceAnalysisOptions Opts)
-  : LLVMDataDependenceAnalysis(M, PTA, Opts) {
+                                                             DfiProtectInfo *ProtectInfo,
+                                                             DfiLLVMDataDependenceAnalysisOptions Opts)
+  : LLVMDataDependenceAnalysis(M, PTA, Opts), ProtectInfo(ProtectInfo) {
   if (builder != nullptr)
     delete(builder);
   builder = createBuilder();
@@ -19,7 +24,7 @@ DfiLLVMDataDependenceAnalysis::DfiLLVMDataDependenceAnalysis(const llvm::Module 
 
 LLVMReadWriteGraphBuilder *DfiLLVMDataDependenceAnalysis::createBuilder() {
   assert(m && pta);
-  return new DfiReadWriteGraphBuilder(m, pta, _options);
+  return new DfiReadWriteGraphBuilder(m, pta, _options, ProtectInfo);
 }
 
 DataDependenceAnalysis *DfiLLVMDataDependenceAnalysis::createDDA() {

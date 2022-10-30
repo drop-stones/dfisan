@@ -6,6 +6,8 @@ set(DFISAN_RTL_SOURCES
   dfisan_interceptors.cpp
   dfisan_shadow_setup.cpp
   dfisan_errors.cpp
+  dfisan_malloc.cpp
+  dlmalloc/dlmalloc.c
 )
 
 set(DFISAN_RTL_HEADERS
@@ -14,6 +16,8 @@ set(DFISAN_RTL_HEADERS
   dfisan_internal.h
   dfisan_mapping.h
   dfisan_errors.h
+  dfisan_malloc.h
+  dlmalloc/dlmalloc.h
 )
 
 set(DFISAN_COMMON_CFLAGS ${SANITIZER_COMMON_CFLAGS})

@@ -1,12 +1,70 @@
 #include "Passes/DfiReadWriteGraphBuilder.h"
-// #include "dg/Passes/DfiUtils.h"
+#include "dg/Passes/DfiOptions.h"
+#include "llvm/ReadWriteGraph/LLVMReadWriteGraphBuilder.h"
+#include "llvm/llvm-utils.h"
 
 namespace dg {
 namespace dda {
 
+/* --- dg/llvm/ReadWriteGraph/Calls.cpp --- */
+template <typename T>
+std::pair<Offset, Offset> getFromTo(const llvm::CallInst *CInst, T what) {
+    auto from = what->from.isOperand()
+                        ? llvmutils::getConstantValue(
+                                  CInst->getArgOperand(what->from.getOperand()))
+                        : what->from.getOffset();
+    auto to = what->to.isOperand()
+                      ? llvmutils::getConstantValue(
+                                CInst->getArgOperand(what->to.getOperand()))
+                      : what->to.getOffset();
+
+    return {from, to};
+}
+std::pair<Offset, Offset> getFromToOfVararg(const llvm::CallInst *CInst, const dg::FunctionModel::Operand *Ope) {
+    assert(Ope->from.isOperand() && "Vararg's from must be operand");
+    Offset From = Ope->from.getOperand();
+    assert(Ope->to.isOffset() && Ope->to.getOffset() == Offset::UNKNOWN && "Vararg's to must be Offset::UNKNOWN");
+    Offset To = Ope->to.getOffset();
+    return {From, To};
+}
+
+RWNode *DfiReadWriteGraphBuilder::funcFromModel(const FunctionModel *Model, const llvm::CallInst *CInst) {
+    auto *Node = LLVMReadWriteGraphBuilder::funcFromModel(Model, CInst);
+
+    // Definitions of vararg
+    if (Model->handles(VARARG)) {
+        Offset Start, NoUse;
+        std::tie(Start, NoUse) = getFromToOfVararg(CInst, Model->defines(VARARG));
+        for (unsigned int Idx = Start.offset; Idx < llvmutils::getNumArgOperands(CInst); Idx++) {
+            auto const *llvmOp = CInst->getArgOperand(Idx);
+            auto Pts = PTA->getLLVMPointsTo(llvmOp);
+            for (const auto &Ptr : Pts) {
+                RWNode *Target = getOperand(Ptr.value);
+                Node->addDef(Target, Ptr.offset, Offset::getUnknown());
+            }
+        }
+    }
+
+    // Definitions of the return value.
+    if (Model->handles(RETURN)) {
+        if (const auto *Defines = Model->defines(RETURN)) {
+            Offset From, To;
+            std::tie(From, To) = getFromTo(CInst, Defines);
+            for (const auto &Ptr : PTA->getLLVMPointsTo(CInst)) {
+                RWNode *Target = getOperand(Ptr.value);
+                Node->addDef(Target, Ptr.offset + From, Ptr.offset + To);
+            }
+        }
+    }
+
+    return Node;
+}
+
+/* --- dg/llvm/ReadWriteGraph/Instructions.cpp --- */
 RWNode *DfiReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
     RWNode *ret = LLVMReadWriteGraphBuilder::createLoad(Inst);
 
+/*
     /// Print for debug
     auto &Loc = Inst->getDebugLoc();
     if (Loc) {
@@ -17,8 +75,26 @@ RWNode *DfiReadWriteGraphBuilder::createLoad(const llvm::Instruction *Inst) {
             }
         }
     }
+*/
 
     return ret;
+}
+
+// Add calloc def
+RWNode *DfiReadWriteGraphBuilder::createDynAlloc(const llvm::Instruction *Inst, AllocationFunction Type) {
+    auto *Node = LLVMReadWriteGraphBuilder::createDynAlloc(Inst, Type);
+
+    // Definitions by calloc
+    if (Type == AllocationFunction::CALLOC) {
+        uint64_t Size = Node->getSize();
+        if (Size != 0) {
+            Node->addDef(Node, 0, Size, false);
+        } else {
+            Node->addDef(Node, 0, Offset::getUnknown(), false);
+        }
+    }
+
+    return Node;
 }
 
 template <typename OptsT>
@@ -73,12 +149,14 @@ static bool isRelevantCall(const llvm::Instruction *Inst, OptsT &opts) {
 NodesSeq<RWNode> DfiReadWriteGraphBuilder::createNode(const llvm::Value *V) {
   using namespace llvm;
   if (isa<GlobalVariable>(V)) {
-      // global variables are like allocations
-      // and store initial values.
-      auto &GlobalNode = create(RWNodeType::GLOBAL);
-      DefSite Site{&GlobalNode};
-      GlobalNode.addDef(Site);
-      return {&GlobalNode};
+    // global variables are like allocations
+    // and store initial values.
+    auto &GlobalNode = create(RWNodeType::GLOBAL);
+    if (ProtectInfo->hasTarget((llvm::Value *)V)) {
+        GlobalNode.addDef(&GlobalNode, Offset::getUnknown(), Offset::getUnknown());
+        assert(GlobalNode.isDef() && "GlobalNode is not def");
+    }
+    return {&GlobalNode};
   }
 
   const auto *I = dyn_cast<Instruction>(V);
@@ -113,6 +191,7 @@ NodesSeq<RWNode> DfiReadWriteGraphBuilder::createNode(const llvm::Value *V) {
   return {};
 }
 
+/* --- dg/llvm/GraphBuilder.h --- */
 void DfiReadWriteGraphBuilder::buildSubgraph(const llvm::Function &F) {
     LLVMReadWriteGraphBuilder::buildSubgraph(F);
 
@@ -121,8 +200,9 @@ void DfiReadWriteGraphBuilder::buildSubgraph(const llvm::Function &F) {
         auto *Main = getSubgraph(&F);
         auto *MainEntryBlock = Main->getBBlocks().begin()->get();
         for (auto *GlobalNode : getGlobals()) {
-            if (GlobalNode->isDef())
+            if (GlobalNode->isDef()) {
                 MainEntryBlock->prepend(GlobalNode);
+            }
         }
     }
 }

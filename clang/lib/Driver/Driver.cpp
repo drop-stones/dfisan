@@ -50,6 +50,7 @@
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "ToolChains/ZOS.h"
+#include "ToolChains/Dfisan.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
@@ -5554,6 +5555,13 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
                                                               Args);
       else if (Target.getArch() == llvm::Triple::ve)
         TC = std::make_unique<toolchains::VEToolChain>(*this, Target, Args);
+
+      // dfisan tool chain
+      else if (Args.hasArg(options::OPT_fsanitize_EQ)) {
+        Arg *SanArg = Args.getLastArg(options::OPT_fsanitize_EQ);
+        if (std::string(SanArg->getValue(0)) == "dfi")
+          TC = std::make_unique<toolchains::DfisanToolChain>(*this, Target, Args);
+      }
 
       else
         TC = std::make_unique<toolchains::Linux>(*this, Target, Args);

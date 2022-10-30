@@ -11,7 +11,7 @@
 #define STR_BUFF 256
 
 int main(int argc, char **argv) {
-  char readbuff[STR_BUFF];
+  char readbuff[STR_BUFF] __attribute__((annotate("dfi_protection")));
 
   FILE *file = fopen(argv[1], "r");
   while (fgets(readbuff, STR_BUFF, file) != NULL) {

@@ -113,15 +113,6 @@ RWNode *LLVMReadWriteGraphBuilder::createDynAlloc(const llvm::Instruction *Inst,
 
     node.setSize(size);
 
-    // Definitions by calloc
-    if (type == AllocationFunction::CALLOC) {
-        if (size != 0) {
-            node.addDef(&node, 0, size, false);
-        } else {
-            node.addDef(&node, 0, Offset::getUnknown(), false);
-        }
-    }
-
     return &node;
 }
 
@@ -187,6 +178,15 @@ void LLVMReadWriteGraphBuilder::addReallocUses(const llvm::Instruction *Inst,
             // the realloc reallocates itself
             ptrNode = &node;
         } else {
+            // realloc <-> realloc loop occur
+            auto *Call = llvm::dyn_cast<llvm::CallInst>(ptr.value);
+            auto *Callee = Call->getCalledOperand()->stripPointerCasts();
+            auto type = _options.getAllocationFunction(Callee->getName().str());
+            if (type == AllocationFunction::REALLOC && getNode(ptr.value) == nullptr) {
+                // Skip to avoid infinite recursion
+                llvm::errs() << __func__ << ": [Error] Skip realloc to avoid infinite recursion\n";
+                continue;
+            }
             ptrNode = getOperand(ptr.value);
         }
         if (!ptrNode) {

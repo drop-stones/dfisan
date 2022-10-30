@@ -38,6 +38,16 @@ struct AnalysisOptions {
             {"calloc", AllocationFunction::CALLOC},
             {"alloca", AllocationFunction::ALLOCA},
             {"realloc", AllocationFunction::REALLOC},
+            // dfisan's allocs
+            {"__dfisan_unsafe_malloc", AllocationFunction::MALLOC},
+            {"__dfisan_safe_aligned_malloc", AllocationFunction::MALLOC},
+            {"__dfisan_safe_unaligned_malloc", AllocationFunction::MALLOC},
+            {"__dfisan_unsafe_calloc", AllocationFunction::CALLOC},
+            {"__dfisan_safe_aligned_calloc", AllocationFunction::CALLOC},
+            {"__dfisan_safe_unaligned_calloc", AllocationFunction::CALLOC},
+            {"__dfisan_unsafe_realloc", AllocationFunction::REALLOC},
+            {"__dfisan_safe_aligned_realloc", AllocationFunction::REALLOC},
+            {"__dfisan_safe_unaligned_realloc", AllocationFunction::REALLOC},
     };
 
     void addAllocationFunction(const std::string &name, AllocationFunction F) {

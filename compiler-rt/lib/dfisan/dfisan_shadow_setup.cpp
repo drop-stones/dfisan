@@ -10,22 +10,26 @@
 #include "sanitizer_common/sanitizer_platform.h"
 #include "dfisan/dfisan_internal.h"
 #include "dfisan/dfisan_mapping.h"
+#include "dfisan/dfisan_malloc.h"
+
+#include <sys/mman.h>
+#include <assert.h>
 
 using namespace __sanitizer;
 
 namespace __dfisan {
 
 void InitializeShadowMemory() {
-  // mmap the low shadow
-  ReserveShadowMemoryRange(kLowShadowBeg, kHighShadowEnd, "low shadow");
-  Report("INFO: Reserve low shadow\n");
-  // mmap the high shadow
-  ReserveShadowMemoryRange(kHighShadowBeg, kHighShadowEnd, "high shadow");
-  Report("INFO: Reserve high shadow\n");
+  // mmap the unsafe heap
+  ReserveUnsafeRegion(kUnsafeHeapBeg, kUnsafeHeapEnd);
+  // mmap the safe aligned heap
+  ReserveSafeAlignedRegion(kSafeAlignedGlobalBeg, kSafeAlignedGlobalEnd, kSafeAlignedHeapBeg, kSafeAlignedHeapEnd, kShadowAlignedBeg, kShadowAlignedEnd);
+  // mmap the safe unaligned heap
+  ReserveSafeUnalignedRegion(kSafeUnalignedGlobalBeg, kSafeUnalignedGlobalEnd, kSafeUnalignedHeapBeg, kSafeUnalignedHeapEnd, kShadowUnalignedBeg, kShadowUnalignedEnd);
+
   // mmap the shadow gap
   ProtectGap(kShadowGapBeg, kShadowGapEnd - kShadowGapBeg + 1, 0, (1 << 18));
-  Report("INFO: Reserve shadow gap\n");
-  CHECK_EQ(kShadowGapEnd, kHighShadowBeg - 1);
+  Report("INFO: Reserve shadow gap (0x%zx, 0x%zx)\n", kShadowGapBeg, kShadowGapEnd);
 }
 
 } // namespace __dfisan

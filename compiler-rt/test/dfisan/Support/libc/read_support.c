@@ -11,7 +11,7 @@
 #define STR_BUFF 256
 
 int main(int argc, char **argv) {
-  char readbuff[STR_BUFF];
+  char readbuff[STR_BUFF] __attribute__((annotate("dfi_protection")));
 
   int fd, rc, i;
   fd = open(argv[1], O_RDONLY);

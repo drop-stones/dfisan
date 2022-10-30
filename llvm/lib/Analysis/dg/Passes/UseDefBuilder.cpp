@@ -1,4 +1,5 @@
 #include "dg/Passes/UseDefBuilder.h"
+#include "dg/Passes/DfiUtils.h"
 #include "dg/llvm/LLVMDependenceGraph.h"
 
 using namespace dg;
@@ -13,64 +14,31 @@ UseDefBuilder::isUse(llvm::Value *Val) {
 }
 
 void
-UseDefBuilder::assignDefIDs() {
-  // Assign DefID to global initializations.
-  for (auto GI = glob_begin(), GE = glob_end(); GI != GE; GI++) {
-    auto *GlobInit = (llvm::Value *)getDDA()->getValue(*GI);
-    assert(isDef(GlobInit));
-    assignDefID(GlobInit);
-  }
+UseDefBuilder::collectFSUseDef() {
+  SVFPointerAnalysis Svf{M, Opts.PTAOptions};
+  Svf.run();
+  auto *DDA = DG->getDDA();
 
-  // Assign DefID to store instructions.
-  for (auto DI = def_begin(), DE = def_end(); DI != DE; DI++) {
-    auto *Def = (*DI)->getValue();
-    assert(isDef(Def));
-    assignDefID(Def);
-  }
-}
-
-void
-UseDefBuilder::assignDefID(llvm::Value *Def) {
-  static DefID CurrID = 1;
-  if (DefToInfo.count(Def) == 0) {
-    DefToInfo.emplace(Def, CurrID);
-
-    if (CurrID == USHRT_MAX) {
-      llvm::errs() << "DefID overflow!!\n";
-      CurrID = 1;
-    } else {
-      CurrID++;
+  for (auto *Use : ProtectInfo->Uses) {
+    assert(llvm::isa<Instruction>(Use) && "Use must be instruction");
+    Instruction *UseInst = dyn_cast<Instruction>(Use);
+    auto *UseTarget = getAccessPtr(Use);
+    if (UseTarget == nullptr) continue;
+    auto Defs = DDA->getLLVMDefinitions(Use);
+    auto *Node = DDA->getNode(Use);
+    assert((Node != nullptr && Node->defuse.initialized()) && "Use node is nullptr");
+    // llvm::errs() << "Use: " << *Use << ", Target: " << *UseTarget << "\n";
+    for (auto *Def : Defs) {
+      auto *DefTarget = getAccessPtr(Def);
+      // llvm::errs() << " - Def: " << *Def << ", Target: " << *DefTarget << "\n";
+      if (DefTarget == nullptr || Svf.alias(UseTarget, DefTarget)) {
+        // llvm::errs() << " Alias: " << *UseTarget << " ++ " << *DefTarget << "\n";
+        ProtectInfo->insertUseDef(UseInst, Def);
+      }
     }
   }
-}
 
-DefID
-UseDefBuilder::getDefID(llvm::Value *Key) {
-  assert(DefToInfo.count(Key) != 0);
-  return DefToInfo[Key].ID;
-}
-
-void
-UseDefBuilder::printUseDef(llvm::raw_ostream &OS) {
-  OS << __func__ << "\n";
-  for (auto UI = use_begin(), UE = use_end(); UI != UE; UI++) {
-    auto *Use = (*UI)->getValue();
-    OS << "Use: " << *Use << "\n";
-    for (auto *Def : getDDA()->getLLVMDefinitions(Use)) {
-      OS << " - DefID[" << getDefID(Def) << "]: " << *Def << "\n";
-    }
-  }
-}
-
-void
-UseDefBuilder::printDefInfoMap(llvm::raw_ostream &OS) {
-  OS << __func__ << "\n";
-  for (const auto &Iter : DefToInfo) {
-    auto *Val = Iter.first;
-    auto &DefInfo = Iter.second;
-
-    OS << "DefID[" << DefInfo.ID << "]: " << *Val << "\n";
-  }
+  return;
 }
 
 void
