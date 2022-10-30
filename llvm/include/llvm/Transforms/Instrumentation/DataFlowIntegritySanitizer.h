@@ -76,7 +76,7 @@ private:
   void instrumentAlignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
   void instrumentAlignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
   void instrumentAlignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentAlignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, Value *SizeVal = nullptr, unsigned Size = 0);
 
   /// Instrument safe unaligned store
   void instrumentUnalignedStore1 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);

@@ -339,8 +339,25 @@ void DataFlowIntegritySanitizerPass::instrumentAlignedStore16(Instruction *Inser
   setDefID(Builder.get(), ShadowAddr2, DefID);
   setDefID(Builder.get(), ShadowAddr3, DefID);
 }
-void DataFlowIntegritySanitizerPass::instrumentAlignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID) {
+void DataFlowIntegritySanitizerPass::instrumentAlignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID, Value *SizeVal, unsigned Size) {
   // TODO
+  // Value *LoopCnt = Builder->CreateAlloca(Int32Ty);
+  // Value *InitVal = ConstantInt::get(Int32Ty, 0);
+  // Builder->CreateStore(InitVal, LoopCnt);
+  // Loop init
+  Value *ZeroVal = ConstantInt::get(Int32Ty, 0);
+  Value *LoopCnt = Builder->CreateAdd(ZeroVal, ZeroVal);
+  Value *ShadowAddr = Builder->CreateAdd(StoreAddr, ConstantInt::get(StoreAddr->getType(), 0));
+  // Value *FalseVal = Builder->getFalse();
+  // Value *IsAttack = Builder->CreateLogicalAnd(FalseVal, FalseVal);
+  // Loop cond
+  BasicBlock *CondBlock = SplitBlock(InsertPoint->getParent(), InsertPoint);
+  Builder->SetInsertPoint(CondBlock);
+  // Value *Idx = Builder->CreateLoad(Int32Ty, LoopCnt);
+  Value *Cond = Builder->CreateICmpNE(LoopCnt, SizeVal);
+  // Body
+  Instruction *Then = SplitBlockAndInsertIfThen(Cond, InsertPoint, /* unreachable */ false);
+  Builder->SetInsertPoint(Then);
 }
 
 /// Unaligned store
