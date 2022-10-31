@@ -2,24 +2,71 @@
 #include "MTA/LockAnalysis.h"
 #include "Dfisan/DefUseSolver.h"
 
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "def-use-solver"
+
 using namespace SVF;
 
-bool isTargetStore(const SVFGNode *Node) {
-  // TODO: check store target
-  return SVFUtil::isa<StoreSVFGNode>(Node);
+/// Access target analysis
+const PointsTo &DefUseSolver::collectStoreTarget(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  assert(SVFUtil::isa<StoreSVFGNode>(Node));
+  const StoreSVFGNode *StoreNode = SVFUtil::cast<StoreSVFGNode>(Node);
+  const PAGNode *DstNode = StoreNode->getPAGDstNode();
+  auto &PtsSet = Pta->getPts(DstNode->getId());
+  return PtsSet;
 }
 
-bool isTargetLoad(const SVFGNode *Node) {
-  // TODO: check load target
-  return SVFUtil::isa<LoadSVFGNode>(Node);
+const PointsTo &DefUseSolver::collectLoadTarget(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  assert(SVFUtil::isa<LoadSVFGNode>(Node));
+  const LoadSVFGNode *LoadNode = SVFUtil::cast<LoadSVFGNode>(Node);
+  const PAGNode *SrcNode = LoadNode->getPAGSrcNode();
+  auto &PtsSet = Pta->getPts(SrcNode->getId());
+  return PtsSet;
+}
+
+bool DefUseSolver::containTarget(const PointsTo &PtsSet) {
+  ValueSet Targets;
+  getValueSetFromPointsTo(Targets, PtsSet);
+  for (auto *Target : Targets) {
+    if (ProtInfo->hasTarget(Target))
+      return true;
+  }
+  return false;
+}
+
+void DefUseSolver::getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet) {
+  for (auto Pts : PtsSet) {
+    const PAGNode *PtsNode = Pag->getGNode(Pts);
+    // const PAGNode *PtsNode = Pag->getGNode(Pag->getBaseValVar(Pts));
+    if (!PtsNode->hasValue())
+      continue;
+    Values.insert((Value *)PtsNode->getValue());
+  }
+}
+
+bool DefUseSolver::isTargetStore(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  if (!SVFUtil::isa<StoreSVFGNode>(Node))
+    return false;
+  const PointsTo &PtsSet = collectStoreTarget(ID);
+  return containTarget(PtsSet);
+}
+
+bool DefUseSolver::isTargetLoad(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  if (!SVFUtil::isa<LoadSVFGNode>(Node))
+    return false;
+  const PointsTo &PtsSet = collectLoadTarget(ID);
+  return containTarget(PtsSet);
 }
 
 void DefUseSolver::solve() {
   // initialize worklist
   for (auto It = Svfg->begin(), Eit = Svfg->end(); It != Eit; ++It) {
     NodeID ID = It->first;
-    const SVFGNode *Node = It->second;
-    if (isTargetStore(Node))
+    if (isTargetStore(ID))
       pushIntoWorklist(ID);
   }
 
@@ -33,7 +80,7 @@ void DefUseSolver::solve() {
     DefIDVec &Facts = NodeToDefs[ID];
 
     // Generate def data-facts.
-    if (isTargetStore(Node))
+    if (isTargetStore(ID))
       Facts.set(ID);
     
     // Propagate data-facts to successor nodes
@@ -49,7 +96,7 @@ void DefUseSolver::solve() {
   for (const auto &It : NodeToDefs) {
     NodeID ID = It.first;
     const SVFGNode *Node = Svfg->getSVFGNode(ID);
-    if (isTargetLoad(Node)) {
+    if (isTargetLoad(ID)) {
       for (NodeID DefID : It.second) {
         addDefUse(DefUse, DefID, ID);
       }
@@ -89,9 +136,7 @@ bool DefUseSolver::isDataRace(Value *V1, Value *V2) {
 ///   - Def + Use are accesses of protection targets
 ///   - Def + Use are race free
 void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
-  const SVFGNode *UseNode = Svfg->getSVFGNode(Use);
-  const SVFGNode *DefNode = Svfg->getSVFGNode(Def);
-  if (!isTargetLoad(UseNode) || !isTargetStore(DefNode))
+  if (!isTargetLoad(Use) || !isTargetStore(Def))
     return;
   Value *UseVal = getValue(Use);
   Value *DefVal = getValue(Def);
@@ -112,24 +157,50 @@ void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs)
   for (const auto &EquivDefs : EquivalentDefs) {
     DefID ID = getNextID();
     for (NodeID DefID : EquivDefs.Defs) {
-      // TODO: Aligned or Unaligned check
       Value *Def = getValue(DefID);
-      ProtInfo->insertDef(Def, ID);
+      DefUseKind Kind = analyzeDefKind(DefID);
+      // ProtInfo->setDefID(Def, ID);
+      if (Kind.isAlignedOnlyDef())
+        ProtInfo->insertAlignedOnlyDef(Def, ID);
+      else if (Kind.isUnalignedOnlyDef())
+        ProtInfo->insertUnalignedOnlyDef(Def, ID);
+      else if (Kind.isBothOnlyDef())
+        ProtInfo->insertBothOnlyDef(Def, ID);
+      else if (Kind.isAlignedOrNoTargetDef())
+        ProtInfo->insertAlignedOrNoTargetDef(Def, ID);
+      else if (Kind.isUnalignedOrNoTargetDef())
+        ProtInfo->insertUnalignedOrNoTargetDef(Def, ID);
+      else if (Kind.isBothOrNoTargetDef())
+        ProtInfo->insertBothOrNoTargetDef(Def, ID);
     }
     for (NodeID UseID : EquivDefs.Uses) {
-      // TODO: Aligned or Unaligned check
       Value *Use = getValue(UseID);
+      DefUseKind Kind = analyzeUseKind(UseID);
       ProtInfo->addUseDef(Use, ID);
+      if (ProtInfo->hasUse(Use))
+        continue;
+      if (Kind.isAlignedOnlyUse())
+        ProtInfo->insertAlignedOnlyUse(Use);
+      else if (Kind.isUnalignedOnlyUse())
+        ProtInfo->insertUnalignedOnlyUse(Use);
+      else if (Kind.isBothOnlyUse())
+        ProtInfo->insertBothOnlyUse(Use);
+      else if (Kind.isAlignedOrNoTargetUse())
+        ProtInfo->insertAlignedOrNoTargetUse(Use);
+      else if (Kind.isUnalignedOrNoTargetUse())
+        ProtInfo->insertUnalignedOrNoTargetUse(Use);
+      else if (Kind.isBothOrNoTargetUse())
+        ProtInfo->insertBothOrNoTargetUse(Use);
     }
   }
 }
 
 void DefUseSolver::registerUseDef(DefUseIDInfo &DefUse) {
   for (const auto &Iter : DefUse.DefUseID) {
-    DefID ID = getNextID();
     // TODO: Aligned or Unaligned check
+    DefID ID = getNextID();
     Value *Def = getValue(Iter.first);
-    ProtInfo->insertDef(Def, ID);
+    ProtInfo->setDefID(Def, ID);
     for (NodeID UseID : Iter.second) {
       // TODO: Aligned or Unaligned check
       Value *Use = getValue(UseID);
@@ -152,4 +223,48 @@ void DefUseSolver::calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<Equiva
     if (Iter2 == EquivalentDefs.end())
       EquivalentDefs.emplace_back(DefID, UseIDs);
   }
+}
+
+/// DefUseKind analysis
+DefUseKind DefUseSolver::analyzeDefKind(NodeID ID) {
+  LLVM_DEBUG(
+    const Value *Store = Svfg->getSVFGNode(ID)->getValue();
+    if (Store == nullptr) llvm::dbgs() << "Store: nullptr\n";
+    else                  llvm::dbgs() << "Store: " << *Store << "\n";
+  );
+  auto &PtsSet = collectStoreTarget(ID);
+
+  struct DefUseKind Kind;
+  Kind.IsDef = true;
+  setDefUseKind(Kind, PtsSet);
+  return Kind;
+}
+
+DefUseKind DefUseSolver::analyzeUseKind(NodeID ID) {
+  LLVM_DEBUG(
+    const Value *Load = Svfg->getSVFGNode(ID)->getValue();
+    if (Load == nullptr)  llvm::dbgs() << "Load: nullptr\n";
+    else                  llvm::dbgs() << "Load: " << *Load << "\n";
+  );
+  auto &PtsSet = collectLoadTarget(ID);
+
+  struct DefUseKind Kind;
+  Kind.IsUse = true;
+  setDefUseKind(Kind, PtsSet);
+  return Kind;
+}
+
+void DefUseSolver::setDefUseKind(DefUseKind &Kind, const PointsTo &PtsSet) {
+  ValueSet Targets;
+  getValueSetFromPointsTo(Targets, PtsSet);
+  for (auto *Target : Targets) {
+    LLVM_DEBUG(llvm::dbgs() << " - Target: " << *Target << "\n");
+    assert(Target != nullptr);
+    Kind.IsAligned   |= ProtInfo->hasAlignedTarget(Target);
+    Kind.IsUnaligned |= ProtInfo->hasUnalignedTarget(Target);
+    Kind.IsNoTarget  |= !(ProtInfo->hasTarget(Target));
+  }
+  LLVM_DEBUG(llvm::dbgs() << " - Kind: " << (Kind.IsAligned ? "aligned" : "") << " "
+                                         << (Kind.IsUnaligned ? "unaligned" : "") << " "
+                                         << (Kind.IsNoTarget ? "no-target" : "") << "\n");
 }

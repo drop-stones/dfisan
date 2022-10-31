@@ -14,7 +14,7 @@ public:
   virtual ~DfisanMTA() {}
 
   /// Compute MHP
-  virtual MHP *computeMHP(SVFModule *module);
+  virtual MHP *computeMHP(SVFModule *module) override;
 };
 
 } // namespace SVF

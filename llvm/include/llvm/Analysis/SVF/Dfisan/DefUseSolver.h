@@ -8,6 +8,8 @@
 
 namespace SVF {
 
+struct DefUseKind;
+
 class DefUseSolver {
 public:
   /// Define worklist
@@ -56,7 +58,7 @@ public:
 
   /// Constructor
   DefUseSolver(SVFG *Svfg, MHP *Mhp, LockAnalysis *LockAna, ProtectInfo *ProtInfo)
-    : Svfg(Svfg), Mhp(Mhp), LockAna(LockAna), ProtInfo(ProtInfo) {}
+    : Svfg(Svfg), Mhp(Mhp), LockAna(LockAna), Pta(Svfg->getPTA()), Pag(Svfg->getPAG()), ProtInfo(ProtInfo) {}
 
   /// Start solving
   void solve();
@@ -85,6 +87,8 @@ private:
   SVFG *Svfg;
   MHP *Mhp;
   LockAnalysis *LockAna;
+  PointerAnalysis *Pta;
+  SVFIR *Pag;
   ProtectInfo *ProtInfo;
   WorkList Worklist;
 
@@ -121,6 +125,49 @@ private:
 
   /// Calculate equivalent defs
   void calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<EquivalentDefSet> &EquivalentDefs);
+
+  /// Access target analysis
+  bool isTargetStore(NodeID ID);
+  bool isTargetLoad(NodeID ID);
+  bool containTarget(const PointsTo &PtsSet);
+  void getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet);
+  const PointsTo &collectStoreTarget(NodeID ID);
+  const PointsTo &collectLoadTarget(NodeID ID);
+
+  /// DefUseKind analysis
+  DefUseKind analyzeDefKind(NodeID ID);
+  DefUseKind analyzeUseKind(NodeID ID);
+  void setDefUseKind(DefUseKind &Kind, const PointsTo &PtsSet);
+};
+
+struct DefUseKind {
+  DefUseKind() : IsDef(false), IsUse(false), IsAligned(false), IsUnaligned(false), IsNoTarget(false) {}
+
+  /// Def kind
+  bool isAlignedOnlyDef()         { return IsDef &&  IsAligned && !IsUnaligned && !IsNoTarget; }
+  bool isUnalignedOnlyDef()       { return IsDef && !IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isBothOnlyDef()            { return IsDef &&  IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isAlignedOrNoTargetDef()   { return IsDef &&  IsAligned && !IsUnaligned &&  IsNoTarget; }
+  bool isUnalignedOrNoTargetDef() { return IsDef && !IsAligned &&  IsUnaligned &&  IsNoTarget; }
+  bool isBothOrNoTargetDef()      { return IsDef &&  IsAligned &&  IsUnaligned &&  IsNoTarget; }
+
+  /// Use kind
+  bool isAlignedOnlyUse()         { return IsUse &&  IsAligned && !IsUnaligned && !IsNoTarget; }
+  bool isUnalignedOnlyUse()       { return IsUse && !IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isBothOnlyUse()            { return IsUse &&  IsAligned &&  IsUnaligned && !IsNoTarget; }
+  bool isAlignedOrNoTargetUse()   { return IsUse &&  IsAligned && !IsUnaligned &&  IsNoTarget; }
+  bool isUnalignedOrNoTargetUse() { return IsUse && !IsAligned &&  IsUnaligned &&  IsNoTarget; }
+  bool isBothOrNoTargetUse()      { return IsUse &&  IsAligned &&  IsUnaligned &&  IsNoTarget; }
+
+  // Unused funcs
+  bool isNoKind()   { return !IsAligned && !IsUnaligned && !IsNoTarget; }
+  bool isNoTarget() { return !IsAligned && !IsUnaligned && IsNoTarget; }
+
+  bool IsDef;
+  bool IsUse;
+  bool IsAligned;
+  bool IsUnaligned;
+  bool IsNoTarget;
 };
 
 } // namespace SVF

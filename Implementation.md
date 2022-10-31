@@ -32,6 +32,7 @@
     - DefUseSolver::registerDefUse()
   - [ ] llvm::Value*をAligned or Unalignedかどうか判定，保存
   - [x] レース関係にあるDefUseを判定, 別に保存
+  - [ ] 定義のみ(未使用)である命令も保存
 - [ ] SafeMallocとの統合
   - [ ] SafeMalloc関数をSVFのalloc関数群に登録
 - [ ] 計装コードとの統合
