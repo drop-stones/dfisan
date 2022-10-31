@@ -1,66 +1,13 @@
 #include "MTA/MHP.h"
 #include "MTA/LockAnalysis.h"
 #include "Dfisan/DefUseSolver.h"
+#include "Dfisan/DfisanExtAPI.h"
 
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Debug.h"
 #define DEBUG_TYPE "def-use-solver"
 
 using namespace SVF;
-
-/// Access target analysis
-const PointsTo &DefUseSolver::collectStoreTarget(NodeID ID) {
-  const SVFGNode *Node = Svfg->getSVFGNode(ID);
-  assert(SVFUtil::isa<StoreSVFGNode>(Node));
-  const StoreSVFGNode *StoreNode = SVFUtil::cast<StoreSVFGNode>(Node);
-  const PAGNode *DstNode = StoreNode->getPAGDstNode();
-  auto &PtsSet = Pta->getPts(DstNode->getId());
-  return PtsSet;
-}
-
-const PointsTo &DefUseSolver::collectLoadTarget(NodeID ID) {
-  const SVFGNode *Node = Svfg->getSVFGNode(ID);
-  assert(SVFUtil::isa<LoadSVFGNode>(Node));
-  const LoadSVFGNode *LoadNode = SVFUtil::cast<LoadSVFGNode>(Node);
-  const PAGNode *SrcNode = LoadNode->getPAGSrcNode();
-  auto &PtsSet = Pta->getPts(SrcNode->getId());
-  return PtsSet;
-}
-
-bool DefUseSolver::containTarget(const PointsTo &PtsSet) {
-  ValueSet Targets;
-  getValueSetFromPointsTo(Targets, PtsSet);
-  for (auto *Target : Targets) {
-    if (ProtInfo->hasTarget(Target))
-      return true;
-  }
-  return false;
-}
-
-void DefUseSolver::getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet) {
-  for (auto Pts : PtsSet) {
-    const PAGNode *PtsNode = Pag->getGNode(Pts);
-    // const PAGNode *PtsNode = Pag->getGNode(Pag->getBaseValVar(Pts));
-    if (!PtsNode->hasValue())
-      continue;
-    Values.insert((Value *)PtsNode->getValue());
-  }
-}
-
-bool DefUseSolver::isTargetStore(NodeID ID) {
-  const SVFGNode *Node = Svfg->getSVFGNode(ID);
-  if (!SVFUtil::isa<StoreSVFGNode>(Node))
-    return false;
-  const PointsTo &PtsSet = collectStoreTarget(ID);
-  return containTarget(PtsSet);
-}
-
-bool DefUseSolver::isTargetLoad(NodeID ID) {
-  const SVFGNode *Node = Svfg->getSVFGNode(ID);
-  if (!SVFUtil::isa<LoadSVFGNode>(Node))
-    return false;
-  const PointsTo &PtsSet = collectLoadTarget(ID);
-  return containTarget(PtsSet);
-}
 
 void DefUseSolver::solve() {
   // initialize worklist
@@ -95,12 +42,29 @@ void DefUseSolver::solve() {
   DefUseIDInfo DefUse;
   for (const auto &It : NodeToDefs) {
     NodeID ID = It.first;
-    const SVFGNode *Node = Svfg->getSVFGNode(ID);
     if (isTargetLoad(ID)) {
       for (NodeID DefID : It.second) {
         addDefUse(DefUse, DefID, ID);
       }
     }
+  }
+  for (const auto &It : NodeToDefs) {
+    NodeID ID = It.first;
+    if (isTargetStore(ID)) {
+      addUnusedDef(DefUse, ID);
+    }
+  }
+
+  // Add operand information to ProtectInfo
+  for (auto DefID : DefUse.DefIDs) {
+    Value *Def = getValue(DefID);
+    AccessOperand Ope = getStoreOperand(DefID);
+    ProtInfo->setDefOperand(Def, Ope);
+  }
+  for (auto UseID : DefUse.UseIDs) {
+    Value *Use = getValue(UseID);
+    AccessOperand Ope = getLoadOperand(UseID);
+    ProtInfo->setUseOperand(Use, Ope);
   }
 
   // Renaming optimization: Calculate equivalent sets of Def
@@ -151,6 +115,14 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
   }
 }
 
+void DefUseSolver::addUnusedDef(DefUseIDInfo &DefUse, NodeID Def) {
+  Value *DefVal = getValue(Def);
+  NodeID UniqueID = DefUse.getUniqueID(DefVal, Def);
+  if (!DefUse.hasDef(UniqueID)) {
+    DefUse.insertUnusedDefID(UniqueID);
+  }
+}
+
 /// Register renaming optimized UseDef to ProtectInfo
 void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs) {
   // Assign DefIDs and Register them to ProtectInfo
@@ -158,25 +130,25 @@ void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs)
     DefID ID = getNextID();
     for (NodeID DefID : EquivDefs.Defs) {
       Value *Def = getValue(DefID);
+      ProtInfo->setDefID(Def, ID);
       DefUseKind Kind = analyzeDefKind(DefID);
-      // ProtInfo->setDefID(Def, ID);
       if (Kind.isAlignedOnlyDef())
-        ProtInfo->insertAlignedOnlyDef(Def, ID);
+        ProtInfo->insertAlignedOnlyDef(Def);
       else if (Kind.isUnalignedOnlyDef())
-        ProtInfo->insertUnalignedOnlyDef(Def, ID);
+        ProtInfo->insertUnalignedOnlyDef(Def);
       else if (Kind.isBothOnlyDef())
-        ProtInfo->insertBothOnlyDef(Def, ID);
+        ProtInfo->insertBothOnlyDef(Def);
       else if (Kind.isAlignedOrNoTargetDef())
-        ProtInfo->insertAlignedOrNoTargetDef(Def, ID);
+        ProtInfo->insertAlignedOrNoTargetDef(Def);
       else if (Kind.isUnalignedOrNoTargetDef())
-        ProtInfo->insertUnalignedOrNoTargetDef(Def, ID);
+        ProtInfo->insertUnalignedOrNoTargetDef(Def);
       else if (Kind.isBothOrNoTargetDef())
-        ProtInfo->insertBothOrNoTargetDef(Def, ID);
+        ProtInfo->insertBothOrNoTargetDef(Def);
     }
     for (NodeID UseID : EquivDefs.Uses) {
       Value *Use = getValue(UseID);
-      DefUseKind Kind = analyzeUseKind(UseID);
       ProtInfo->addUseDef(Use, ID);
+      DefUseKind Kind = analyzeUseKind(UseID);
       if (ProtInfo->hasUse(Use))
         continue;
       if (Kind.isAlignedOnlyUse())
@@ -223,6 +195,134 @@ void DefUseSolver::calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<Equiva
     if (Iter2 == EquivalentDefs.end())
       EquivalentDefs.emplace_back(DefID, UseIDs);
   }
+  EquivalentDefs.emplace_back(DefUse.UnusedDefIDs, UseIDVec());   // push unused defs
+}
+
+/// Access target analysis
+const PointsTo &DefUseSolver::collectStoreTarget(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  assert(SVFUtil::isa<StoreSVFGNode>(Node));
+  const StoreSVFGNode *StoreNode = SVFUtil::cast<StoreSVFGNode>(Node);
+  NodeID DstID = StoreNode->getPAGDstNodeID();
+  auto &PtsSet = Pta->getPts(DstID);
+  return PtsSet;
+}
+
+const PointsTo &DefUseSolver::collectLoadTarget(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  assert(SVFUtil::isa<LoadSVFGNode>(Node));
+  const LoadSVFGNode *LoadNode = SVFUtil::cast<LoadSVFGNode>(Node);
+  NodeID SrcID = LoadNode->getPAGSrcNodeID();
+  auto &PtsSet = Pta->getPts(SrcID);
+  return PtsSet;
+}
+
+bool DefUseSolver::containTarget(const PointsTo &PtsSet) {
+  ValueSet Targets;
+  getValueSetFromPointsTo(Targets, PtsSet);
+  for (auto *Target : Targets) {
+    if (ProtInfo->hasTarget(Target))
+      return true;
+  }
+  return false;
+}
+
+void DefUseSolver::getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet) {
+  for (auto Pts : PtsSet) {
+    const PAGNode *PtsNode = Pag->getGNode(Pts);
+    // const PAGNode *PtsNode = Pag->getGNode(Pag->getBaseValVar(Pts));
+    if (!PtsNode->hasValue())
+      continue;
+    Values.insert((Value *)PtsNode->getValue());
+  }
+}
+
+bool DefUseSolver::isTargetStore(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  if (!SVFUtil::isa<StoreSVFGNode>(Node))
+    return false;
+  const PointsTo &PtsSet = collectStoreTarget(ID);
+  return containTarget(PtsSet);
+}
+
+bool DefUseSolver::isTargetLoad(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  if (!SVFUtil::isa<LoadSVFGNode>(Node))
+    return false;
+  const PointsTo &PtsSet = collectLoadTarget(ID);
+  return containTarget(PtsSet);
+}
+
+/// Access operand analysis
+AccessOperand DefUseSolver::getStoreOperand(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  assert(SVFUtil::isa<StoreSVFGNode>(Node));
+  const StoreSVFGNode *StoreNode = SVFUtil::cast<StoreSVFGNode>(Node);
+  Value *Store = (Value *)StoreNode->getValue();
+  const PAGNode *DstNode = StoreNode->getPAGDstNode();
+  Value *Dst = (Value *)DstNode->getValue();
+  if (Store == nullptr || Dst == nullptr)
+    return AccessOperand();
+  LLVM_DEBUG(llvm::dbgs() << "Store: " << *Store << "\n");
+  LLVM_DEBUG(llvm::dbgs() << " - Dst: " << *Dst << "\n");
+  DfisanExtAPI *ExtAPI = DfisanExtAPI::getDfisanExtAPI();
+  if (auto *Call = SVFUtil::dyn_cast<CallInst>(Store)) {
+    auto *Callee = Call->getCalledFunction();
+    if (Callee == nullptr)  // TODO: indirect call handling
+      return AccessOperand();
+    auto FnName = Callee->getName().str();
+    if (ExtAPI->isExtDefFun(FnName)) {
+      auto &ExtFun = ExtAPI->getExtFun(FnName);
+      LLVM_DEBUG(llvm::dbgs() << "ExtFun: " << FnName << "\n");
+      if (ExtFun.hasSizePos()) {
+        Value *SizeVal = Call->getArgOperand(ExtFun.SizePos);
+        return AccessOperand(Dst, SizeVal);
+      }
+      if (ExtFun.Ty == DfisanExtAPI::ExtFunType::EXT_CALLOC) {
+        // TODO: calloc handling
+        // size = nmem * size_t
+        llvm::IRBuilder<> Builder(Call);
+        Value *SizeVal = Builder.CreateNUWMul(Call->getOperand(0), Call->getOperand(1));
+        LLVM_DEBUG(llvm::dbgs() << "calloc: " << *Call << "\n");
+        LLVM_DEBUG(llvm::dbgs() << " - SizeVal: " << *SizeVal << "\n");
+        return AccessOperand(Dst, SizeVal);
+      }
+    }
+  }
+  auto &DL = LLVMModuleSet::getLLVMModuleSet()->getModule(0)->getDataLayout();
+  unsigned Size = DL.getTypeStoreSize(Dst->getType()->getNonOpaquePointerElementType());
+  return AccessOperand(Dst, Size);
+}
+
+AccessOperand DefUseSolver::getLoadOperand(NodeID ID) {
+  const SVFGNode *Node = Svfg->getSVFGNode(ID);
+  assert(SVFUtil::isa<LoadSVFGNode>(Node));
+  const LoadSVFGNode *LoadNode = SVFUtil::cast<LoadSVFGNode>(Node);
+  Value *Load = (Value *)LoadNode->getValue();
+  const PAGNode *SrcNode = LoadNode->getPAGSrcNode();
+  Value *Src = (Value *)SrcNode->getValue();
+  if (Load == nullptr || Src == nullptr)
+    return AccessOperand();
+  LLVM_DEBUG(llvm::dbgs() << "Load: " << *Load << "\n");
+  LLVM_DEBUG(llvm::dbgs() << " - Src: " << *Src << "\n");
+  DfisanExtAPI *ExtAPI = DfisanExtAPI::getDfisanExtAPI();
+  if (auto *Call = SVFUtil::dyn_cast<CallInst>(Load)) {
+    auto *Callee = Call->getCalledFunction();
+    if (Callee == nullptr)  // TODO: indirect call handling
+      return AccessOperand();
+    auto FnName = Callee->getName().str();
+    if (ExtAPI->isExtUseFun(FnName)) {
+      auto &ExtFun = ExtAPI->getExtFun(FnName);
+      LLVM_DEBUG(llvm::dbgs() << "ExtFun: " << FnName << "\n");
+      if (ExtFun.hasSizePos()) {
+        Value *SizeVal = Call->getArgOperand(ExtFun.SizePos);
+        return AccessOperand(Src, SizeVal);
+      }
+    }
+  }
+  auto &DL = LLVMModuleSet::getLLVMModuleSet()->getModule(0)->getDataLayout();
+  unsigned Size = DL.getTypeStoreSize(Src->getType()->getNonOpaquePointerElementType());
+  return AccessOperand(Src, Size);
 }
 
 /// DefUseKind analysis

@@ -30,15 +30,22 @@
     - DefUseSolver::calcEquivalentDefSet() + registerDefUse()
   - [x] NodeIDからllvm::Value*への変換
     - DefUseSolver::registerDefUse()
-  - [ ] llvm::Value*をAligned or Unalignedかどうか判定，保存
+  - [x] llvm::Value*をAligned or Unalignedかどうか判定，保存
   - [x] レース関係にあるDefUseを判定, 別に保存
-  - [ ] 定義のみ(未使用)である命令も保存
-- [ ] SafeMallocとの統合
-  - [ ] SafeMalloc関数をSVFのalloc関数群に登録
+  - [x] 定義のみ(未使用)である命令も保存
+  - [x] 定義命令とその定義先を紐付けてProtectInfoに保存
+  - [ ] 保護データ以外へのUnsafe access命令もProtectInfoに保存
+- [x] SafeMallocとの統合
+  - [x] SafeMalloc関数をSVFのalloc関数群に登録
 - [ ] 計装コードとの統合
 - [ ] 実行時チェックをテスト
 - [ ] SPEC2006の保護
 - [ ] 並行バグ検知の実装
+
+### バグ修正
+
+- [x] sscanf()による定義IDがずれる
+  - addUnusedDefID()のバグ修正
 
 ## 外部ライブラリのモデリング + SVFGへの反映
 

@@ -51,10 +51,15 @@ void DfisanSVFIRBuilder::handleExtCall(CallSite cs, const SVFFunction *F) {
   if (dfisanExtAPI->isExtDefFun(F)) {
     const auto &ExtFun = dfisanExtAPI->getExtFun(F);
     NodeID DstID, ValID;
-    if (ExtFun.Pos == DfisanExtAPI::AccessPosition::RET) {
+    if (ExtFun.Ty == DfisanExtAPI::ExtFunType::EXT_CALLOC) {
       const Instruction *Dst = cs.getInstruction();
       if (SVFUtil::isa<BitCastInst>(Dst->getNextNonDebugInstruction())) // calloc's return must be bitcasted.
         Dst = Dst->getNextNonDebugInstruction();
+      DstID = getValueNode(Dst);
+      ValID = getZeroValNode();
+      addComplexConsForDfisanExt(DstID, ValID);
+    } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::RET) {
+      const Instruction *Dst = cs.getInstruction();
       DstID = getValueNode(Dst);
       ValID = getZeroValNode();
       addComplexConsForDfisanExt(DstID, ValID);

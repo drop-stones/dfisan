@@ -35,7 +35,8 @@ bool DfisanExtAPI::isExtFun(std::string FnName) {
 }
 bool DfisanExtAPI::isExtDefFun(std::string FnName) {
   if (ExtFunMap.count(FnName))
-    return ExtFunMap[FnName].Ty == ExtFunType::EXT_DEF;
+    return ExtFunMap[FnName].Ty == ExtFunType::EXT_DEF ||
+           ExtFunMap[FnName].Ty == ExtFunType::EXT_CALLOC;
   return false;
 }
 bool DfisanExtAPI::isExtUseFun(std::string FnName) {

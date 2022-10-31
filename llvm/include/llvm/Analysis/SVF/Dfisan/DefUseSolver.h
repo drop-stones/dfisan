@@ -27,6 +27,9 @@ public:
   struct DefUseIDInfo {
     DefUseIDMap DefUseID;
     UseDefIDMap UseDefID;
+    DefIDVec DefIDs;
+    UseIDVec UseIDs;
+    DefIDVec UnusedDefIDs;
     DefUseIDMap DataRaceDefUseID;
     UseDefIDMap DataRaceUseDefID;
     ValueToNodeIDMap ValToUniqueID;
@@ -35,10 +38,15 @@ public:
     void insertDefUseID(NodeID Def, NodeID Use) {
       DefUseID[Def].set(Use);
       UseDefID[Use].set(Def);
+      DefIDs.set(Def);  UseIDs.set(Use);
     }
     void insertDataRaceDefUseID(NodeID Def, NodeID Use) {
       DataRaceDefUseID[Def].set(Use);
       DataRaceUseDefID[Use].set(Def);
+      DefIDs.set(Def);  UseIDs.set(Use);
+    }
+    void insertUnusedDefID(NodeID Def) {
+      UnusedDefIDs.set(Def);
     }
     NodeID getUniqueID(Value *Val, NodeID DefID) {
       if (ValToUniqueID.count(Val) == 0)  // New value
@@ -47,13 +55,17 @@ public:
         DefID = ValToUniqueID[Val];
       return DefID;
     }
+    bool hasDef(NodeID Def) {
+      return DefIDs.test(Def) || UnusedDefIDs.test(Def);
+    }
   };
 
   /// Class to store equivalent def set.
   struct EquivalentDefSet {
     DefIDVec Defs;  // Value
     UseIDVec Uses;  // Key
-    EquivalentDefSet(NodeID DefID, UseIDVec Uses) : Defs(), Uses(Uses) { Defs.set(DefID); }
+    EquivalentDefSet(NodeID DefID,  UseIDVec Uses) : Defs(), Uses(Uses) { Defs.set(DefID); }
+    EquivalentDefSet(DefIDVec Defs, UseIDVec Uses) : Defs(Defs), Uses(Uses) {}
   };
 
   /// Constructor
@@ -100,19 +112,20 @@ private:
 
   /// Add DefUse to DefUseIDInfo.
   void addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use);
+  void addUnusedDef(DefUseIDInfo &DefUse, NodeID Def);
 
   /// DefID assignment
   const DefID InitID = 1;
-  DefID CurrID = InitID;
+  DefID NextID = InitID;
 
   /// Get next DefID
   DefID getNextID() {
-    DefID Ret = CurrID;
-    if (CurrID == USHRT_MAX) {
+    DefID Ret = NextID;
+    if (NextID == USHRT_MAX) {
       llvm::errs() << "DefID overflow\n";
-      CurrID = InitID;
+      NextID = InitID;
     } else {
-      CurrID++;
+      NextID++;
     }
     return Ret;
   }
@@ -126,13 +139,17 @@ private:
   /// Calculate equivalent defs
   void calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<EquivalentDefSet> &EquivalentDefs);
 
-  /// Access target analysis
+  /// Access target analysis: find or check objects allocated by allocs or mallocs
   bool isTargetStore(NodeID ID);
   bool isTargetLoad(NodeID ID);
   bool containTarget(const PointsTo &PtsSet);
   void getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet);
   const PointsTo &collectStoreTarget(NodeID ID);
   const PointsTo &collectLoadTarget(NodeID ID);
+
+  /// Access operand analysis: find operands accessed by store or load
+  AccessOperand getStoreOperand(NodeID ID);
+  AccessOperand getLoadOperand (NodeID ID);
 
   /// DefUseKind analysis
   DefUseKind analyzeDefKind(NodeID ID);

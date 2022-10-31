@@ -15,19 +15,44 @@ using ValueSet = std::unordered_set<llvm::Value *>;
 using DefID = uint16_t;
 using DefIDSet = std::unordered_set<DefID>;
 
+/// Type for access operands used by instrumentation
+struct AccessOperand {
+  Value *Operand;
+  Value *SizeVal;
+  unsigned Size;
+
+  AccessOperand(Value *Operand, Value *SizeVal) : Operand(Operand), SizeVal(SizeVal), Size(0) {}
+  AccessOperand(Value *Operand, unsigned Size)  : Operand(Operand), SizeVal(nullptr), Size(Size) {}
+  AccessOperand() : AccessOperand(nullptr, nullptr) {}
+};
+using AccessOperandVec = std::vector<AccessOperand>;
+
 class ProtectInfo {
-  /// Type for llvm::Value
-  using UseDefMap = std::unordered_map<llvm::Value *, ValueSet>;
-  using UseDefIDMap = std::unordered_map<llvm::Value *, DefIDSet>;
-  /// Type for DefID used by instrumentation
+  /// Type for DefInfo and UseInfo used by instrumentation
   struct DefInfo {
     DefID ID;
+    AccessOperandVec Operands;
     bool IsInstrumented;
 
+    DefInfo(DefID ID, AccessOperand Operand) : ID(ID), IsInstrumented(false) { addOperand(Operand); }
+    DefInfo(AccessOperand Operand) : DefInfo(0, Operand) {}
     DefInfo(DefID ID) : ID(ID), IsInstrumented(false) {}
     DefInfo() : DefInfo(0) {}
+    void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
   };
   using DefInfoMap = std::unordered_map<llvm::Value *, DefInfo>;
+  struct UseInfo {
+    DefIDSet DefIDs;
+    AccessOperandVec Operands;
+    bool IsInstrumented;
+
+    UseInfo(DefID ID, AccessOperand Operand) : IsInstrumented(false) { addDefID(ID); addOperand(Operand); }
+    UseInfo(AccessOperand Operand) : IsInstrumented(false) { addOperand(Operand); }
+    UseInfo() : IsInstrumented(false) {}
+    void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
+    void addDefID(DefID ID) { DefIDs.insert(ID); }
+  };
+  using UseInfoMap = std::unordered_map<llvm::Value *, UseInfo>;
 
 public:
   ProtectInfo(ValueSet &Aligned, ValueSet &Unaligned)
@@ -38,14 +63,14 @@ public:
   bool hasUnalignedTarget(llvm::Value *V) { return Unaligned.count(V) != 0; }
   bool hasTarget(llvm::Value *V) { return hasAlignedTarget(V) || hasUnalignedTarget(V); }
   bool hasDef(llvm::Value *Def) { return DefToInfo.count(Def) != 0; }
-  bool hasUse(llvm::Value *Use) { return UseToDefIDs.count(Use) != 0; }
+  bool hasUse(llvm::Value *Use) { return UseToInfo.count(Use) != 0; }
 
-  void insertAlignedOnlyDef(llvm::Value *Def, DefID ID)         { AlignedOnlyDefs.insert(Def); setDefID(Def, ID); }
-  void insertUnalignedOnlyDef(llvm::Value *Def, DefID ID)       { UnalignedOnlyDefs.insert(Def); setDefID(Def, ID); }
-  void insertBothOnlyDef(llvm::Value *Def, DefID ID)            { BothOnlyDefs.insert(Def); setDefID(Def, ID); }
-  void insertAlignedOrNoTargetDef(llvm::Value *Def, DefID ID)   { AlignedOrNoTargetDefs.insert(Def); setDefID(Def, ID); }
-  void insertUnalignedOrNoTargetDef(llvm::Value *Def, DefID ID) { UnalignedOrNoTargetDefs.insert(Def); setDefID(Def, ID); }
-  void insertBothOrNoTargetDef(llvm::Value *Def, DefID ID)      { BothOrNoTargetDefs.insert(Def); setDefID(Def, ID); }
+  void insertAlignedOnlyDef(llvm::Value *Def)         { AlignedOnlyDefs.insert(Def); }
+  void insertUnalignedOnlyDef(llvm::Value *Def)       { UnalignedOnlyDefs.insert(Def); }
+  void insertBothOnlyDef(llvm::Value *Def)            { BothOnlyDefs.insert(Def); }
+  void insertAlignedOrNoTargetDef(llvm::Value *Def)   { AlignedOrNoTargetDefs.insert(Def); }
+  void insertUnalignedOrNoTargetDef(llvm::Value *Def) { UnalignedOrNoTargetDefs.insert(Def); }
+  void insertBothOrNoTargetDef(llvm::Value *Def)      { BothOrNoTargetDefs.insert(Def); }
 
   void insertAlignedOnlyUse(llvm::Value *Use)         { AlignedOnlyUses.insert(Use); }
   void insertUnalignedOnlyUse(llvm::Value *Use)       { UnalignedOnlyUses.insert(Use); }
@@ -55,11 +80,25 @@ public:
   void insertBothOrNoTargetUse(llvm::Value *Use)      { BothOrNoTargetUses.insert(Use); }
 
   void setDefID(llvm::Value *Def, DefID ID) {
-    DefToInfo[Def] = DefInfo(ID);
+    DefToInfo[Def].ID = ID;
+  }
+
+  void setDefOperand(llvm::Value *Def, AccessOperand Operand) {
+    if (hasDef(Def))
+      DefToInfo[Def].addOperand(Operand);
+    else
+      DefToInfo[Def] = DefInfo(Operand);
+  }
+
+  void setUseOperand(llvm::Value *Use, AccessOperand Operand) {
+    if (hasUse(Use))
+      UseToInfo[Use].addOperand(Operand);
+    else
+      UseToInfo[Use] = UseInfo(Operand);
   }
 
   void addUseDef(llvm::Value *Use, DefID ID) {
-    UseToDefIDs[Use].insert(ID);
+    UseToInfo[Use].DefIDs.insert(ID);
   }
 
   DefID getDefID(llvm::Value *Def) {
@@ -68,7 +107,7 @@ public:
   }
   const DefIDSet &getDefIDsFromUse(llvm::Value *Use) {
     assert(hasUse(Use));
-    return UseToDefIDs[Use];
+    return UseToInfo[Use].DefIDs;
   }
   const DefInfoMap &getDefToInfo() { return DefToInfo; }
 
@@ -124,10 +163,10 @@ public:
     for (const auto &Iter : DefToInfo)
       OS << " - Def(" << Iter.second.ID << "): " << *Iter.first << "\n";
     OS << "Use + DefIDs:\n";
-    for (const auto &Iter : UseToDefIDs) {
+    for (const auto &Iter : UseToInfo) {
       OS << " - Use: " << *Iter.first << "\n";
       OS << "   - DefIDs: { ";
-      for (auto DefID : Iter.second)
+      for (auto DefID : Iter.second.DefIDs)
         OS << DefID << ", ";
       OS << "}\n";
     }
@@ -154,8 +193,9 @@ private:
   ValueSet UnalignedOrNoTargetUses;
   ValueSet BothOrNoTargetUses;
 
+  /// Map from Def and Use to info used by instrumentation
   DefInfoMap DefToInfo;
-  UseDefIDMap UseToDefIDs;
+  UseInfoMap UseToInfo;
 };
 
 } // namespace SVF
