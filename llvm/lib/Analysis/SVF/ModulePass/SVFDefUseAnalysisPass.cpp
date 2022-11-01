@@ -24,10 +24,6 @@ using namespace SVF;
 // Provide an explicit template instantiation for the static ID.
 AnalysisKey SVFDefUseAnalysisPass::Key;
 
-bool SVFDefUseAnalysisPass::Result::emptyResult() {
-  return ProtInfo->emptyTarget();
-}
-
 SVFDefUseAnalysisPass::Result
 SVFDefUseAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   SVFModule *SvfModule = LLVMModuleSet::getLLVMModuleSet()->buildSVFModule(M);

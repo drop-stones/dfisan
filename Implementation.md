@@ -37,6 +37,8 @@
   - [x] 保護データ以外へのUnsafe access命令もProtectInfoに保存
 - [x] SafeMallocとの統合
   - [x] SafeMalloc関数をSVFのalloc関数群に登録
+  - [ ] safe_mallocで確保されたオブジェクトの型をSVFが認識せず，解析結果が不正確になる問題
+    - safe_mallocの置き換え時に，bitcastも計装し，型変換する(?) &larr; もうやってた
 - [ ] 計装コードとの統合
 - [ ] 実行時チェックをテスト
 - [ ] SPEC2006の保護
@@ -44,8 +46,20 @@
 
 ### バグ修正
 
-- [x] sscanf()による定義IDがずれる
-  - addUnusedDefID()のバグ修正
+- DefUse解析
+  - [x] sscanf()による定義IDがずれる
+    - addUnusedDefID()のバグ修正
+  - [ ] グローバル変数の初期化(struct, pointer)で解析結果にズレ
+  - [x] UnusedDefの情報がない
+- テストケース
+  - [ ] array_init
+  - [ ] byval_support
+  - [ ] global_init
+  - [ ] struct_copy
+  - [ ] struct_init
+  - [ ] libc/memcpy
+  - [ ] libc/memset
+  - [ ] libc/sscanf
 
 ## 外部ライブラリのモデリング + SVFGへの反映
 

@@ -29,7 +29,6 @@ public:
   public:
     Result(SVF::ProtectInfo *ProtInfo) : ProtInfo(ProtInfo) {}
 
-    bool emptyResult();
     SVF::ProtectInfo *getProtectInfo() { return ProtInfo; }
   };
 

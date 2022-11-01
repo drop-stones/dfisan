@@ -938,71 +938,56 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   ProtInfo = Result.getProtectInfo();
 
   // Instrument unsafe access
-  for (auto &Func : M.getFunctionList()) {
-    instrumentFunction(Func);
+  for (auto &Iter : ProtInfo->getUnsafeToInfo()) {
+    Instruction *UnsafeInst = Iter.first;
+    for (auto &Ope : Iter.second.Operands) {
+      Value *OpeVal = Ope.Operand;
+      instrumentUnsafeAccess(UnsafeInst, OpeVal);
+    }
   }
 
-  if (Result.emptyResult())
+  if (ProtInfo->emptyTarget())
     return PreservedAnalyses::none();
   
   // Instrument store functions.
-  // TODO
-/*
-  auto &Result = MAM.getResult<UseDefAnalysisPass>(M);
-  ProtectInfo = Result.getProtectInfo();
-  Opts = Result.getOptions();
-
-  // Instrument unsafe access
-  for (auto &Func : M.getFunctionList()) {
-    instrumentFunction(Func);
-  }
-
-  if (Result.emptyResult()) // skip use-def instrumentation
-    return PreservedAnalyses::all();
-
-  DG = Result.getDG();
-  DDA = Result.getDDA();
-
-  // Instrument store functions.
-  for (auto *AlignedOnlyDef : ProtectInfo->AlignedOnlyDefs) {
+  for (auto *AlignedOnlyDef : ProtInfo->getAlignedOnlyDefs()) {
     insertDfiStoreFn(AlignedOnlyDef, UseDefKind::Aligned);
   }
-  for (auto *UnalignedOnlyDef : ProtectInfo->UnalignedOnlyDefs) {
+  for (auto *UnalignedOnlyDef : ProtInfo->getUnalignedOnlyDefs()) {
     insertDfiStoreFn(UnalignedOnlyDef, UseDefKind::Unaligned);
   }
-  for (auto *BothOnlyDef : ProtectInfo->BothOnlyDefs) {
+  for (auto *BothOnlyDef : ProtInfo->getBothOnlyDefs()) {
     insertDfiStoreFn(BothOnlyDef, UseDefKind::AlignedOrUnaligned);
   }
-  for (auto *AlignedOrNoTargetDef : ProtectInfo->AlignedOrNoTargetDefs) {
+  for (auto *AlignedOrNoTargetDef : ProtInfo->getAlignedOrNoTargetDefs()) {
     insertDfiStoreFn(AlignedOrNoTargetDef, UseDefKind::CondAligned);
   }
-  for (auto *UnalignedOrNoTargetDef : ProtectInfo->UnalignedOrNoTargetDefs) {
+  for (auto *UnalignedOrNoTargetDef : ProtInfo->getUnalignedOrNoTargetDefs()) {
     insertDfiStoreFn(UnalignedOrNoTargetDef, UseDefKind::CondUnaligned);
   }
-  for (auto *BothOrNoTargetDef : ProtectInfo->BothOrNoTargetDefs) {
+  for (auto *BothOrNoTargetDef : ProtInfo->getBothOrNoTargetDefs()) {
     insertDfiStoreFn(BothOrNoTargetDef, UseDefKind::CondAlignedOrUnaligned);
   }
 
   // Instrument check functions.
-  for (auto *AlignedOnlyUse : ProtectInfo->AlignedOnlyUses) {
+  for (auto *AlignedOnlyUse : ProtInfo->getAlignedOnlyUses()) {
     insertDfiLoadFn(AlignedOnlyUse, UseDefKind::Aligned);
   }
-  for (auto *UnalignedOnlyUse : ProtectInfo->UnalignedOnlyUses) {
+  for (auto *UnalignedOnlyUse : ProtInfo->getUnalignedOnlyUses()) {
     insertDfiLoadFn(UnalignedOnlyUse, UseDefKind::Unaligned);
   }
-  for (auto *BothOnlyUse : ProtectInfo->BothOnlyUses) {
+  for (auto *BothOnlyUse : ProtInfo->getBothOnlyUses()) {
     insertDfiLoadFn(BothOnlyUse, UseDefKind::AlignedOrUnaligned);
   }
-  for (auto *AlignedOrNoTargetUse : ProtectInfo->AlignedOrNoTargetUses) {
+  for (auto *AlignedOrNoTargetUse : ProtInfo->getAlignedOrNoTargetUses()) {
     insertDfiLoadFn(AlignedOrNoTargetUse, UseDefKind::CondAligned);
   }
-  for (auto *UnalignedOrNoTargetUse : ProtectInfo->UnalignedOrNoTargetUses) {
+  for (auto *UnalignedOrNoTargetUse : ProtInfo->getUnalignedOrNoTargetUses()) {
     insertDfiLoadFn(UnalignedOrNoTargetUse, UseDefKind::CondUnaligned);
   }
-  for (auto *BothOrNoTargetUse : ProtectInfo->BothOrNoTargetUses) {
+  for (auto *BothOrNoTargetUse : ProtInfo->getBothOrNoTargetUses()) {
     insertDfiLoadFn(BothOrNoTargetUse, UseDefKind::CondAlignedOrUnaligned);
   }
-*/
 
   return PreservedAnalyses::none();
 }
@@ -1173,7 +1158,28 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
 void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kind) {
   LLVM_DEBUG(llvm::dbgs() << "InsertDfiStoreFn: " << *Def << "\n");
 
+  const auto &Info = ProtInfo->getDefInfo(Def);
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
+    for (const auto &Ope : Info.Operands) {
+      if (Ope.hasSizeVal()) {
+        LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", SizeVal: " << *Ope.SizeVal << "\n");
+        // calloc handling
+        //   DefInst: %0 = calloc()
+        //   Operand: %1 = bitcast %0 to <type>
+        //   ** InsertPoint **
+        if (DefInst->getNextNode() == Ope.Operand)
+          createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst->getNextNode()->getNextNode());
+        // other
+        //   DefInst: store %0 to <Operand>
+        //   ** InsertPoint **
+        else
+          createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst->getNextNode());
+      } else {
+        LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", Size: " << Ope.Size << "\n");
+        createDfiStoreFn(Info.ID, Ope.Operand, Ope.Size, Kind, DefInst->getNextNode());
+      }
+    }
+/*
     if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
       auto *StoreTarget = Store->getPointerOperand();
       unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
@@ -1199,30 +1205,6 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
         auto *StoreTarget = Call;
         auto *SizeVal = Call->getOperand(ExtFun.SizePos);
         createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
-/*
-        for (const auto &Iter : Model->getDefines()) {
-          auto &Ope = Iter.second;
-          unsigned OpeNum = Ope.operand;
-          if (OpeNum == dg::VARARG) {
-            assert(Ope.from.isOperand() && "VARARG's from must be operand");
-            unsigned FromOpe = Ope.from.getOperand();
-            for (unsigned Idx = FromOpe; Idx < Call->arg_size(); Idx++) {
-              auto *StoreTarget = Call->getOperand(Idx);
-              unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-              createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, Size, Kind, Call->getNextNode());
-            }
-          } else {
-            auto *StoreTarget = (OpeNum == dg::RETURN) ? Call : Call->getOperand(OpeNum);
-            if (Ope.to.isOperand()) {
-              auto *SizeVal = Call->getOperand(Ope.to.getOperand());
-              createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
-            } else if (Ope.to.isOffset()) {
-              unsigned Size = Ope.to.getOffset().offset -  Ope.from.getOffset().offset + 1;
-              createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, Size, Kind, Call->getNextNode());
-            }
-          }
-        }
-*/
       } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::ARG) {
         auto *StoreTarget = Call->getOperand(ExtFun.ArgPos);
         auto *SizeVal = Call->getOperand(ExtFun.SizePos);
@@ -1248,6 +1230,23 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
     unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
     createDfiStoreFn(ProtInfo->getDefID(GlobVar), GlobVar, Size, Kind, Ctor->getEntryBlock().getTerminator());
     insertGlobalInit(GlobVar);
+*/
+  } else if (Constant *Const = dyn_cast<Constant>(Def)) { // Global variable init
+    LLVM_DEBUG(dbgs() << "Const: " << *Const << "\n");
+    LLVM_DEBUG(
+      for (auto &Ope : Info.Operands)
+        dbgs() << " - Operand: " << *Ope.Operand << "\n";
+    );
+    if (Info.Operands.empty())
+      return;
+    assert(Info.Operands.size() == 1 && "GlobalVariable init has a single operand");
+    auto &Ope = Info.Operands[0];
+    Value *OpeVal = Ope.Operand;
+    assert(isa<GlobalVariable>(OpeVal));
+    GlobalVariable *GlobVar = cast<GlobalVariable>(OpeVal);
+    LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), GVar: " << *GlobVar << ", Size: " << Ope.Size << "\n");
+    createDfiStoreFn(Info.ID, GlobVar, Ope.Size, Kind, Ctor->getEntryBlock().getTerminator());
+    insertGlobalInit(GlobVar);
   } else {
     llvm::errs() << "No support Def: " << *Def << "\n";
     // llvm_unreachable("No support Def");
@@ -1255,63 +1254,26 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
 }
 
 /// Insert a CHECK function before each load statement.
-void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Instruction *Use, UseDefKind Kind) {
+void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, UseDefKind Kind) {
   LLVM_DEBUG(llvm::dbgs() << "InsertDfiLoadFn: " << *Use << "\n");
 
-/*
-  // Skip unknown value uses (e.g., argv[]).
-  const auto &UseSites = DDA->getNode(Use)->getUses();
-  if (UseSites.size() == 1 && DDA->getValue(UseSites.begin()->target) == nullptr) {
-    llvm::errs() << "Skip use: " << *Use << "\n";
-    return;
-  }
-
-  // collect def-id's
-  std::set<DefID> DefIDSet;   // Use std::set to prevent duplicate
-  for (auto *Def : ProtInfo->UseDef[Use]) {
-    if (ProtInfo->hasDefID(Def)) // Def may be a no-target instruction.
-      DefIDSet.insert(ProtInfo->getDefID(Def));
-  }
-
-  // create vector from DefIDSet
+  const auto &Info = ProtInfo->getUseInfo(Use);
   ValueVector DefIDs;
-  for (auto DefID : DefIDSet) {
-    // Value *IDVal = ConstantInt::get(Int32Ty, DefID, false);
-    Value *IDVal = ConstantInt::get(Int16Ty, DefID, false);
-    DefIDs.push_back(IDVal);
-  }
-*/
-  ValueVector DefIDs;
-  for (const auto DefID : ProtInfo->getDefIDsFromUse(Use)) {
+  for (const auto DefID : Info.DefIDs) {
     Value *IDVal = ConstantInt::get(Int16Ty, DefID, false);
     DefIDs.push_back(IDVal);
   }
 
-  if (LoadInst *Load = dyn_cast<LoadInst>(Use)) {
-    auto *LoadTarget = Load->getPointerOperand();
-    unsigned Size = M->getDataLayout().getTypeStoreSize(LoadTarget->getType()->getNonOpaquePointerElementType());
-    createDfiLoadFn(LoadTarget, Size, DefIDs, Kind, Load);
-  } else if (CallInst *Call = dyn_cast<CallInst>(Use)) {  // Handling of stdlib functions
-    auto *Callee = Call->getCalledFunction();
-    auto FnName = Callee->getName().str();
-    // TODO
-    llvm::errs() << "TODO: Support use ext-apis: " << FnName << "\n";
-/*
-    if (const dg::FunctionModel *Model = Opts->getFunctionModel(FnName)) {
-      for (const auto &Iter : Model->getUses()) {
-        auto &Ope = Iter.second;
-        unsigned OpeNum = Ope.operand;
-        if (OpeNum == dg::VARARG) {
-          llvm::errs() << "TODO: Support VARARG use: " << FnName << "\n";
-        } else {
-          llvm::errs() << "TODO: Support Use-stdlib function: " << FnName << "\n";
-        }
-      }
+  if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
+    for (auto &Ope : Info.Operands) {
+      if (Ope.hasSizeVal())
+        createDfiLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, UseInst);
+      else
+        createDfiLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, UseInst);
     }
-*/
   } else {
     llvm::errs() << "No support Use: " << *Use << "\n";
-    // llvm_unreachable("No support Use");
+    llvm_unreachable("No support Use");
   }
 }
 
@@ -1336,6 +1298,8 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(DefID DefID, Value *StoreT
   Value *DefIDVal = ConstantInt::get(Int16Ty, DefID);
   ValueVector Args {StoreAddr, DefIDVal};
   ValueVector NArgs = {StoreAddr, SizeArg, DefIDVal};
+  LLVM_DEBUG(dbgs() << "StoreAddr: " << *StoreAddr << "\n");
+  LLVM_DEBUG(dbgs() << "Size(" << Size << "), " "SizeArg: " << *SizeArg << "\n");
 
   if (ClCheckWithCall) {
     switch(Kind) {

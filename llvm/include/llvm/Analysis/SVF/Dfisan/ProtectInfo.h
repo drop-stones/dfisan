@@ -24,6 +24,8 @@ struct AccessOperand {
   AccessOperand(Value *Operand, Value *SizeVal) : Operand(Operand), SizeVal(SizeVal), Size(0) {}
   AccessOperand(Value *Operand, unsigned Size)  : Operand(Operand), SizeVal(nullptr), Size(Size) {}
   AccessOperand() : AccessOperand(nullptr, nullptr) {}
+
+  bool hasSizeVal() const { return SizeVal != nullptr; }
 };
 using AccessOperandVec = std::vector<AccessOperand>;
 
@@ -56,7 +58,7 @@ class ProtectInfo {
     UnsafeInstInfo() {}
     void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
   };
-  using UnsafeInstInfoMap = std::unordered_map<llvm::Value *, UnsafeInstInfo>;
+  using UnsafeInstInfoMap = std::unordered_map<llvm::Instruction *, UnsafeInstInfo>;
 
 public:
   ProtectInfo(ValueSet &Aligned, ValueSet &Unaligned)
@@ -99,7 +101,7 @@ public:
     UseToInfo[Use].addDefID(ID);
   }
 
-  void addUnsafeOperand(llvm::Value *UnsafeInst, AccessOperand &Operand) {
+  void addUnsafeOperand(llvm::Instruction *UnsafeInst, AccessOperand &Operand) {
     UnsafeToInfo[UnsafeInst].addOperand(Operand);
   }
 
@@ -107,11 +109,32 @@ public:
     assert(hasDef(Def) && "No Def value");
     return DefToInfo[Def].ID;
   }
-  const DefIDSet &getDefIDsFromUse(llvm::Value *Use) {
-    assert(hasUse(Use));
-    return UseToInfo[Use].DefIDs;
+
+  const DefInfo &getDefInfo(llvm::Value *Def) {
+    assert(hasDef(Def));
+    return DefToInfo[Def];
   }
+  const UseInfo &getUseInfo(llvm::Value *Use) {
+    assert(hasUse(Use));
+    return UseToInfo[Use];
+  }
+
+  /// Getter
   const DefInfoMap &getDefToInfo() { return DefToInfo; }
+  const UnsafeInstInfoMap &getUnsafeToInfo() { return UnsafeToInfo; }
+
+  const ValueSet &getAlignedOnlyDefs()         { return AlignedOnlyDefs; }
+  const ValueSet &getUnalignedOnlyDefs()       { return UnalignedOnlyDefs; }
+  const ValueSet &getBothOnlyDefs()            { return BothOnlyDefs; }
+  const ValueSet &getAlignedOrNoTargetDefs()   { return AlignedOrNoTargetDefs; }
+  const ValueSet &getUnalignedOrNoTargetDefs() { return UnalignedOrNoTargetDefs; }
+  const ValueSet &getBothOrNoTargetDefs()      { return BothOrNoTargetDefs; }
+  const ValueSet &getAlignedOnlyUses()         { return AlignedOnlyUses; }
+  const ValueSet &getUnalignedOnlyUses()       { return UnalignedOnlyUses; }
+  const ValueSet &getBothOnlyUses()            { return BothOnlyUses; }
+  const ValueSet &getAlignedOrNoTargetUses()   { return AlignedOrNoTargetUses; }
+  const ValueSet &getUnalignedOrNoTargetUses() { return UnalignedOrNoTargetUses; }
+  const ValueSet &getBothOrNoTargetUses()      { return BothOrNoTargetUses; }
 
   void dump(llvm::raw_ostream &OS) {
     OS << "ProtectInfo::" << __func__ << "\n";

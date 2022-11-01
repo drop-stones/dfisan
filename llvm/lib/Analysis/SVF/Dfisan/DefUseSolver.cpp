@@ -61,6 +61,11 @@ void DefUseSolver::solve() {
     AccessOperand Ope = getStoreOperand(DefID);
     ProtInfo->addDefOperand(Def, Ope);
   }
+  for (auto DefID : DefUse.UnusedDefIDs) {
+    Value *Def = getValue(DefID);
+    AccessOperand Ope = getStoreOperand(DefID);
+    ProtInfo->addDefOperand(Def, Ope);
+  }
   for (auto UseID : DefUse.UseIDs) {
     Value *Use = getValue(UseID);
     AccessOperand Ope = getLoadOperand(UseID);
@@ -82,12 +87,12 @@ void DefUseSolver::collectUnsafeInst() {
     if (isTargetStore(ID) || isTargetLoad(ID))
       continue;
     if (const StoreSVFGNode *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Node)) {
-      Value *Store = (Value *)StoreNode->getValue();
+      Instruction *Store = (Instruction *)StoreNode->getInst();
       AccessOperand Ope = getStoreOperand(ID);
       if (Store != nullptr && isUnsafeOperand(Ope))
         ProtInfo->addUnsafeOperand(Store, Ope);
     } else if (const LoadSVFGNode *LoadNode = SVFUtil::dyn_cast<LoadSVFGNode>(Node)) {
-      Value *Load = (Value *)LoadNode->getValue();
+      Instruction *Load = (Instruction *)LoadNode->getInst();
       AccessOperand Ope = getLoadOperand(ID);
       if (Load != nullptr && isUnsafeOperand(Ope))
         ProtInfo->addUnsafeOperand(Load, Ope);
@@ -169,8 +174,6 @@ void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs)
       Value *Use = getValue(UseID);
       ProtInfo->addUseDef(Use, ID);
       DefUseKind Kind = analyzeUseKind(UseID);
-      if (ProtInfo->hasUse(Use))
-        continue;
       if (Kind.isAlignedOnlyUse())
         ProtInfo->insertAlignedOnlyUse(Use);
       else if (Kind.isUnalignedOnlyUse())
@@ -301,11 +304,15 @@ AccessOperand DefUseSolver::getStoreOperand(NodeID ID) {
       if (ExtFun.Ty == DfisanExtAPI::ExtFunType::EXT_CALLOC) {
         // TODO: calloc handling
         // size = nmem * size_t
+///*
         llvm::IRBuilder<> Builder(Call);
+        Builder.SetInsertPoint(Call);
         Value *SizeVal = Builder.CreateNUWMul(Call->getOperand(0), Call->getOperand(1));
         LLVM_DEBUG(llvm::dbgs() << "calloc: " << *Call << "\n");
         LLVM_DEBUG(llvm::dbgs() << " - SizeVal: " << *SizeVal << "\n");
         return AccessOperand(Dst, SizeVal);
+//*/
+        // return AccessOperand(Dst, nullptr);
       }
     }
   }

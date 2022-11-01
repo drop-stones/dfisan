@@ -4,20 +4,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/IRBuilder.h"
 
-/*
-namespace dg {
-// class UseDefBuilder;
-class LLVMDependenceGraph;
-struct DfiProtectInfo;
-struct AnalysisOptions;
-struct LLVMDataDependenceAnalysisOptions;
-using DefID = uint16_t;
-namespace dda {
-class LLVMDataDependenceAnalysis;
-} // namespace dda
-} // namespace dg
-*/
-
 namespace SVF {
 class ProtectInfo;
 using DefID = uint16_t;
@@ -186,7 +172,7 @@ private:
   void insertDfiStoreFn(Value *Def, UseDefKind Kind);
 
   /// Insert DfiLoadFn before each load instruction.
-  void insertDfiLoadFn(Instruction *Use, UseDefKind Kind);
+  void insertDfiLoadFn(Value *Use, UseDefKind Kind);
 
   /// Create a function call to DfiStoreFn from llvm::Value.
   void createDfiStoreFn(SVF::DefID DefID, Value *StoreTarget, unsigned Size, UseDefKind Kind, Instruction *InsertPoint = nullptr);
