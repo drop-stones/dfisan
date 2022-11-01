@@ -59,12 +59,12 @@ void DefUseSolver::solve() {
   for (auto DefID : DefUse.DefIDs) {
     Value *Def = getValue(DefID);
     AccessOperand Ope = getStoreOperand(DefID);
-    ProtInfo->setDefOperand(Def, Ope);
+    ProtInfo->addDefOperand(Def, Ope);
   }
   for (auto UseID : DefUse.UseIDs) {
     Value *Use = getValue(UseID);
     AccessOperand Ope = getLoadOperand(UseID);
-    ProtInfo->setUseOperand(Use, Ope);
+    ProtInfo->addUseOperand(Use, Ope);
   }
 
   // Renaming optimization: Calculate equivalent sets of Def
@@ -73,6 +73,26 @@ void DefUseSolver::solve() {
 
   // Register UseDef to ProtectInfo
   registerUseDef(EquivalentDefs);
+}
+
+void DefUseSolver::collectUnsafeInst() {
+  for (auto It = Svfg->begin(), Eit = Svfg->end(); It != Eit; ++It) {
+    NodeID ID = It->first;
+    const SVFGNode *Node = It->second;
+    if (isTargetStore(ID) || isTargetLoad(ID))
+      continue;
+    if (const StoreSVFGNode *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Node)) {
+      Value *Store = (Value *)StoreNode->getValue();
+      AccessOperand Ope = getStoreOperand(ID);
+      if (Store != nullptr && isUnsafeOperand(Ope))
+        ProtInfo->addUnsafeOperand(Store, Ope);
+    } else if (const LoadSVFGNode *LoadNode = SVFUtil::dyn_cast<LoadSVFGNode>(Node)) {
+      Value *Load = (Value *)LoadNode->getValue();
+      AccessOperand Ope = getLoadOperand(ID);
+      if (Load != nullptr && isUnsafeOperand(Ope))
+        ProtInfo->addUnsafeOperand(Load, Ope);
+    }
+  }
 }
 
 /// Get Value * from NodeID
@@ -323,6 +343,15 @@ AccessOperand DefUseSolver::getLoadOperand(NodeID ID) {
   auto &DL = LLVMModuleSet::getLLVMModuleSet()->getModule(0)->getDataLayout();
   unsigned Size = DL.getTypeStoreSize(Src->getType()->getNonOpaquePointerElementType());
   return AccessOperand(Src, Size);
+}
+
+bool DefUseSolver::isUnsafeOperand(AccessOperand &Operand) const {
+  Value *Base = Operand.Operand->stripInBoundsConstantOffsets();
+  if (GlobalVariable *GlobVar = SVFUtil::dyn_cast<GlobalVariable>(Base))
+    return false;
+  if (AllocaInst *Alloca = SVFUtil::dyn_cast<AllocaInst>(Base))
+    return false;
+  return true;
 }
 
 /// DefUseKind analysis

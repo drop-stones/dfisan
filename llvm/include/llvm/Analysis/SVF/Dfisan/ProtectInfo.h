@@ -35,10 +35,9 @@ class ProtectInfo {
     bool IsInstrumented;
 
     DefInfo(DefID ID, AccessOperand Operand) : ID(ID), IsInstrumented(false) { addOperand(Operand); }
-    DefInfo(AccessOperand Operand) : DefInfo(0, Operand) {}
-    DefInfo(DefID ID) : ID(ID), IsInstrumented(false) {}
-    DefInfo() : DefInfo(0) {}
+    DefInfo() : ID(0), IsInstrumented(false) {}
     void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
+    void setDefID(DefID ID) { this->ID = ID; }
   };
   using DefInfoMap = std::unordered_map<llvm::Value *, DefInfo>;
   struct UseInfo {
@@ -47,12 +46,17 @@ class ProtectInfo {
     bool IsInstrumented;
 
     UseInfo(DefID ID, AccessOperand Operand) : IsInstrumented(false) { addDefID(ID); addOperand(Operand); }
-    UseInfo(AccessOperand Operand) : IsInstrumented(false) { addOperand(Operand); }
     UseInfo() : IsInstrumented(false) {}
     void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
     void addDefID(DefID ID) { DefIDs.insert(ID); }
   };
   using UseInfoMap = std::unordered_map<llvm::Value *, UseInfo>;
+  struct UnsafeInstInfo {
+    AccessOperandVec Operands;
+    UnsafeInstInfo() {}
+    void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
+  };
+  using UnsafeInstInfoMap = std::unordered_map<llvm::Value *, UnsafeInstInfo>;
 
 public:
   ProtectInfo(ValueSet &Aligned, ValueSet &Unaligned)
@@ -80,25 +84,23 @@ public:
   void insertBothOrNoTargetUse(llvm::Value *Use)      { BothOrNoTargetUses.insert(Use); }
 
   void setDefID(llvm::Value *Def, DefID ID) {
-    DefToInfo[Def].ID = ID;
+    DefToInfo[Def].setDefID(ID);
   }
 
-  void setDefOperand(llvm::Value *Def, AccessOperand Operand) {
-    if (hasDef(Def))
-      DefToInfo[Def].addOperand(Operand);
-    else
-      DefToInfo[Def] = DefInfo(Operand);
+  void addDefOperand(llvm::Value *Def, AccessOperand &Operand) {
+    DefToInfo[Def].addOperand(Operand);
   }
 
-  void setUseOperand(llvm::Value *Use, AccessOperand Operand) {
-    if (hasUse(Use))
-      UseToInfo[Use].addOperand(Operand);
-    else
-      UseToInfo[Use] = UseInfo(Operand);
+  void addUseOperand(llvm::Value *Use, AccessOperand &Operand) {
+    UseToInfo[Use].addOperand(Operand);
   }
 
   void addUseDef(llvm::Value *Use, DefID ID) {
-    UseToInfo[Use].DefIDs.insert(ID);
+    UseToInfo[Use].addDefID(ID);
+  }
+
+  void addUnsafeOperand(llvm::Value *UnsafeInst, AccessOperand &Operand) {
+    UnsafeToInfo[UnsafeInst].addOperand(Operand);
   }
 
   DefID getDefID(llvm::Value *Def) {
@@ -159,6 +161,13 @@ public:
     for (auto *Use : BothOrNoTargetUses)
       OS << " - " << *Use << "\n";
 
+    OS << "UnsafeInst:\n";
+    for (const auto &Iter : UnsafeToInfo) {
+      OS << " - UnsafeInst: " << *Iter.first << "\n";
+      for (const auto &Ope : Iter.second.Operands)
+        OS << "   - Operand: " << *Ope.Operand << "\n";
+    }
+
     OS << "Defs:\n";
     for (const auto &Iter : DefToInfo)
       OS << " - Def(" << Iter.second.ID << "): " << *Iter.first << "\n";
@@ -196,6 +205,7 @@ private:
   /// Map from Def and Use to info used by instrumentation
   DefInfoMap DefToInfo;
   UseInfoMap UseToInfo;
+  UnsafeInstInfoMap UnsafeToInfo;
 };
 
 } // namespace SVF

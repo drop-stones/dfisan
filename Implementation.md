@@ -34,7 +34,7 @@
   - [x] レース関係にあるDefUseを判定, 別に保存
   - [x] 定義のみ(未使用)である命令も保存
   - [x] 定義命令とその定義先を紐付けてProtectInfoに保存
-  - [ ] 保護データ以外へのUnsafe access命令もProtectInfoに保存
+  - [x] 保護データ以外へのUnsafe access命令もProtectInfoに保存
 - [x] SafeMallocとの統合
   - [x] SafeMalloc関数をSVFのalloc関数群に登録
 - [ ] 計装コードとの統合

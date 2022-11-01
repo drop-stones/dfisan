@@ -56,6 +56,7 @@ SVFDefUseAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // DefUse analysis
   DefUseSolver Solver(Svfg, Mhp, LockAna, ProtInfo);
   Solver.solve();
+  Solver.collectUnsafeInst();
 
   Result Res{ProtInfo};
 

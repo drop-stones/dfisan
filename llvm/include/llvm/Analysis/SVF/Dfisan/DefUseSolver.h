@@ -75,6 +75,9 @@ public:
   /// Start solving
   void solve();
 
+  /// Collect unsafe instructions
+  void collectUnsafeInst();
+
   /// Return SVFG
   inline const SVFG *getSVFG() const { return Svfg; }
 
@@ -150,6 +153,7 @@ private:
   /// Access operand analysis: find operands accessed by store or load
   AccessOperand getStoreOperand(NodeID ID);
   AccessOperand getLoadOperand (NodeID ID);
+  bool isUnsafeOperand(AccessOperand &Operand) const;
 
   /// DefUseKind analysis
   DefUseKind analyzeDefKind(NodeID ID);
