@@ -58,6 +58,9 @@ MemSSA *DfisanSVFGBuilder::buildMSSA(BVDataPTAImpl *pta, bool ptrOnlyMSSA) {
 void DfisanSVFGBuilder::buildSVFG() {
   MTASVFGBuilder::buildSVFG();
 
+  if (Options::DumpVFG)
+    svfg->dump("full_svfg");
+  
   BVDataPTAImpl *Pta = svfg->getMSSA()->getPTA();
   rmIncomingEdgeForSUStore(Pta);
   rmAllDirSVFGEdge();
@@ -72,9 +75,20 @@ bool DfisanSVFGBuilder::isStrongUpdate(const SVFGNode *Node, NodeID &Singleton, 
       PointsTo::iterator Iter = DstCPSet.begin();
       Singleton = *Iter;
 
+      auto *MemObj = SVFIR::getPAG()->getObject(Singleton);
+      auto *Type = MemObj->getType();
+      if (MemObj->isHeap() && SVFUtil::isa<CallInst>(MemObj->getValue())) {
+        const auto *Malloc = SVFUtil::cast<CallInst>(MemObj->getValue());
+        const auto *NextInst = Malloc->getNextNonDebugInstruction();
+        if (SVFUtil::isa<BitCastInst>(NextInst)) {
+          Type = NextInst->getType()->getNonOpaquePointerElementType();
+        }
+      }
+      // llvm::errs() << "Singleton(" << Singleton << "), Type(" << *Type << "): " << MemObj->toString() << "\n";
+
       // Strong update can be made if this points-to target is not array or field-insensitive.
       // ?? Heap or Local in recursive func can be strong updated ??
-      if (!Pta->isArrayMemObj(Singleton)
+      if (!Type->isArrayTy()
           && SVFIR::getPAG()->getBaseObj(Singleton)->isFieldInsensitive() == false)
         IsSU = true;
     }

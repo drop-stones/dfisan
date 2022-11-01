@@ -192,8 +192,14 @@ public:
     }
 
     OS << "Defs:\n";
-    for (const auto &Iter : DefToInfo)
+    for (const auto &Iter : DefToInfo) {
       OS << " - Def(" << Iter.second.ID << "): " << *Iter.first << "\n";
+      for (const auto &Ope : Iter.second.Operands)
+        if (Ope.hasSizeVal())
+          OS << "   - SizeVal(" << *Ope.SizeVal << "), Operand: " << *Ope.Operand << "\n";
+        else
+          OS << "   - Size(" << Ope.Size << "), Operand: " << *Ope.Operand << "\n";
+    }
     OS << "Use + DefIDs:\n";
     for (const auto &Iter : UseToInfo) {
       OS << " - Use: " << *Iter.first << "\n";

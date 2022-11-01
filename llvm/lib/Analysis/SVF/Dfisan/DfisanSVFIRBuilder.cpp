@@ -1,6 +1,7 @@
 #include "Dfisan/DfisanSVFIRBuilder.h"
 #include "Dfisan/DfisanExtAPI.h"
 #include "SVF-FE/LLVMUtil.h"
+#include "Util/Options.h"
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -41,12 +42,38 @@ void DfisanSVFIRBuilder::addComplexConsForDfisanExt(NodeID Dst, NodeID Src) {
   }
 }
 
+// Return base value: we need override because of memcpy and memset handling
+//   - for local var: alloca
+//   - for heap var : bitcast (not malloc because we cannot get correct type)
+const Value *DfisanSVFIRBuilder::getBaseValueForExtArg(const Value *V) {
+    const Value * value = stripAllCasts(V);
+    assert(value && "null ptr?");
+    if (const GetElementPtrInst* gep = SVFUtil::dyn_cast<GetElementPtrInst>(value))
+    {
+      s32_t totalidx = 0;
+      for (bridge_gep_iterator gi = bridge_gep_begin(gep), ge = bridge_gep_end(gep); gi != ge; ++gi)
+      {
+        if(const ConstantInt *op = SVFUtil::dyn_cast<ConstantInt>(gi.getOperand()))
+            totalidx += op->getSExtValue();
+      }
+      if(totalidx == 0 && !SVFUtil::isa<StructType>(value->getType()))
+        value = gep->getPointerOperand();
+    } else if (const CallInst *Call = SVFUtil::dyn_cast<CallInst>(value)) {
+      // malloc handling
+      const auto *NextInst = Call->getNextNonDebugInstruction();
+      if (SVFUtil::isa<BitCastInst>(NextInst))
+        value = NextInst;
+    }
+    return value;
+}
+
 /// Handle external calls
 ///   + Dfisan's external calls
 void DfisanSVFIRBuilder::handleExtCall(CallSite cs, const SVFFunction *F) {
   SVFIRBuilder::handleExtCall(cs, F);
   if (!isExtCall(F))  return;
 
+  /// DfisanExtAPI handling
   auto *dfisanExtAPI = DfisanExtAPI::getDfisanExtAPI();
   if (dfisanExtAPI->isExtDefFun(F)) {
     const auto &ExtFun = dfisanExtAPI->getExtFun(F);
@@ -88,14 +115,76 @@ void DfisanSVFIRBuilder::handleExtCall(CallSite cs, const SVFFunction *F) {
 
 /// Handle global init
 void DfisanSVFIRBuilder::InitialGlobal(const GlobalVariable *gvar, Constant *C, u32_t offset) {
-  SVFIRBuilder::InitialGlobal(gvar, C, offset);
-  // Support global array init
-  if (SVFUtil::isa<ArrayType>(gvar->getValueType())) {
+  InitialGlobalForDfisan(gvar, C, offset);
+}
+
+/// Impl of global init handling
+void DfisanSVFIRBuilder::InitialGlobalForDfisan(const GlobalVariable *gvar, Constant *C, u32_t offset, Constant *Base) {
+  if (C->getType()->isSingleValueType()) {
+    NodeID src = getValueNode(C);
+    // NodeID src = (Base == nullptr) ? getValueNode(C) : getPAG()->addValNode(C, NodeIDAllocator::get()->allocateValueId());
+    // NodeID src = (Base == nullptr) ? getValueNode(C) : getZeroValNode();
+    //llvm::errs() << "Constant: " << *C << "\n";
+
+    // get the field value if it is avaiable, otherwise we create a dummy field node.
+    setCurrentLocation(gvar, nullptr);
+    NodeID field = getGlobalVarField(gvar, offset, C->getType());
+
+    if (SVFUtil::isa<GlobalVariable>(C) || SVFUtil::isa<Function>(C)) {
+      setCurrentLocation(C, nullptr);
+      addStoreEdge(src, field);
+    } else if (SVFUtil::isa<ConstantExpr>(C)) {
+      // add gep edge of C1 itself is a constant expression
+      processCE(C);
+      setCurrentLocation(C, nullptr);
+      addStoreEdge(src, field);
+    } else if (SVFUtil::isa<BlockAddress>(C)) {
+      // blockaddress instruction (e.g. i8* blockaddress(@run_vm, %182))
+      // is treated as constant data object for now, see LLVMUtil.h:397, SymbolTableInfo.cpp:674 and SVFIRBuilder.cpp:183-194
+      processCE(C);
+      setCurrentLocation(C, nullptr);
+      addAddrEdge(getPAG()->getConstantNode(), src);
+    } else {
+      setCurrentLocation(C, nullptr);
+      addStoreEdge(src, field);
+      /// src should not point to anything yet
+      if (C->getType()->isPtrOrPtrVectorTy() && src != getPAG()->getNullPtr())
+        addCopyEdge(getPAG()->getNullPtr(), src);
+    }
+  } else if (SVFUtil::isa<ConstantArray>(C) || SVFUtil::isa<ConstantStruct>(C)) {
+    for (u32_t i = 0, e = C->getNumOperands(); i != e; i++) {
+      u32_t off = SymbolTableInfo::SymbolInfo()->getFlattenedElemIdx(C->getType(), i);
+      /* Global init support */
+      InitialGlobal(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off);
+      // if (!getPAG()->hasValueNode(C)) {
+      //   SymbolTableInfo::SymbolInfo()->valSyms().insert(std::make_pair(C, NodeIDAllocator::get()->allocateValueId()));
+      // }
+      // if (Base == nullptr)
+      //   InitialGlobalForDfisan(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off, C);
+      // else
+      //   InitialGlobalForDfisan(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off, Base);
+    }
+  } else if (ConstantData* data = SVFUtil::dyn_cast<ConstantData>(C)) {
+    if (Options::ModelConsts) {
+      if (ConstantDataSequential* seq = SVFUtil::dyn_cast<ConstantDataSequential>(data)) {
+        for (u32_t i = 0; i < seq->getNumElements(); i++) {
+          u32_t off = SymbolTableInfo::SymbolInfo()->getFlattenedElemIdx(C->getType(), i);
+          Constant* ct = seq->getElementAsConstant(i);
+          InitialGlobal(gvar, ct, offset + off);
+        }
+      } else {
+        assert((SVFUtil::isa<ConstantAggregateZero>(data) || SVFUtil::isa<UndefValue>(data)) && "Single value type data should have been handled!");
+      }
+    }
+  } else if (SVFUtil::isa<ArrayType>(gvar->getValueType())) {
+    /* Array support */
     assert(C != nullptr && "Constant is nullptr");
     // FIXME: Adding value node with Constant *C causes errors at VFG::getDef() "SVFVar does not have a definition??".
     // NodeID src = getPAG()->addValNode(C, NodeIDAllocator::get()->allocateValueId());
     NodeID src = getZeroValNode();
     NodeID dst = getValueNode(gvar);
     addStoreEdge(src, dst);
+  } else {
+    //TODO:assert(SVFUtil::isa<ConstantVector>(C),"what else do we have");
   }
 }

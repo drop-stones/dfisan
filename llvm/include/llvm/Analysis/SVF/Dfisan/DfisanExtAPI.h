@@ -49,11 +49,23 @@ private:
   };
 
   void initExtFunMap() {
+    ///
     // calloc
+    ///
     addExtFun("calloc",                         ExtFunType::EXT_CALLOC, AccessPosition::RET);
     addExtFun("__dfisan_safe_aligned_calloc",   ExtFunType::EXT_CALLOC, AccessPosition::RET);
     addExtFun("__dfisan_safe_unaligned_calloc", ExtFunType::EXT_CALLOC, AccessPosition::RET);
 
+    ///
+    // Memory block functions
+    ///
+    addExtFun("llvm.memcpy.p0i8.p0i8.i64", ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 2);
+    addExtFun("llvm.memcpy.p0i8.p0i8.i32", ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 2);
+    addExtFun("llvm.memset.p0i8.i64",      ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 2);
+
+    ///
+    // String handling functions
+    ///
     addExtFun("read",   ExtFunType::EXT_DEF, AccessPosition::ARG, 1, 2);
     addExtFun("fgets",  ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 1);
     addExtFun("__isoc99_sscanf", ExtFunType::EXT_DEF, AccessPosition::VARARG, 2);

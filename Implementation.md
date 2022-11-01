@@ -53,13 +53,19 @@
   - [x] UnusedDefの情報がない
 - テストケース
   - [ ] array_init
+    - [x] memsetによる一括代入
+    - [x] 構造体の配列初期化など，memsetによる各メンバ変数への代入
+      - 各メンバ変数への代入を一つのmemset(=定義ID)で扱いたい
+    - [ ] グローバル構造体の初期化に一つのValue(=定義ID)を割り当てたい
   - [ ] byval_support
   - [ ] global_init
-  - [ ] struct_copy
   - [ ] struct_init
-  - [ ] libc/memcpy
-  - [ ] libc/memset
+  - [ ] local_static_init
   - [ ] libc/sscanf
+  - [ ] NoSupport/ptr_calloc
+  - [x] struct_copy
+  - [x] libc/memcpy
+  - [x] libc/memset
 
 ## 外部ライブラリのモデリング + SVFGへの反映
 
