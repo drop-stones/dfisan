@@ -23,6 +23,34 @@ public:
   using DefUseIDMap = NodeToUseIDMap;
   using ValueToNodeIDMap = std::unordered_map<llvm::Value *, NodeID>;
 
+  /// Class to allocate unique NodeID to llvm::Value *.
+  ValueToNodeIDMap ValToUniqueID;
+  ValueToNodeIDMap GlobInitToUniqueID;
+
+  bool isGlobalInit(NodeID ID) {
+    Value *Ope = getStoreOperand(ID).Operand;
+    const SVFGNode *Node = Svfg->getSVFGNode(ID);
+    return SVFUtil::isa<GlobalICFGNode>(Node->getICFGNode()) &&
+           SVFUtil::isa<GlobalVariable>(Ope);
+  }
+  NodeID getUniqueID(Value *Val, NodeID ID) {
+    NodeID UniqueID;
+    Value *Ope = getStoreOperand(ID).Operand;
+    if (isGlobalInit(ID)) {
+      // Global init
+      if (GlobInitToUniqueID.count(Ope) == 0)
+        UniqueID = GlobInitToUniqueID[Ope] = ID;
+      else
+        UniqueID = GlobInitToUniqueID[Ope];
+    } else {
+      if (ValToUniqueID.count(Val) == 0)  // New value
+        UniqueID = ValToUniqueID[Val] = ID;
+      else
+        UniqueID = ValToUniqueID[Val];
+    }
+    return UniqueID;
+  }
+
   /// Class for def-use map of NodeID.
   struct DefUseIDInfo {
     DefUseIDMap DefUseID;
@@ -32,7 +60,7 @@ public:
     DefIDVec UnusedDefIDs;
     DefUseIDMap DataRaceDefUseID;
     UseDefIDMap DataRaceUseDefID;
-    ValueToNodeIDMap ValToUniqueID;
+    // ValueToNodeIDMap ValToUniqueID;
 
     DefUseIDInfo() {}
     void insertDefUseID(NodeID Def, NodeID Use) {
@@ -47,13 +75,6 @@ public:
     }
     void insertUnusedDefID(NodeID Def) {
       UnusedDefIDs.set(Def);
-    }
-    NodeID getUniqueID(Value *Val, NodeID DefID) {
-      if (ValToUniqueID.count(Val) == 0)  // New value
-        ValToUniqueID[Val] = DefID;
-      else
-        DefID = ValToUniqueID[Val];
-      return DefID;
     }
     bool hasDef(NodeID Def) {
       return DefIDs.test(Def) || UnusedDefIDs.test(Def);

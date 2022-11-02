@@ -59,12 +59,18 @@ void DefUseSolver::solve() {
   for (auto DefID : DefUse.DefIDs) {
     Value *Def = getValue(DefID);
     AccessOperand Ope = getStoreOperand(DefID);
-    ProtInfo->addDefOperand(Def, Ope);
+    if (isGlobalInit(DefID))  // GlobalInit must have unique key
+      ProtInfo->addDefOperand(Ope.Operand, Ope);
+    else
+      ProtInfo->addDefOperand(Def, Ope);
   }
   for (auto DefID : DefUse.UnusedDefIDs) {
     Value *Def = getValue(DefID);
     AccessOperand Ope = getStoreOperand(DefID);
-    ProtInfo->addDefOperand(Def, Ope);
+    if (isGlobalInit(DefID))
+      ProtInfo->addDefOperand(Ope.Operand, Ope);
+    else
+      ProtInfo->addDefOperand(Def, Ope);
   }
   for (auto UseID : DefUse.UseIDs) {
     Value *Use = getValue(UseID);
@@ -129,7 +135,7 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
     return;
   Value *UseVal = getValue(Use);
   Value *DefVal = getValue(Def);
-  NodeID UniqueID = DefUse.getUniqueID(DefVal, Def);
+  NodeID UniqueID = getUniqueID(DefVal, Def);
   if (isDataRace(UseVal, DefVal)) {
     llvm::errs() << "DataRace:\n";
     llvm::errs() << " - Use: " << *UseVal << "\n";
@@ -142,7 +148,7 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
 
 void DefUseSolver::addUnusedDef(DefUseIDInfo &DefUse, NodeID Def) {
   Value *DefVal = getValue(Def);
-  NodeID UniqueID = DefUse.getUniqueID(DefVal, Def);
+  NodeID UniqueID = getUniqueID(DefVal, Def);
   if (!DefUse.hasDef(UniqueID)) {
     DefUse.insertUnusedDefID(UniqueID);
   }
@@ -155,6 +161,10 @@ void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs)
     DefID ID = getNextID();
     for (NodeID DefID : EquivDefs.Defs) {
       Value *Def = getValue(DefID);
+      if (isGlobalInit(DefID)) {
+        AccessOperand Ope = getStoreOperand(DefID);
+        Def = Ope.Operand;
+      }
       ProtInfo->setDefID(Def, ID);
       DefUseKind Kind = analyzeDefKind(DefID);
       if (Kind.isAlignedOnlyDef())

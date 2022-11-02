@@ -49,23 +49,25 @@
 - DefUse解析
   - [x] sscanf()による定義IDがずれる
     - addUnusedDefID()のバグ修正
-  - [ ] グローバル変数の初期化(struct, pointer)で解析結果にズレ
+  - [x] グローバル変数の初期化(struct, pointer)で解析結果にズレ
+    - InitialGlobal()内で，構造体の初期化に一つのValue(=定義ID)を割り当て
   - [x] UnusedDefの情報がない
 - テストケース
-  - [ ] array_init
-    - [x] memsetによる一括代入
-    - [x] 構造体の配列初期化など，memsetによる各メンバ変数への代入
-      - 各メンバ変数への代入を一つのmemset(=定義ID)で扱いたい
-    - [ ] グローバル構造体の初期化に一つのValue(=定義ID)を割り当てたい
   - [ ] byval_support
-  - [ ] global_init
-  - [ ] struct_init
-  - [ ] local_static_init
   - [ ] libc/sscanf
   - [ ] NoSupport/ptr_calloc
   - [x] struct_copy
   - [x] libc/memcpy
   - [x] libc/memset
+  - [x] struct_init
+  - [x] array_init
+    - [x] memsetによる一括代入
+    - [x] 構造体の配列初期化など，memsetによる各メンバ変数への代入
+      - 各メンバ変数への代入を一つのmemset(=定義ID)で扱いたい
+    - [x] グローバル構造体の初期化に一つのValue(=定義ID)を割り当てたい
+      - getUniqueID()内，各addDefInfo()にて，グローバル変数の初期化は，key + operandをどちらもグローバル変数に設定し，単一のIDを付与
+  - [x] global_init
+  - [x] local_static_init
 
 ## 外部ライブラリのモデリング + SVFGへの反映
 

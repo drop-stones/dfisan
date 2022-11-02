@@ -122,29 +122,47 @@ void DfisanSVFIRBuilder::InitialGlobal(const GlobalVariable *gvar, Constant *C, 
 void DfisanSVFIRBuilder::InitialGlobalForDfisan(const GlobalVariable *gvar, Constant *C, u32_t offset, Constant *Base) {
   if (C->getType()->isSingleValueType()) {
     NodeID src = getValueNode(C);
-    // NodeID src = (Base == nullptr) ? getValueNode(C) : getPAG()->addValNode(C, NodeIDAllocator::get()->allocateValueId());
-    // NodeID src = (Base == nullptr) ? getValueNode(C) : getZeroValNode();
-    //llvm::errs() << "Constant: " << *C << "\n";
+    // NodeID src = (Base == nullptr) ? getValueNode(C) : getValueNode(Base);
 
     // get the field value if it is avaiable, otherwise we create a dummy field node.
     setCurrentLocation(gvar, nullptr);
     NodeID field = getGlobalVarField(gvar, offset, C->getType());
 
     if (SVFUtil::isa<GlobalVariable>(C) || SVFUtil::isa<Function>(C)) {
+      //if (Base != nullptr)
+      //  setCurrentLocation(Base, nullptr);
+      //else
       setCurrentLocation(C, nullptr);
       addStoreEdge(src, field);
     } else if (SVFUtil::isa<ConstantExpr>(C)) {
       // add gep edge of C1 itself is a constant expression
+      // if (Base != nullptr) {
+      //   processCE(Base);
+      //   setCurrentLocation(Base, nullptr);
+      // } else {
+      //   processCE(C);
+      //   setCurrentLocation(C, nullptr);
+      // }
       processCE(C);
       setCurrentLocation(C, nullptr);
       addStoreEdge(src, field);
     } else if (SVFUtil::isa<BlockAddress>(C)) {
       // blockaddress instruction (e.g. i8* blockaddress(@run_vm, %182))
       // is treated as constant data object for now, see LLVMUtil.h:397, SymbolTableInfo.cpp:674 and SVFIRBuilder.cpp:183-194
+      // if (Base != nullptr) {
+      //   processCE(Base);
+      //   setCurrentLocation(Base, nullptr);
+      // } else {
+      //   processCE(C);
+      //   setCurrentLocation(C, nullptr);
+      // }
       processCE(C);
       setCurrentLocation(C, nullptr);
       addAddrEdge(getPAG()->getConstantNode(), src);
     } else {
+      // if (Base != nullptr)
+      //   setCurrentLocation(Base, nullptr);
+      // else
       setCurrentLocation(C, nullptr);
       addStoreEdge(src, field);
       /// src should not point to anything yet
@@ -155,14 +173,16 @@ void DfisanSVFIRBuilder::InitialGlobalForDfisan(const GlobalVariable *gvar, Cons
     for (u32_t i = 0, e = C->getNumOperands(); i != e; i++) {
       u32_t off = SymbolTableInfo::SymbolInfo()->getFlattenedElemIdx(C->getType(), i);
       /* Global init support */
-      InitialGlobal(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off);
-      // if (!getPAG()->hasValueNode(C)) {
-      //   SymbolTableInfo::SymbolInfo()->valSyms().insert(std::make_pair(C, NodeIDAllocator::get()->allocateValueId()));
-      // }
-      // if (Base == nullptr)
-      //   InitialGlobalForDfisan(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off, C);
-      // else
-      //   InitialGlobalForDfisan(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off, Base);
+      // InitialGlobal(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off);
+      if (!getPAG()->hasValueNode(C)) {
+        NodeID ID = NodeIDAllocator::get()->allocateValueId();
+        SymbolTableInfo::SymbolInfo()->valSyms().insert(std::make_pair(C, ID));
+        getPAG()->addValNode(C, ID);
+      }
+      if (Base == nullptr)
+        InitialGlobalForDfisan(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off, C);
+      else
+        InitialGlobalForDfisan(gvar, SVFUtil::cast<Constant>(C->getOperand(i)), offset + off, Base);
     }
   } else if (ConstantData* data = SVFUtil::dyn_cast<ConstantData>(C)) {
     if (Options::ModelConsts) {
@@ -176,15 +196,17 @@ void DfisanSVFIRBuilder::InitialGlobalForDfisan(const GlobalVariable *gvar, Cons
         assert((SVFUtil::isa<ConstantAggregateZero>(data) || SVFUtil::isa<UndefValue>(data)) && "Single value type data should have been handled!");
       }
     }
-  } else if (SVFUtil::isa<ArrayType>(gvar->getValueType())) {
-    /* Array support */
+  } else {
+    //TODO:assert(SVFUtil::isa<ConstantVector>(C),"what else do we have");
+  }
+
+  /* Array support */
+  if (SVFUtil::isa<ArrayType>(gvar->getValueType())) {
     assert(C != nullptr && "Constant is nullptr");
     // FIXME: Adding value node with Constant *C causes errors at VFG::getDef() "SVFVar does not have a definition??".
     // NodeID src = getPAG()->addValNode(C, NodeIDAllocator::get()->allocateValueId());
     NodeID src = getZeroValNode();
     NodeID dst = getValueNode(gvar);
     addStoreEdge(src, dst);
-  } else {
-    //TODO:assert(SVFUtil::isa<ConstantVector>(C),"what else do we have");
   }
 }

@@ -1231,6 +1231,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
     createDfiStoreFn(ProtInfo->getDefID(GlobVar), GlobVar, Size, Kind, Ctor->getEntryBlock().getTerminator());
     insertGlobalInit(GlobVar);
 */
+/*
   } else if (Constant *Const = dyn_cast<Constant>(Def)) { // Global variable init
     LLVM_DEBUG(dbgs() << "Const: " << *Const << "\n");
     LLVM_DEBUG(
@@ -1245,6 +1246,12 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
     assert(isa<GlobalVariable>(OpeVal));
     GlobalVariable *GlobVar = cast<GlobalVariable>(OpeVal);
     LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), GVar: " << *GlobVar << ", Size: " << Ope.Size << "\n");
+    createDfiStoreFn(Info.ID, GlobVar, Ope.Size, Kind, Ctor->getEntryBlock().getTerminator());
+    insertGlobalInit(GlobVar);
+*/
+  } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
+    assert(Info.Operands.size() == 1 && "GlobalVariable init has a single operand");
+    auto &Ope = Info.Operands[0];
     createDfiStoreFn(Info.ID, GlobVar, Ope.Size, Kind, Ctor->getEntryBlock().getTerminator());
     insertGlobalInit(GlobVar);
   } else {
