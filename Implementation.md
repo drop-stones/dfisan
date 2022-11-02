@@ -53,7 +53,6 @@
     - InitialGlobal()内で，構造体の初期化に一つのValue(=定義ID)を割り当て
   - [x] UnusedDefの情報がない
 - テストケース
-  - [ ] byval_support
   - [ ] libc/sscanf
   - [ ] NoSupport/ptr_calloc
   - [x] struct_copy
@@ -68,6 +67,11 @@
       - getUniqueID()内，各addDefInfo()にて，グローバル変数の初期化は，key + operandをどちらもグローバル変数に設定し，単一のIDを付与
   - [x] global_init
   - [x] local_static_init
+  - [x] byval_support
+    - 原因: byvalポインタがフツーにaliasと解析されてしまう
+    - 解決策:
+      - SVFIR(PAG)に細工し，Points-to関係をいじる &larr; 以降の解析にも影響??
+      - [x] SVFG上のエッジを削除する (FormalInEdge)
 
 ## 外部ライブラリのモデリング + SVFGへの反映
 

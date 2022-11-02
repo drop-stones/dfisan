@@ -63,6 +63,7 @@ void DfisanSVFGBuilder::buildSVFG() {
   
   BVDataPTAImpl *Pta = svfg->getMSSA()->getPTA();
   rmIncomingEdgeForSUStore(Pta);
+  rmByvalEdge(Pta);
   rmAllDirSVFGEdge();
 }
 
@@ -114,6 +115,52 @@ void DfisanSVFGBuilder::rmIncomingEdgeForSUStore(BVDataPTAImpl *Pta) {
       }
     }
   }
+}
+
+void DfisanSVFGBuilder::rmByvalEdge(BVDataPTAImpl *Pta) {
+  Set<SVFGEdge *> ToRemove;
+  for (SVFG::iterator It = svfg->begin(), Eit = svfg->end(); It != Eit; ++It) {
+    const SVFGNode *Node = It->second;
+
+    // TODO: remove FormalInSVFGEdges for byval pointer
+    if (const FormalINSVFGNode *FormalIn = SVFUtil::dyn_cast<FormalINSVFGNode>(Node)) {
+      bool isRemoved = false;
+      for (const auto *OutEdge : FormalIn->getOutEdges()) {
+        if (OutEdge->isDirectVFGEdge())
+          continue;
+        const auto *NextNode = OutEdge->getDstNode();
+        // remove formalin edges if byval pointer
+        const Value *Ope = nullptr;
+        if (const LoadSVFGNode *LoadNode = SVFUtil::dyn_cast<LoadSVFGNode>(NextNode)) {
+          if (!SVFUtil::isa<LoadInst>(LoadNode->getValue()))
+            continue;
+          const LoadInst *Load = SVFUtil::cast<LoadInst>(LoadNode->getValue());
+          Ope = Load->getPointerOperand();
+        } else if (const StoreSVFGNode *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(NextNode)) {
+          if (!SVFUtil::isa<StoreInst>(StoreNode->getValue()))
+            continue;
+          const StoreInst *Store = SVFUtil::cast<StoreInst>(StoreNode->getValue());
+          Ope = Store->getPointerOperand();
+        }
+        if (Ope == nullptr)
+          continue;
+        const Value *BaseOpe = Ope->stripInBoundsConstantOffsets();
+        if (const Argument *Arg = SVFUtil::dyn_cast<Argument>(BaseOpe)) {
+          if (Arg->hasByValAttr()) {
+            isRemoved = true;
+          }
+        }
+      }
+      if (isRemoved) {
+        for (auto *InEdge : FormalIn->getInEdges()) {
+          if (InEdge->isIndirectVFGEdge())
+            ToRemove.insert(InEdge);
+        }
+      }
+    }
+  }
+  for (SVFGEdge *Edge : ToRemove)
+    svfg->removeSVFGEdge(Edge);
 }
 
 void DfisanSVFGBuilder::rmAllDirSVFGEdge() {

@@ -31,6 +31,9 @@ protected:
   /// because the SU node does not receive any indirect values.
   void rmIncomingEdgeForSUStore(BVDataPTAImpl *Pta);
 
+  /// Remove store/load edge for byval pointer
+  void rmByvalEdge(BVDataPTAImpl *Pta);
+
   /// Remove all direct edges
   /// because direct edge means def/use of top-level variables,
   /// but we need def/use of address-taken variables (indirect edges).
