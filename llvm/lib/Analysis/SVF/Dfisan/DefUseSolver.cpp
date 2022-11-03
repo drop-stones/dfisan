@@ -316,6 +316,7 @@ AccessOperand DefUseSolver::getStoreOperand(NodeID ID) {
         Value *SizeVal = Builder.CreateNUWMul(Call->getOperand(0), Call->getOperand(1));
         LLVM_DEBUG(llvm::dbgs() << "calloc: " << *Call << "\n");
         LLVM_DEBUG(llvm::dbgs() << " - SizeVal: " << *SizeVal << "\n");
+        LLVM_DEBUG(llvm::dbgs() << " - Dst: " << *Dst << "\n");
         return AccessOperand(Dst, SizeVal);
       }
     }

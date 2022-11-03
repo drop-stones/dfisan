@@ -942,7 +942,17 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
     Instruction *UnsafeInst = Iter.first;
     for (auto &Ope : Iter.second.Operands) {
       Value *OpeVal = Ope.Operand;
-      instrumentUnsafeAccess(UnsafeInst, OpeVal);
+      // calloc handling
+      //   UnsafeInst: %0 = calloc()
+      //   Operand   : %1 = bitcast %0 to <type>
+      //   ** InsertPoint **
+      if (UnsafeInst->getNextNode() == OpeVal)
+        instrumentUnsafeAccess(UnsafeInst->getNextNonDebugInstruction()->getNextNonDebugInstruction(), OpeVal);
+      // other
+      //   ** InsertPoint **
+      //   UnsafeInst: store %0 to <Operand>
+      else
+        instrumentUnsafeAccess(UnsafeInst, OpeVal);
     }
   }
 
