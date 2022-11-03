@@ -53,3 +53,15 @@ const DfisanExtAPI::ExtFun &DfisanExtAPI::getExtFun(std::string FnName) {
   assert(isExtFun(FnName));
   return ExtFunMap[FnName];
 }
+
+bool DfisanExtAPI::isCallocCall(const Instruction *Inst) {
+  if (const auto *Call = SVFUtil::dyn_cast<CallInst>(Inst)) {
+    auto *Callee = Call->getCalledFunction();
+    if (Callee == nullptr) return false;
+    auto FnName = Callee->getName().str();
+    if (!isExtDefFun(FnName)) return false;
+    auto &ExtFun = getExtFun(FnName);
+    return ExtFun.Ty == ExtFunType::EXT_CALLOC;
+  }
+  return false;
+}

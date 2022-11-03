@@ -92,6 +92,9 @@ public:
 
   const ExtFun &getExtFun(const SVFFunction *F);
   const ExtFun &getExtFun(std::string FnName);
+
+  /// Check the inst is calloc call
+  bool isCallocCall(const Instruction *Inst);
 };
 
 } // namespace SVF

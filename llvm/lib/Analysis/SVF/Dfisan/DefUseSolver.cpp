@@ -78,7 +78,10 @@ void DefUseSolver::collectUnsafeInst() {
     if (const StoreSVFGNode *StoreNode = SVFUtil::dyn_cast<StoreSVFGNode>(Node)) {
       Instruction *Store = (Instruction *)StoreNode->getInst();
       AccessOperand Ope = getStoreOperand(ID);
-      if (Store != nullptr && isUnsafeOperand(Ope))
+      if (Ope.empty()) continue;
+      if (Store != nullptr &&
+          isUnsafeOperand(Ope) &&
+          DfisanExtAPI::getDfisanExtAPI()->isCallocCall(Store) == false)
         ProtInfo->addUnsafeOperand(Store, Ope);
     } else if (const LoadSVFGNode *LoadNode = SVFUtil::dyn_cast<LoadSVFGNode>(Node)) {
       Instruction *Load = (Instruction *)LoadNode->getInst();
@@ -116,6 +119,14 @@ bool DefUseSolver::isDataRace(Value *V1, Value *V2) {
 void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
   if (!isTargetLoad(Use) || !isTargetStore(Def))
     return;
+  Value *DefOpe = getStoreOperand(Def).Operand;
+  Value *UseOpe = getLoadOperand(Use).Operand;
+  if (!Pta->alias(DefOpe, UseOpe)) {
+    LLVM_DEBUG(llvm::dbgs() << "No Alias:" << "\n");
+    LLVM_DEBUG(llvm::dbgs() << " - Def: " << *DefOpe << "\n");
+    LLVM_DEBUG(llvm::dbgs() << " - Use: " << *UseOpe << "\n");
+    return;
+  }
   Value *UseVal = getValue(Use);
   Value *DefVal = getValue(Def);
   NodeID UniqueID = getUniqueID(DefVal, Def);
@@ -140,6 +151,7 @@ void DefUseSolver::addUnusedDef(DefUseIDInfo &DefUse, NodeID Def) {
 void DefUseSolver::addDefOperand(NodeID ID) {
   Value *Def = getValue(ID);
   AccessOperand Ope = getStoreOperand(ID);
+  if (Ope.empty()) return;
   if (isGlobalInit(ID))  // GlobalInit must have unique key
     ProtInfo->addDefOperand(Ope.Operand, Ope);
   else
@@ -291,9 +303,9 @@ AccessOperand DefUseSolver::getStoreOperand(NodeID ID) {
   const StoreSVFGNode *StoreNode = SVFUtil::cast<StoreSVFGNode>(Node);
   Value *Store = (Value *)StoreNode->getValue();
   const PAGNode *DstNode = StoreNode->getPAGDstNode();
-  Value *Dst = (Value *)DstNode->getValue();
-  if (Store == nullptr || Dst == nullptr)
+  if (Store == nullptr || !DstNode->hasValue())
     return AccessOperand();
+  Value *Dst = (Value *)DstNode->getValue();
   LLVM_DEBUG(llvm::dbgs() << "Store: " << *Store << "\n");
   LLVM_DEBUG(llvm::dbgs() << " - Dst: " << *Dst << "\n");
   DfisanExtAPI *ExtAPI = DfisanExtAPI::getDfisanExtAPI();

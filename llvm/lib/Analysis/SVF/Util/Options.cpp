@@ -281,7 +281,8 @@ const llvm::cl::opt<bool> Options::PTSAllPrint(
 
 const llvm::cl::opt<bool> Options::PStat(
     "stat",
-    llvm::cl::init(true),
+    // llvm::cl::init(true),
+    llvm::cl::init(false),
     llvm::cl::desc("Statistic for Pointer analysis")
 );
 
@@ -504,7 +505,8 @@ const llvm::cl::opt<bool> Options::ReadPrecisionTDEdge(
 
 const llvm::cl::opt<u32_t> Options::AddModelFlag(
     "add-td-edge",
-    llvm::cl::init(0),
+    // llvm::cl::init(0),
+    llvm::cl::init(2),
     llvm::cl::desc("Add thread SVFG edges with models: 0 Non Add Edge; 1 NonSparse; 2 All Optimisation; 3 No MHP; 4 No Alias; 5 No Lock; 6 No Read Precision.")
 );
 

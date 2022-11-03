@@ -7,11 +7,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/Statistic.h"
 
-// #include "dg/Passes/UseDefAnalysisPass.h"
-// #include "dg/Passes/UseDefBuilder.h"
-// #include "dg/Passes/DfiUtils.h"
-// #include "dg/AnalysisOptions.h"
-
 #include "ModulePass/SVFDefUseAnalysisPass.h"
 #include "Dfisan/ProtectInfo.h"
 #include "Dfisan/DfisanExtAPI.h"
@@ -257,22 +252,6 @@ void DataFlowIntegritySanitizerPass::instrumentUnsafeAccess(Instruction *OrigIns
   Crash->setDebugLoc(OrigInst->getDebugLoc());
 
   NumInstrumentedUnsafeAccesses++;
-}
-
-void DataFlowIntegritySanitizerPass::instrumentFunction(Function &Func) {
-  using UnsafeInstMap = std::unordered_map<Instruction *, ValueVector>;
-  UnsafeInstMap UnsafeMap;
-  // Collect unsafe instructions
-  for (auto &Inst : instructions(&Func)) {
-    getUnsafeAccessTargets(&Inst, UnsafeMap[&Inst]);
-  }
-  // Instrument unsafe instructions
-  for (auto &Iter : UnsafeMap) {
-    Instruction *UnsafeInst = Iter.first;
-    ValueVector &Targets = Iter.second;
-    if (!Targets.empty())
-      insertCheckUnsafeAccessFn(UnsafeInst, Targets);
-  }
 }
 
 /// Get shadow memroy address
@@ -597,9 +576,6 @@ static Value *getDefID(IRBuilder<> *IRB, Value *ShadowAddr) {
   return IRB->CreateLoad(DefIDTy, ShadowPtr);
 }
 static Value *getNextDefID(IRBuilder<> *IRB, Value *ShadowAddr, unsigned Num) {
-  // Type *OffsetTy = ShadowAddr->getType();
-  // Value *Offset = ConstantInt::get(OffsetTy, Num * 2);
-  // Value *NextShadowAddr = IRB->CreateAdd(ShadowAddr, Offset);
   Value *NextShadowAddr = getNextShadowAddr(IRB, ShadowAddr, Num);
   return getDefID(IRB, NextShadowAddr);
 }
@@ -941,18 +917,10 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (auto &Iter : ProtInfo->getUnsafeToInfo()) {
     Instruction *UnsafeInst = Iter.first;
     for (auto &Ope : Iter.second.Operands) {
-      Value *OpeVal = Ope.Operand;
-      // calloc handling
-      //   UnsafeInst: %0 = calloc()
-      //   Operand   : %1 = bitcast %0 to <type>
-      //   ** InsertPoint **
-      if (UnsafeInst->getNextNode() == OpeVal)
-        instrumentUnsafeAccess(UnsafeInst->getNextNonDebugInstruction()->getNextNonDebugInstruction(), OpeVal);
-      // other
       //   ** InsertPoint **
       //   UnsafeInst: store %0 to <Operand>
-      else
-        instrumentUnsafeAccess(UnsafeInst, OpeVal);
+      Value *OpeVal = Ope.Operand;
+      instrumentUnsafeAccess(UnsafeInst, OpeVal);
     }
   }
 
@@ -1177,8 +1145,8 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
         //   DefInst: %0 = calloc()
         //   Operand: %1 = bitcast %0 to <type>
         //   ** InsertPoint **
-        if (DefInst->getNextNode() == Ope.Operand)
-          createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst->getNextNode()->getNextNode());
+        if (DefInst->getNextNonDebugInstruction() == Ope.Operand)
+          createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst->getNextNonDebugInstruction()->getNextNode());
         // other
         //   DefInst: store %0 to <Operand>
         //   ** InsertPoint **
@@ -1189,76 +1157,6 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
         createDfiStoreFn(Info.ID, Ope.Operand, Ope.Size, Kind, DefInst->getNextNode());
       }
     }
-/*
-    if (StoreInst *Store = dyn_cast<StoreInst>(DefInst)) {
-      auto *StoreTarget = Store->getPointerOperand();
-      unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-      createDfiStoreFn(ProtInfo->getDefID(Store), StoreTarget, Size, Kind, Store->getNextNode());
-    }
-    else if (CallInst *Call = dyn_cast<CallInst>(DefInst)) {
-      auto *Callee = Call->getCalledFunction();
-      auto FnName = Callee->getName().str();
-      DfisanExtAPI *ExtAPI = DfisanExtAPI::getDfisanExtAPI();
-      if (!ExtAPI->isExtDefFun(FnName))
-        return;
-      auto &ExtFun = ExtAPI->getExtFun(FnName);
-      // if (Opts->getAllocationFunction(Callee->getName().str()) == dg::AllocationFunction::CALLOC) { // Handling of calloc
-      if (ExtFun.FnName == "calloc") {
-        // TODO: Support other calloc-like functions
-        auto *Nmem = Call->getOperand(0);
-        auto *Size = Call->getOperand(1);
-        Builder->SetInsertPoint(Call->getNextNode());
-        auto *SizeVal = Builder->CreateNUWMul(Nmem, Size);
-        createDfiStoreFn(ProtInfo->getDefID(Call), Def, SizeVal, Kind);
-      // } else if (const dg::FunctionModel *Model = Opts->getFunctionModel(FnName)) { // Handling of stdlib functions
-      } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::RET) {
-        auto *StoreTarget = Call;
-        auto *SizeVal = Call->getOperand(ExtFun.SizePos);
-        createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
-      } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::ARG) {
-        auto *StoreTarget = Call->getOperand(ExtFun.ArgPos);
-        auto *SizeVal = Call->getOperand(ExtFun.SizePos);
-        createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, SizeVal, Kind, Call->getNextNode());
-      } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::VARARG) {
-        for (unsigned Idx = ExtFun.ArgPos; Idx < Call->arg_size(); Idx++) {
-          auto *StoreTarget = Call->getOperand(Idx);
-          unsigned Size = M->getDataLayout().getTypeStoreSize(StoreTarget->getType()->getNonOpaquePointerElementType());
-          createDfiStoreFn(ProtInfo->getDefID(Call), StoreTarget, Size, Kind, Call->getNextNode());
-        }
-      }
-      else {
-        llvm::errs() << "TODO: Support Def-stdlib function: " << FnName << "\n";
-      }
-    }
-    else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Def)) {
-      // Do nothing
-    } else {
-      llvm::errs() << "No support DefInst: " << *DefInst << "\n";
-      // llvm_unreachable("No support DefInst");
-    }
-  } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
-    unsigned Size = M->getDataLayout().getTypeStoreSize(GlobVar->getType()->getNonOpaquePointerElementType());
-    createDfiStoreFn(ProtInfo->getDefID(GlobVar), GlobVar, Size, Kind, Ctor->getEntryBlock().getTerminator());
-    insertGlobalInit(GlobVar);
-*/
-/*
-  } else if (Constant *Const = dyn_cast<Constant>(Def)) { // Global variable init
-    LLVM_DEBUG(dbgs() << "Const: " << *Const << "\n");
-    LLVM_DEBUG(
-      for (auto &Ope : Info.Operands)
-        dbgs() << " - Operand: " << *Ope.Operand << "\n";
-    );
-    if (Info.Operands.empty())
-      return;
-    assert(Info.Operands.size() == 1 && "GlobalVariable init has a single operand");
-    auto &Ope = Info.Operands[0];
-    Value *OpeVal = Ope.Operand;
-    assert(isa<GlobalVariable>(OpeVal));
-    GlobalVariable *GlobVar = cast<GlobalVariable>(OpeVal);
-    LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), GVar: " << *GlobVar << ", Size: " << Ope.Size << "\n");
-    createDfiStoreFn(Info.ID, GlobVar, Ope.Size, Kind, Ctor->getEntryBlock().getTerminator());
-    insertGlobalInit(GlobVar);
-*/
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     assert(Info.Operands.size() == 1 && "GlobalVariable init has a single operand");
     auto &Ope = *Info.Operands.begin();
@@ -1652,84 +1550,6 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
     }
     // default: llvm_unreachable("Invalid UseDefKind");
     }
-  }
-}
-
-inline bool DataFlowIntegritySanitizerPass::isUnsafeAccessTarget(Value *Target) {
-  Value *Base = Target->stripInBoundsConstantOffsets(); // strip constant offsets and get base object
-  if (ProtInfo->hasTarget(Base))
-    return false;
-  if (ClCheckAllUnsafeAccess)
-    return true;
-  // Do not check these constant offset access.
-  if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Base))
-    return false;
-  if (AllocaInst *Alloca = dyn_cast<AllocaInst>(Base))
-    return false;
-  return true;
-}
-
-inline void DataFlowIntegritySanitizerPass::addIfUnsafeAccessTarget(ValueVector &Targets, Value *Target) {
-  if (isUnsafeAccessTarget(Target))
-    Targets.push_back(Target);
-}
-
-inline void DataFlowIntegritySanitizerPass::getUnsafeAccessTargets(Instruction *Inst, ValueVector &Targets) {
-  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
-    if (!ProtInfo->hasUse(Load))
-      addIfUnsafeAccessTarget(Targets, Load->getPointerOperand());
-  } else if (auto *Store = dyn_cast<StoreInst>(Inst)) {
-    if (!ProtInfo->hasDef(Store))
-      addIfUnsafeAccessTarget(Targets, Store->getPointerOperand());
-  }
-  else if (auto *Call = dyn_cast<CallInst>(Inst)) {
-    auto *Callee = Call->getCalledOperand();
-    auto FnName = Callee->getName().str();
-    // TODO: Support ExtAPI
-/*
-    if (const auto *Model = Opts->getFunctionModel(FnName)) {
-      if (!Model->getUses().empty() && !ProtInfo->hasUse(Call)) {
-        for (const auto &Iter : Model->getUses()) {
-          auto &Ope = Iter.second;
-          unsigned OpeNum = Ope.operand;
-          if (OpeNum == dg::VARARG) {
-            assert(Ope.from.isOperand() && "VARARG's from must be operand");
-            unsigned FromOpe = Ope.from.getOperand();
-            for (unsigned Idx = FromOpe; Idx < Call->arg_size(); Idx++) {
-              addIfUnsafeAccessTarget(Targets, Call->getOperand(Idx)->stripPointerCasts());
-            }
-          } else if (OpeNum == dg::RETURN) {
-            addIfUnsafeAccessTarget(Targets, Call);
-          } else {
-            addIfUnsafeAccessTarget(Targets, Call->getOperand(OpeNum)->stripPointerCasts());
-          }
-        }
-      }
-      if (!Model->getDefines().empty() && !ProtInfo->hasDef(Call)) {
-        for (const auto &Iter : Model->getDefines()) {
-          auto &Ope = Iter.second;
-          unsigned OpeNum = Ope.operand;
-          if (OpeNum == dg::VARARG) {
-            assert(Ope.from.isOperand() && "VARARG's from must be operand");
-            unsigned FromOpe = Ope.from.getOperand();
-            for (unsigned Idx = FromOpe; Idx < Call->arg_size(); Idx++)
-              addIfUnsafeAccessTarget(Targets, Call->getOperand(Idx)->stripPointerCasts());
-          } else if (OpeNum == dg::RETURN) {
-            addIfUnsafeAccessTarget(Targets, Call);
-          } else {
-            addIfUnsafeAccessTarget(Targets, Call->getOperand(OpeNum)->stripPointerCasts());
-          }
-        }
-      }
-    }
-*/
-  }
-}
-
-void DataFlowIntegritySanitizerPass::insertCheckUnsafeAccessFn(Instruction *Inst, ValueVector &Targets) {
-  Builder->SetInsertPoint(Inst);
-  for (auto *Target : Targets) {
-    instrumentUnsafeAccess(Inst, Target);
   }
 }
 

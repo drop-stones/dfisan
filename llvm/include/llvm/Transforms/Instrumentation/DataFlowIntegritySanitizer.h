@@ -39,12 +39,6 @@ private:
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
                  CheckUnsafeAccessFn, InvalidSafeAccessReportFn, InvalidUseReportFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
-/*
-  dg::LLVMDependenceGraph *DG = nullptr;
-  dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
-  dg::DfiProtectInfo *ProtectInfo = nullptr;
-  const dg::LLVMDataDependenceAnalysisOptions *Opts = nullptr;
-*/
   SVF::ProtectInfo *ProtInfo = nullptr;
   Module *M = nullptr;
   std::unique_ptr<IRBuilder<>> Builder{nullptr};
@@ -64,9 +58,6 @@ private:
 
   /// Instrument an unsafe access
   void instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr);
-
-  /// Instrument unsafe accesses in function
-  void instrumentFunction(Function &F);
 
   /// Instrument safe aligned store
   void instrumentAlignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);

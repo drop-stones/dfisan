@@ -28,6 +28,7 @@ struct AccessOperand {
     return this->Operand < Rhs.Operand;
   }
 
+  bool empty() const { return Operand == nullptr; }
   bool hasSizeVal() const { return SizeVal != nullptr; }
 };
 using AccessOperandSet = std::set<AccessOperand>;
