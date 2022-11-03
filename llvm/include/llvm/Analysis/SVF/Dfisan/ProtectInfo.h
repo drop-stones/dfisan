@@ -24,39 +24,42 @@ struct AccessOperand {
   AccessOperand(Value *Operand, Value *SizeVal) : Operand(Operand), SizeVal(SizeVal), Size(0) {}
   AccessOperand(Value *Operand, unsigned Size)  : Operand(Operand), SizeVal(nullptr), Size(Size) {}
   AccessOperand() : AccessOperand(nullptr, nullptr) {}
+  bool operator< (const AccessOperand &Rhs) const {
+    return this->Operand < Rhs.Operand;
+  }
 
   bool hasSizeVal() const { return SizeVal != nullptr; }
 };
-using AccessOperandVec = std::vector<AccessOperand>;
+using AccessOperandSet = std::set<AccessOperand>;
 
 class ProtectInfo {
   /// Type for DefInfo and UseInfo used by instrumentation
   struct DefInfo {
     DefID ID;
-    AccessOperandVec Operands;
+    AccessOperandSet Operands;
     bool IsInstrumented;
 
     DefInfo(DefID ID, AccessOperand Operand) : ID(ID), IsInstrumented(false) { addOperand(Operand); }
     DefInfo() : ID(0), IsInstrumented(false) {}
-    void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
+    void addOperand(AccessOperand &Operand) { Operands.insert(Operand); }
     void setDefID(DefID ID) { this->ID = ID; }
   };
   using DefInfoMap = std::unordered_map<llvm::Value *, DefInfo>;
   struct UseInfo {
     DefIDSet DefIDs;
-    AccessOperandVec Operands;
+    AccessOperandSet Operands;
     bool IsInstrumented;
 
     UseInfo(DefID ID, AccessOperand Operand) : IsInstrumented(false) { addDefID(ID); addOperand(Operand); }
     UseInfo() : IsInstrumented(false) {}
-    void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
+    void addOperand(AccessOperand &Operand) { Operands.insert(Operand); }
     void addDefID(DefID ID) { DefIDs.insert(ID); }
   };
   using UseInfoMap = std::unordered_map<llvm::Value *, UseInfo>;
   struct UnsafeInstInfo {
-    AccessOperandVec Operands;
+    AccessOperandSet Operands;
     UnsafeInstInfo() {}
-    void addOperand(AccessOperand &Operand) { Operands.push_back(Operand); }
+    void addOperand(AccessOperand &Operand) { Operands.insert(Operand); }
   };
   using UnsafeInstInfoMap = std::unordered_map<llvm::Instruction *, UnsafeInstInfo>;
 

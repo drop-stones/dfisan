@@ -1251,7 +1251,7 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
 */
   } else if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(Def)) {
     assert(Info.Operands.size() == 1 && "GlobalVariable init has a single operand");
-    auto &Ope = Info.Operands[0];
+    auto &Ope = *Info.Operands.begin();
     createDfiStoreFn(Info.ID, GlobVar, Ope.Size, Kind, Ctor->getEntryBlock().getTerminator());
     insertGlobalInit(GlobVar);
   } else {

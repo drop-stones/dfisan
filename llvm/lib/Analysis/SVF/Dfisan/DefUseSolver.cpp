@@ -39,12 +39,16 @@ void DefUseSolver::solve() {
   }
 
   // Create DefUse map
+  // And add operand information to ProtectInfo
   DefUseIDInfo DefUse;
   for (const auto &It : NodeToDefs) {
     NodeID ID = It.first;
     if (isTargetLoad(ID)) {
       for (NodeID DefID : It.second) {
         addDefUse(DefUse, DefID, ID);
+
+        addDefOperand(DefID);
+        addUseOperand(ID);
       }
     }
   }
@@ -52,30 +56,9 @@ void DefUseSolver::solve() {
     NodeID ID = It.first;
     if (isTargetStore(ID)) {
       addUnusedDef(DefUse, ID);
-    }
-  }
 
-  // Add operand information to ProtectInfo
-  for (auto DefID : DefUse.DefIDs) {
-    Value *Def = getValue(DefID);
-    AccessOperand Ope = getStoreOperand(DefID);
-    if (isGlobalInit(DefID))  // GlobalInit must have unique key
-      ProtInfo->addDefOperand(Ope.Operand, Ope);
-    else
-      ProtInfo->addDefOperand(Def, Ope);
-  }
-  for (auto DefID : DefUse.UnusedDefIDs) {
-    Value *Def = getValue(DefID);
-    AccessOperand Ope = getStoreOperand(DefID);
-    if (isGlobalInit(DefID))
-      ProtInfo->addDefOperand(Ope.Operand, Ope);
-    else
-      ProtInfo->addDefOperand(Def, Ope);
-  }
-  for (auto UseID : DefUse.UseIDs) {
-    Value *Use = getValue(UseID);
-    AccessOperand Ope = getLoadOperand(UseID);
-    ProtInfo->addUseOperand(Use, Ope);
+      addDefOperand(ID);
+    }
   }
 
   // Renaming optimization: Calculate equivalent sets of Def
@@ -152,6 +135,21 @@ void DefUseSolver::addUnusedDef(DefUseIDInfo &DefUse, NodeID Def) {
   if (!DefUse.hasDef(UniqueID)) {
     DefUse.insertUnusedDefID(UniqueID);
   }
+}
+
+void DefUseSolver::addDefOperand(NodeID ID) {
+  Value *Def = getValue(ID);
+  AccessOperand Ope = getStoreOperand(ID);
+  if (isGlobalInit(ID))  // GlobalInit must have unique key
+    ProtInfo->addDefOperand(Ope.Operand, Ope);
+  else
+    ProtInfo->addDefOperand(Def, Ope);
+}
+
+void DefUseSolver::addUseOperand(NodeID ID) {
+  Value *Use = getValue(ID);
+  AccessOperand Ope = getLoadOperand(ID);
+  ProtInfo->addUseOperand(Use, Ope);
 }
 
 /// Register renaming optimized UseDef to ProtectInfo
@@ -312,17 +310,13 @@ AccessOperand DefUseSolver::getStoreOperand(NodeID ID) {
         return AccessOperand(Dst, SizeVal);
       }
       if (ExtFun.Ty == DfisanExtAPI::ExtFunType::EXT_CALLOC) {
-        // TODO: calloc handling
         // size = nmem * size_t
-///*
         llvm::IRBuilder<> Builder(Call);
         Builder.SetInsertPoint(Call);
         Value *SizeVal = Builder.CreateNUWMul(Call->getOperand(0), Call->getOperand(1));
         LLVM_DEBUG(llvm::dbgs() << "calloc: " << *Call << "\n");
         LLVM_DEBUG(llvm::dbgs() << " - SizeVal: " << *SizeVal << "\n");
         return AccessOperand(Dst, SizeVal);
-//*/
-        // return AccessOperand(Dst, nullptr);
       }
     }
   }

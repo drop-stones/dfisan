@@ -138,6 +138,10 @@ private:
   void addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use);
   void addUnusedDef(DefUseIDInfo &DefUse, NodeID Def);
 
+  /// Add Def and Use operands
+  void addDefOperand(NodeID ID);
+  void addUseOperand(NodeID ID);
+
   /// DefID assignment
   const DefID InitID = 1;
   DefID NextID = InitID;

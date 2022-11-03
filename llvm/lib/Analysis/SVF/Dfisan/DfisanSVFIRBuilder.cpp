@@ -92,14 +92,14 @@ void DfisanSVFIRBuilder::handleExtCall(CallSite cs, const SVFFunction *F) {
       addComplexConsForDfisanExt(DstID, ValID);
     } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::ARG) {
       const CallInst *Call = SVFUtil::dyn_cast<CallInst>(cs.getInstruction());
-      const Value *Dst = stripAllCasts(Call->getArgOperand(ExtFun.ArgPos));
+      const Value *Dst = getBaseValueForExtArg(Call->getArgOperand(ExtFun.ArgPos));
       DstID = getValueNode(Dst);
       ValID = getZeroValNode();
       addComplexConsForDfisanExt(DstID, ValID);
     } else if (ExtFun.Pos == DfisanExtAPI::AccessPosition::VARARG) {
       const CallInst *Call = SVFUtil::dyn_cast<CallInst>(cs.getInstruction());
       for (unsigned Idx = ExtFun.ArgPos; Idx < Call->arg_size(); ++Idx) {
-        const Value *Dst = stripAllCasts(Call->getArgOperand(Idx));
+        const Value *Dst = getBaseValueForExtArg(Call->getArgOperand(Idx));
         DstID = getValueNode(Dst);
         ValID = getZeroValNode();
         addComplexConsForDfisanExt(DstID, ValID);
