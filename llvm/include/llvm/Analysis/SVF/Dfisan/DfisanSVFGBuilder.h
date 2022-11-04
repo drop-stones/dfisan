@@ -22,6 +22,7 @@ protected:
   /// Re-write create SVFG method
   virtual void buildSVFG() override;
 
+private:
   SVFG *build(BVDataPTAImpl *pta, VFG::VFGK kind);
 
   /// Return true if this is a strong update STORE statement.

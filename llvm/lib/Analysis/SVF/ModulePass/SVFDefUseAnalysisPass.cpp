@@ -52,21 +52,24 @@ SVFDefUseAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // Run MTA analysis
   MTA *Mta = new DfisanMTA();
   MHP *Mhp = Mta->computeMHP(SvfModule);
-  LockAnalysis *LockAna = Mta->computeLocksets(Mhp->getTCT());
+  LockAnalysis *La = Mta->computeLocksets(Mhp->getTCT());
 
-  // Run Flow-sensitive PTA for multithread programs
-  FSMPTA *Fsmpta = new FSMPTA(Mhp, LockAna);
-  if (!Options::PStat)
-    Fsmpta->disablePrintStat();
-  Fsmpta->initialize(SvfModule);
-  Fsmpta->analyze();
+  BVDataPTAImpl *Pta = nullptr;
+  if (Options::PASelected.isSet(PointerAnalysis::AndersenWaveDiff_WPA)) {
+    // Use ander already computed
+    assert(SVFUtil::isa<BVDataPTAImpl>(Mhp->getTCT()->getPTA()));
+    Pta = SVFUtil::cast<BVDataPTAImpl>(Mhp->getTCT()->getPTA());
+  } else {
+    // Run Flow-sensitive PTA for multithread programs
+    Pta = FSMPTA::createFSMPTA(SvfModule, Mhp, La);
+  }
 
   // Build Full SVFG
-  DfisanSVFGBuilder Builder(Mhp, LockAna);
-  SVFG *Svfg = Builder.buildFullSVFG(Fsmpta);
+  DfisanSVFGBuilder Builder(Mhp, La);
+  SVFG *Svfg = Builder.buildFullSVFG(Pta);
 
   // DefUse analysis
-  DefUseSolver Solver(Svfg, Mhp, LockAna, ProtInfo);
+  DefUseSolver Solver(Svfg, Mhp, La, ProtInfo);
   Solver.solve();
   Solver.collectUnsafeInst();
 

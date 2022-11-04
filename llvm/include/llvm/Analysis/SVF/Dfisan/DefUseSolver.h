@@ -55,29 +55,24 @@ public:
   struct DefUseIDInfo {
     DefUseIDMap DefUseID;
     UseDefIDMap UseDefID;
-    DefIDVec DefIDs;
-    UseIDVec UseIDs;
     DefIDVec UnusedDefIDs;
     DefUseIDMap DataRaceDefUseID;
     UseDefIDMap DataRaceUseDefID;
-    // ValueToNodeIDMap ValToUniqueID;
 
     DefUseIDInfo() {}
     void insertDefUseID(NodeID Def, NodeID Use) {
       DefUseID[Def].set(Use);
       UseDefID[Use].set(Def);
-      DefIDs.set(Def);  UseIDs.set(Use);
     }
     void insertDataRaceDefUseID(NodeID Def, NodeID Use) {
       DataRaceDefUseID[Def].set(Use);
       DataRaceUseDefID[Use].set(Def);
-      DefIDs.set(Def);  UseIDs.set(Use);
     }
     void insertUnusedDefID(NodeID Def) {
       UnusedDefIDs.set(Def);
     }
     bool hasDef(NodeID Def) {
-      return DefIDs.test(Def) || UnusedDefIDs.test(Def);
+      return DefUseID.count(Def) != 0 || UnusedDefIDs.test(Def);
     }
   };
 

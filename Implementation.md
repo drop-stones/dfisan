@@ -39,10 +39,19 @@
   - [x] SafeMalloc関数をSVFのalloc関数群に登録
   - [ ] safe_mallocで確保されたオブジェクトの型をSVFが認識せず，解析結果が不正確になる問題
     - safe_mallocの置き換え時に，bitcastも計装し，型変換する(?) &larr; もうやってた
-- [ ] 計装コードとの統合
-- [ ] 実行時チェックをテスト
+- [x] 計装コードとの統合
+- [x] 実行時チェックをテスト
 - [ ] SPEC2006の保護
+  - [x] 401.bzip2, 429.mcf, 433.milc, 456.hmmer, 458.sjeng, 462.libquantum, 445.gobmk
+  - [ ] 470.lbm
+  - [ ] 482.sphinx3
+  - [ ] 464.h264ref
+  - [ ] 400.perlbench
+  - [ ] 433.gcc
 - [ ] 並行バグ検知の実装
+  - [x] ~~FSMPTAのalias見逃し &rarr; Andersenで置き換え~~
+  - [x] ~~fork,join前後のEdgeが貼られていない~~
+    - pthread_create()で渡された関数がread(DfiExtAPI関数)だったせいで，その後の解析もおかしくなっていただけ
 
 ### バグ修正
 
@@ -53,8 +62,9 @@
     - InitialGlobal()内で，構造体の初期化に一つのValue(=定義ID)を割り当て
   - [x] UnusedDefの情報がない
 - テストケース
-  - [ ] libc/sscanf
-  - [ ] NoSupport/ptr_calloc
+  - [ ] DataRace/data_race.c
+  - [x] libc/sscanf
+  - [x] NoSupport/ptr_calloc
   - [x] struct_copy
   - [x] libc/memcpy
   - [x] libc/memset
