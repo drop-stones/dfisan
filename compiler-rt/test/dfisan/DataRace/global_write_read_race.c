@@ -1,7 +1,7 @@
 // RUN: %clang_dfisan %s -o %t
 // RUN: !%run %t
 //
-// REQUIRED: x86_64-target-arch
+// REQUIRES: x86_64-target-arch
 
 // Test to check whether data race of global variables can be detected by dfisan.
 

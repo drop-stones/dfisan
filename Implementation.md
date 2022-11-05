@@ -49,9 +49,10 @@
   - [ ] 400.perlbench
   - [ ] 433.gcc
 - [ ] 並行バグ検知の実装
-  - [x] ~~FSMPTAのalias見逃し &rarr; Andersenで置き換え~~
-  - [x] ~~fork,join前後のEdgeが貼られていない~~
-    - pthread_create()で渡された関数がread(DfiExtAPI関数)だったせいで，その後の解析もおかしくなっていただけ
+  - [x] 単純なwrite-readデータレース
+    - [x] ~~FSMPTAのalias見逃し &rarr; Andersenで置き換え~~
+    - [x] ~~fork,join前後のEdgeが貼られていない~~
+      - pthread_create()で渡された関数がread(DfiExtAPI関数)だったせいで，その後の解析もおかしくなっていただけ
 
 ### バグ修正
 
@@ -62,7 +63,7 @@
     - InitialGlobal()内で，構造体の初期化に一つのValue(=定義ID)を割り当て
   - [x] UnusedDefの情報がない
 - テストケース
-  - [ ] DataRace/data_race.c
+  - [x] DataRace/global_data_race.c
   - [x] libc/sscanf
   - [x] NoSupport/ptr_calloc
   - [x] struct_copy
