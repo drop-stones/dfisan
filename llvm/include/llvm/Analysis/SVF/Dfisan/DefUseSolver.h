@@ -126,6 +126,9 @@ private:
   /// Get Value * from NodeID
   Value *getValue(NodeID ID);
 
+  /// Return true if two Values are alias
+  AliasResult isAlias(Value *V1, Value *V2);
+
   /// Return true if two Values are data race
   bool isDataRace(Value *V1, Value *V2);
 

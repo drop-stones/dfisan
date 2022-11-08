@@ -4,6 +4,7 @@
 #include "Dfisan/DfisanExtAPI.h"
 
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #define DEBUG_TYPE "def-use-solver"
 
@@ -101,6 +102,20 @@ Value *DefUseSolver::getValue(NodeID ID) {
   return Val;
 }
 
+/// Return true if two Values are alias
+/// If two Values are GetElementPtrInst,
+/// we distinguish the head of struct and the entire struct.
+AliasResult DefUseSolver::isAlias(Value *V1, Value *V2) {
+  if (llvm::isa<GetElementPtrInst>(V1) && llvm::isa<GetElementPtrInst>(V2)) {
+    PointsTo Pts1 = Pta->getPts(Pag->getValueNode(V1));
+    PointsTo Pts2 = Pta->getPts(Pag->getValueNode(V2));
+    if (Pta->containBlackHoleNode(Pts1) || Pta->containBlackHoleNode(Pts2) || Pts1.intersects(Pts2))
+      return AliasResult::MayAlias;
+    return AliasResult::NoAlias;
+  }
+  return Pta->alias(V1, V2);
+}
+
 /// Return true if two Values are data race
 bool DefUseSolver::isDataRace(Value *V1, Value *V2) {
   if (Instruction *I1 = SVFUtil::dyn_cast<Instruction>(V1)) {
@@ -121,7 +136,7 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
     return;
   Value *DefOpe = getStoreOperand(Def).Operand;
   Value *UseOpe = getLoadOperand(Use).Operand;
-  if (!Pta->alias(DefOpe, UseOpe)) {
+  if (!isAlias(DefOpe, UseOpe)) {
     LLVM_DEBUG(llvm::dbgs() << "No Alias:" << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Def: " << *DefOpe << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Use: " << *UseOpe << "\n");
