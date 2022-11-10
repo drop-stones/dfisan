@@ -156,11 +156,11 @@ private:
     return Ret;
   }
 
-  /// Register renaming optimized UseDef to ProtectInfo
-  void registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs);
+  /// Register renaming optimized DefUse to ProtectInfo
+  void registerDefUse(std::vector<EquivalentDefSet> &EquivalentDefs);
 
-  /// Register UseDef to ProtectInfo
-  void registerUseDef(DefUseIDInfo &DefUse);
+  /// Register no optimized DefUse to ProtectInfo
+  void registerDefUse(DefUseIDInfo &DefUse);
 
   /// Calculate equivalent defs
   void calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<EquivalentDefSet> &EquivalentDefs);

@@ -25,7 +25,7 @@ void DefUseSolver::solve() {
     const SVFGNode *Node = Svfg->getSVFGNode(ID);
     assert(Node != nullptr);
 
-    DefIDVec &Facts = NodeToDefs[ID];
+    DefIDVec Facts = NodeToDefs[ID];
 
     // Generate def data-facts.
     if (isTargetStore(ID))
@@ -63,11 +63,12 @@ void DefUseSolver::solve() {
   }
 
   // Renaming optimization: Calculate equivalent sets of Def
-  std::vector<EquivalentDefSet> EquivalentDefs;
-  calcEquivalentDefSet(DefUse, EquivalentDefs);
+  // std::vector<EquivalentDefSet> EquivalentDefs;
+  // calcEquivalentDefSet(DefUse, EquivalentDefs);
 
-  // Register UseDef to ProtectInfo
-  registerUseDef(EquivalentDefs);
+  // Register DefUse to ProtectInfo
+  // registerDefUse(EquivalentDefs);
+  registerDefUse(DefUse);
 }
 
 void DefUseSolver::collectUnsafeInst() {
@@ -179,8 +180,8 @@ void DefUseSolver::addUseOperand(NodeID ID) {
   ProtInfo->addUseOperand(Use, Ope);
 }
 
-/// Register renaming optimized UseDef to ProtectInfo
-void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs) {
+/// Register renaming optimized DefUse to ProtectInfo
+void DefUseSolver::registerDefUse(std::vector<EquivalentDefSet> &EquivalentDefs) {
   // Assign DefIDs and Register them to ProtectInfo
   for (const auto &EquivDefs : EquivalentDefs) {
     DefID ID = getNextID();
@@ -225,18 +226,16 @@ void DefUseSolver::registerUseDef(std::vector<EquivalentDefSet> &EquivalentDefs)
   }
 }
 
-void DefUseSolver::registerUseDef(DefUseIDInfo &DefUse) {
-  for (const auto &Iter : DefUse.DefUseID) {
-    // TODO: Aligned or Unaligned check
-    DefID ID = getNextID();
-    Value *Def = getValue(Iter.first);
-    ProtInfo->setDefID(Def, ID);
-    for (NodeID UseID : Iter.second) {
-      // TODO: Aligned or Unaligned check
-      Value *Use = getValue(UseID);
-      ProtInfo->addUseDef(Use, ID);
-    }
+/// Register no optimized DefUse to ProtectInfo
+void DefUseSolver::registerDefUse(DefUseIDInfo &DefUse) {
+  std::vector<EquivalentDefSet> DefUseVec;
+  for (auto &Iter : DefUse.DefUseID) {
+    NodeID DefID = Iter.first;
+    UseIDVec &UseIDs = Iter.second;
+    DefUseVec.emplace_back(DefID, UseIDs);
   }
+  DefUseVec.emplace_back(DefUse.UnusedDefIDs, UseIDVec());
+  registerDefUse(DefUseVec);
 }
 
 void DefUseSolver::calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<EquivalentDefSet> &EquivalentDefs) {
@@ -287,8 +286,8 @@ bool DefUseSolver::containTarget(const PointsTo &PtsSet) {
 
 void DefUseSolver::getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet) {
   for (auto Pts : PtsSet) {
-    const PAGNode *PtsNode = Pag->getGNode(Pts);
-    // const PAGNode *PtsNode = Pag->getGNode(Pag->getBaseValVar(Pts));
+    // const PAGNode *PtsNode = Pag->getGNode(Pts);
+    const PAGNode *PtsNode = Pag->getGNode(Pag->getBaseValVar(Pts));
     if (!PtsNode->hasValue())
       continue;
     Values.insert((Value *)PtsNode->getValue());
