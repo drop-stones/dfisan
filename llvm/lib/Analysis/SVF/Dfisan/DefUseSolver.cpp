@@ -10,6 +10,13 @@
 
 using namespace SVF;
 
+static llvm::cl::opt<bool> RenamingOptimization(
+  "renaming-opt",
+  llvm::cl::init(true),
+  llvm::cl::desc("<renaming optimization>"),
+  llvm::cl::Optional
+);
+
 void DefUseSolver::solve() {
   // initialize worklist
   for (auto It = Svfg->begin(), Eit = Svfg->end(); It != Eit; ++It) {
@@ -62,13 +69,17 @@ void DefUseSolver::solve() {
     }
   }
 
-  // Renaming optimization: Calculate equivalent sets of Def
-  // std::vector<EquivalentDefSet> EquivalentDefs;
-  // calcEquivalentDefSet(DefUse, EquivalentDefs);
+  if (RenamingOptimization) {
+    // Renaming optimization: Calculate equivalent sets of Def
+    std::vector<EquivalentDefSet> EquivalentDefs;
+    calcEquivalentDefSet(DefUse, EquivalentDefs);
 
-  // Register DefUse to ProtectInfo
-  // registerDefUse(EquivalentDefs);
-  registerDefUse(DefUse);
+    // Register DefUse to ProtectInfo
+    registerDefUse(EquivalentDefs);
+  } else {
+    // No optimization
+    registerDefUse(DefUse);
+  }
 }
 
 void DefUseSolver::collectUnsafeInst() {
