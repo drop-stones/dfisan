@@ -34,11 +34,10 @@ add_llvm_component_library(LLVMInstrumentation
   Support
   TransformUtils
   ProfileData
-  # Svf
-  Dg
+  Svf
   )
 
 add_definitions(-DENABLE_CFG)
 target_include_directories(LLVMInstrumentation PRIVATE
-  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis/SVF
 )

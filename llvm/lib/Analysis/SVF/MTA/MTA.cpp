@@ -123,7 +123,7 @@ MHP* MTA::computeMHP(SVFModule* module)
     SVFIRBuilder builder;
     SVFIR* pag = builder.build(module);
     PointerAnalysis* pta = AndersenWaveDiff::createAndersenWaveDiff(pag);
-    pta->getPTACallGraph()->dump("ptacg");
+    // pta->getPTACallGraph()->dump("ptacg");
 
     DBOUT(DGENERAL, outs() << pasMsg("Build TCT\n"));
     DBOUT(DMTA, outs() << pasMsg("Build TCT\n"));
@@ -139,7 +139,7 @@ MHP* MTA::computeMHP(SVFModule* module)
         stat->performTCTStat(tct);
     }
 
-    tcg->dump("tcg");
+    // tcg->dump("tcg");
 
     DBOUT(DGENERAL, outs() << pasMsg("MHP analysis\n"));
     DBOUT(DMTA, outs() << pasMsg("MHP analysis\n"));

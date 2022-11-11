@@ -5,7 +5,8 @@
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Support/Debug.h"
 
-#include "dg/Passes/ProtectionTargetAnalysisPass.h"
+// #include "dg/Passes/ProtectionTargetAnalysisPass.h"
+#include "ModulePass/ProtectionTargetAnalysisPass.h"
 
 #define DEBUG_TYPE "replace-with-safe-alloc"
 

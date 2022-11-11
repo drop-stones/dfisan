@@ -9,8 +9,11 @@ set(SOURCES
 add_llvm_component_library(LLVMCudd
 	${SOURCES}
 
+	DEPENDS
+	intrinsics_gen
+
 	LINK_LIBS
-	m					# math libraries
+	m 				# math libraries
 )
 target_include_directories(LLVMCudd PRIVATE ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis/SVF)
 

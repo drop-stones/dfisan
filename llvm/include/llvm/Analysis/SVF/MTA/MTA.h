@@ -11,6 +11,7 @@
 #include <set>
 #include <vector>
 #include "Util/BasicTypes.h"
+#include "SVF-FE/BasicTypes.h"
 
 namespace SVF
 {
@@ -24,11 +25,14 @@ class MHP;
 class LockAnalysis;
 class SVFModule;
 
+class DfisanMTA;
+
 /*!
  * Base data race detector
  */
 class MTA: public ModulePass
 {
+    friend DfisanMTA;
 
 public:
     typedef Set<const LoadInst*> LoadSet;
@@ -61,7 +65,7 @@ public:
     virtual void detect(SVFModule* module);
 
     /// Pass name
-    virtual StringRef getPassName() const
+    virtual llvm::StringRef getPassName() const
     {
         return "Multi threaded program analysis pass";
     }

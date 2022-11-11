@@ -46,7 +46,7 @@ class StInfo;
  */
 class SymbolTableInfo
 {
-friend class SymbolTableBuilder;
+    friend class SymbolTableBuilder;
 
 public:
 
@@ -88,6 +88,8 @@ private:
     IDToMemMapTy		objMap;		///< map a memory sym id to its obj
 
     CallSiteSet callSiteSet;
+    Set<const Value*> nullPtrSyms;
+    Set<const Value*> blackholeSyms;
 
     // Singleton pattern here to enable instance of SymbolTableInfo can only be created once.
     static SymbolTableInfo* symInfo;
@@ -153,7 +155,7 @@ public:
     {
         return mod;
     }
-        /// Module
+    /// Module
     inline void setModule(SVFModule* m)
     {
         mod = m;
@@ -162,10 +164,7 @@ public:
     /// special value
     // @{
     static bool isNullPtrSym(const Value *val);
-
     static bool isBlackholeSym(const Value *val);
-
-    bool isConstantObjSym(const Value *val);
 
     static inline bool isBlkPtr(NodeID id)
     {
@@ -227,28 +226,9 @@ public:
 
     /// Get different kinds of syms
     //@{
-    SymID getValSym(const Value *val)
-    {
+    SymID getValSym(const Value *val);
 
-        if(isNullPtrSym(val))
-            return nullPtrSymID();
-        else if(isBlackholeSym(val))
-            return blkPtrSymID();
-        else
-        {
-            ValueToIDMapTy::const_iterator iter =  valSymMap.find(val);
-            assert(iter!=valSymMap.end() &&"value sym not found");
-            return iter->second;
-        }
-    }
-
-    inline bool hasValSym(const Value* val)
-    {
-        if (isNullPtrSym(val) || isBlackholeSym(val))
-            return true;
-        else
-            return (valSymMap.find(val) != valSymMap.end());
-    }
+    bool hasValSym(const Value* val);
 
     inline SymID getObjSym(const Value *val) const
     {
@@ -279,7 +259,7 @@ public:
     }
     //@}
 
- 
+
     /// Statistics
     //@{
     inline u32_t getTotalSymNum() const
@@ -390,7 +370,7 @@ protected:
 /*!
  * Memory object symbols or MemObj (address-taken variables in LLVM-based languages)
  */
-class MemObj 
+class MemObj
 {
 
 private:
@@ -428,7 +408,7 @@ public:
     /// Get obj type
     const Type* getType() const;
 
-    /// Get the number of elements of this object 
+    /// Get the number of elements of this object
     u32_t getNumOfElements() const;
 
     /// Set the number of elements of this object
@@ -497,11 +477,11 @@ private:
     /// All field infos after flattening a struct
     std::vector<const Type*> finfo;
     /// stride represents the number of repetitive elements if this StInfo represent an ArrayType. stride is 1 by default.
-    u32_t stride; 
+    u32_t stride;
     /// number of elements after flattenning (including array elements)
-    u32_t numOfFlattenElements; 
+    u32_t numOfFlattenElements;
     /// number of fields after flattenning (ignoring array elements)
-    u32_t numOfFlattenFields; 
+    u32_t numOfFlattenFields;
     /// Type vector of fields
     std::vector<const Type*> flattenElementTypes;
     /// Max field limit
@@ -555,16 +535,19 @@ public:
     }
 
     /// Return number of elements after flattenning (including array elements)
-    inline u32_t getNumOfFlattenElements() const {
+    inline u32_t getNumOfFlattenElements() const
+    {
         return numOfFlattenElements;
     }
 
     /// Return the number of fields after flattenning (ignoring array elements)
-    inline u32_t getNumOfFlattenFields() const {
+    inline u32_t getNumOfFlattenFields() const
+    {
         return numOfFlattenFields;
     }
     /// Return the stride
-    inline u32_t getStride() const{
+    inline u32_t getStride() const
+    {
         return stride;
     }
 };
@@ -574,7 +557,7 @@ public:
  */
 class ObjTypeInfo
 {
-friend class SymbolTableBuilder;
+    friend class SymbolTableBuilder;
 public:
     typedef enum
     {
@@ -614,7 +597,7 @@ public:
     virtual ~ObjTypeInfo()
     {
     }
-    
+
     /// Get LLVM type
     inline const Type* getType() const
     {
@@ -633,14 +616,14 @@ public:
         maxOffsetLimit = limit;
     }
 
-    /// Set the number of elements of this object 
+    /// Set the number of elements of this object
     inline void setNumOfElements(u32_t num)
     {
         elemNum = num;
         setMaxFieldOffsetLimit(num);
     }
 
-    /// Get the number of elements of this object 
+    /// Get the number of elements of this object
     inline u32_t getNumOfElements() const
     {
         return elemNum;

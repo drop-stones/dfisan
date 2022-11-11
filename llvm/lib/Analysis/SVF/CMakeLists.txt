@@ -1,5 +1,7 @@
 add_subdirectory(CUDD)
 
+configure_file(config.in ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis/SVF/Util/config.h @ONLY)
+
 # Due to a mutual dependencies, all the sub projects of the SVG are merged here
 # Otherwise it is impossible to load the dependencies in opt
 # NOTE: if the SVF should be linked into opt, we should probably use the individual sub projects here, rather than the combined project 
@@ -14,8 +16,10 @@ file (GLOB SOURCES
         MTA/*.cpp
         SABER/*.cpp
         DDA/*.cpp
+        CFL/*.cpp
         FastCluster/*.cpp
-        UseDefAnalysis/*.cpp
+        Dfisan/*.cpp
+        ModulePass/*.cpp
 )
 
 add_llvm_component_library(LLVMSvf
@@ -32,10 +36,8 @@ add_llvm_component_library(LLVMSvf
     Cudd
     BitWriter
     Core
-    # ipo
     IRReader
     InstCombine
-    # Instrumentation
     Target
     Linker
     Analysis

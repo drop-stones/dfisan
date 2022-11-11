@@ -29,6 +29,7 @@
 
 #include "SVF-FE/CPPUtil.h"
 #include "Util/SVFUtil.h"
+#include "Util/SVFUtil.h"
 #include "SVF-FE/LLVMUtil.h"
 
 
@@ -132,7 +133,8 @@ bool cppUtil::isValVtbl(const Value *val)
         return false;
 }
 
-static void handleThunkFunction(cppUtil::DemangledName &dname) {
+static void handleThunkFunction(cppUtil::DemangledName &dname)
+{
     // when handling multi-inheritance,
     // the compiler may generate thunk functions
     // to perform `this` pointer adjustment
@@ -144,10 +146,11 @@ static void handleThunkFunction(cppUtil::DemangledName &dname) {
     // to get the real class name
 
     static vector<string> thunkPrefixes = {VThunkFuncLabel, NVThunkFunLabel};
-    for (unsigned i = 0; i < thunkPrefixes.size(); i++) {
+    for (unsigned i = 0; i < thunkPrefixes.size(); i++)
+    {
         auto prefix = thunkPrefixes[i];
         if (dname.className.size() > prefix.size() &&
-            dname.className.compare(0, prefix.size(), prefix) == 0)
+                dname.className.compare(0, prefix.size(), prefix) == 0)
         {
             dname.className = dname.className.substr(prefix.size());
             dname.isThunkFunc = true;
@@ -231,7 +234,7 @@ bool cppUtil::isLoadVtblInst(const LoadInst *loadInst)
     for (u32_t i = 0; i < 3; ++i)
     {
         if (const PointerType *ptrTy = SVFUtil::dyn_cast<PointerType>(elemTy))
-            elemTy = ptrTy->getElementType();
+            elemTy = LLVMUtil::getPtrElementType(ptrTy);
         else
             return false;
     }
@@ -256,16 +259,9 @@ bool cppUtil::isLoadVtblInst(const LoadInst *loadInst)
  */
 bool cppUtil::isVirtualCallSite(CallSite cs)
 {
-	// the callsite must be an indirect one with at least one argument (this ptr)
+    // the callsite must be an indirect one with at least one argument (this ptr)
     if (cs.getCalledFunction() != nullptr || cs.arg_empty())
         return false;
-
-    // When compiled with ctir, we'd be using the DCHG which has its own
-    // virtual annotations.
-    if (LLVMModuleSet::getLLVMModuleSet()->allCTir())
-    {
-        return cs.getInstruction()->getMetadata(cppUtil::ctir::derefMDName) != nullptr;
-    }
 
     const Value *vfunc = cs.getCalledValue();
     if (const LoadInst *vfuncloadinst = SVFUtil::dyn_cast<LoadInst>(vfunc))
@@ -286,18 +282,23 @@ bool cppUtil::isVirtualCallSite(CallSite cs)
     return false;
 }
 
-bool cppUtil::isCPPThunkFunction(const Function *F) {
+bool cppUtil::isCPPThunkFunction(const Function *F)
+{
     cppUtil::DemangledName dname = cppUtil::demangle(F->getName().str());
     return dname.isThunkFunc;
 }
 
-const Function *cppUtil::getThunkTarget(const Function *F) {
+const Function *cppUtil::getThunkTarget(const Function *F)
+{
     const Function *ret = nullptr;
 
-    for (auto &bb:*F) {
-        for (auto &inst: bb) {
+    for (auto &bb:*F)
+    {
+        for (auto &inst: bb)
+        {
             if (llvm::isa<CallInst>(inst) || llvm::isa<InvokeInst>(inst)
-                || llvm::isa<CallBrInst>(inst)) {
+                    || llvm::isa<CallBrInst>(inst))
+            {
                 CallSite cs(const_cast<Instruction*>(&inst));
                 // assert(cs.getCalledFunction() &&
                 //        "Indirect call detected in thunk func");
@@ -412,7 +413,7 @@ string cppUtil::getClassNameFromType(const Type *ty)
     string className = "";
     if (const PointerType *ptrType = SVFUtil::dyn_cast<PointerType>(ty))
     {
-        const Type *elemType = ptrType->getElementType();
+        const Type *elemType = LLVMUtil::getPtrElementType(ptrType);
         if (SVFUtil::isa<StructType>(elemType) &&
                 !((SVFUtil::cast<StructType>(elemType))->isLiteral()))
         {
@@ -460,7 +461,8 @@ bool cppUtil::isConstructor(const Function *F)
         return false;
     }
     struct cppUtil::DemangledName dname = demangle(funcName.c_str());
-    if (dname.className.size() == 0) {
+    if (dname.className.size() == 0)
+    {
         return false;
     }
     dname.funcName = getBeforeBrackets(dname.funcName);
@@ -491,7 +493,8 @@ bool cppUtil::isDestructor(const Function *F)
         return false;
     }
     struct cppUtil::DemangledName dname = demangle(funcName.c_str());
-    if (dname.className.size() == 0) {
+    if (dname.className.size() == 0)
+    {
         return false;
     }
     dname.funcName = getBeforeBrackets(dname.funcName);

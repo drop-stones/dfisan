@@ -4,17 +4,10 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/IRBuilder.h"
 
-namespace dg {
-// class UseDefBuilder;
-class LLVMDependenceGraph;
-struct DfiProtectInfo;
-struct AnalysisOptions;
-struct LLVMDataDependenceAnalysisOptions;
+namespace SVF {
+class ProtectInfo;
 using DefID = uint16_t;
-namespace dda {
-class LLVMDataDependenceAnalysis;
-} // namespace dda
-} // namespace dg
+} // namespace SVF
 
 namespace llvm {
 
@@ -46,10 +39,7 @@ private:
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
                  CheckUnsafeAccessFn, InvalidSafeAccessReportFn, InvalidUseReportFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
-  dg::LLVMDependenceGraph *DG = nullptr;
-  dg::dda::LLVMDataDependenceAnalysis *DDA = nullptr;
-  dg::DfiProtectInfo *ProtectInfo = nullptr;
-  const dg::LLVMDataDependenceAnalysisOptions *Opts = nullptr;
+  SVF::ProtectInfo *ProtInfo = nullptr;
   Module *M = nullptr;
   std::unique_ptr<IRBuilder<>> Builder{nullptr};
   Function *Ctor = nullptr;
@@ -68,9 +58,6 @@ private:
 
   /// Instrument an unsafe access
   void instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr);
-
-  /// Instrument unsafe accesses in function
-  void instrumentFunction(Function &F);
 
   /// Instrument safe aligned store
   void instrumentAlignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
@@ -176,11 +163,11 @@ private:
   void insertDfiStoreFn(Value *Def, UseDefKind Kind);
 
   /// Insert DfiLoadFn before each load instruction.
-  void insertDfiLoadFn(Instruction *Use, UseDefKind Kind);
+  void insertDfiLoadFn(Value *Use, UseDefKind Kind);
 
   /// Create a function call to DfiStoreFn from llvm::Value.
-  void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, unsigned Size, UseDefKind Kind, Instruction *InsertPoint = nullptr);
-  void createDfiStoreFn(dg::DefID DefID, Value *StoreTarget, Value *SizeVal, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+  void createDfiStoreFn(SVF::DefID DefID, Value *StoreTarget, unsigned Size, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+  void createDfiStoreFn(SVF::DefID DefID, Value *StoreTarget, Value *SizeVal, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
   /// Create a function call to DfiLoadFn.
   void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);

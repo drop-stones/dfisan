@@ -35,6 +35,8 @@
 namespace SVF
 {
 
+class DfisanSVFIRBuilder;
+
 /*!
  * SVF Intermediate representation, representing variables and statements as a Program Assignment Graph (PAG)
  * Variables as nodes and statements as edges.
@@ -43,12 +45,11 @@ namespace SVF
 class SVFIR : public IRGraph
 {
 
-friend class SVFIRBuilder;
-friend class ExternalPAG;
-friend class PAGBuilderFromFile;
-friend class TypeBasedHeapCloning;  
-friend class UseDefSVFIRBuilder;
-friend class UseDefSVFGBuilder;
+    friend class SVFIRBuilder;
+    friend class DfisanSVFIRBuilder;
+    friend class ExternalPAG;
+    friend class PAGBuilderFromFile;
+    friend class TypeBasedHeapCloning;
 
 public:
     typedef Set<const CallICFGNode*> CallSiteSet;
@@ -408,7 +409,6 @@ public:
     //@{
     /// Get a base pointer node given a field pointer
     NodeID getBaseValVar(NodeID nodeId);
-    LocationSet getLocationSetFromBaseNode(NodeID nodeId);
     inline NodeID getBaseObjVar(NodeID id) const
     {
         return getBaseObj(id)->getId();
@@ -449,7 +449,8 @@ public:
 private:
 
     /// Map a SVFStatement type to a set of corresponding SVF statements
-    inline void addToStmt2TypeMap(SVFStmt* edge) {
+    inline void addToStmt2TypeMap(SVFStmt* edge)
+    {
         bool added = KindToSVFStmtSetMap[edge->getEdgeKind()].insert(edge).second;
         assert(added && "duplicated edge, not added!!!");
         if (edge->isPTAEdge())
