@@ -6,14 +6,14 @@
 
 #include <stdarg.h>
 
-#define REPORT_ERROR(LoadAddr, Argc, IDList)  \
-  va_start(IDList, Argc);                     \
-  GET_CALLER_PC_BP;                           \
-  ReportInvalidUseError(LoadAddr, Argc, IDList, pc, bp)
+#define REPORT_ERROR(LoadAddr, ErrID, Argc, IDList)   \
+  va_start(IDList, Argc);                             \
+  GET_CALLER_PC_BP;                                   \
+  ReportInvalidUseError(LoadAddr, ErrID, Argc, IDList, pc, bp)
 
 namespace __dfisan {
 
-void ReportInvalidUseError(__sanitizer::uptr LoadAddr, __sanitizer::u16 Argc, va_list IDList, __sanitizer::uptr pc, __sanitizer::uptr bp);
+void ReportInvalidUseError(__sanitizer::uptr LoadAddr, __sanitizer::u16 ErrID, __sanitizer::u16 Argc, va_list IDList, __sanitizer::uptr pc, __sanitizer::uptr bp);
 
 class Decorator : public __sanitizer::SanitizerCommonDecorator {
 public:

@@ -21,6 +21,7 @@ private:
   FunctionCallee DfiInitFn, DfiStoreNFn, DfiLoadNFn,
                  DfiStore1Fn, DfiStore2Fn, DfiStore4Fn, DfiStore8Fn, DfiStore16Fn,
                  DfiLoad1Fn, DfiLoad2Fn, DfiLoad4Fn, DfiLoad8Fn, DfiLoad16Fn,
+                 // Store
                  AlignedStoreNFn, AlignedStore1Fn, AlignedStore2Fn, AlignedStore4Fn, AlignedStore8Fn, AlignedStore16Fn,
                  UnalignedStoreNFn, UnalignedStore1Fn, UnalignedStore2Fn, UnalignedStore4Fn, UnalignedStore8Fn, UnalignedStore16Fn,
                  AlignedOrUnalignedStoreNFn, AlignedOrUnalignedStore1Fn, AlignedOrUnalignedStore2Fn,
@@ -29,6 +30,7 @@ private:
                  CondUnalignedStoreNFn, CondUnalignedStore1Fn, CondUnalignedStore2Fn, CondUnalignedStore4Fn, CondUnalignedStore8Fn, CondUnalignedStore16Fn,
                  CondAlignedOrUnalignedStoreNFn, CondAlignedOrUnalignedStore1Fn, CondAlignedOrUnalignedStore2Fn,
                  CondAlignedOrUnalignedStore4Fn, CondAlignedOrUnalignedStore8Fn, CondAlignedOrUnalignedStore16Fn,
+                 // Load
                  AlignedLoadNFn, AlignedLoad1Fn, AlignedLoad2Fn, AlignedLoad4Fn, AlignedLoad8Fn, AlignedLoad16Fn,
                  UnalignedLoadNFn, UnalignedLoad1Fn, UnalignedLoad2Fn, UnalignedLoad4Fn, UnalignedLoad8Fn, UnalignedLoad16Fn,
                  AlignedOrUnalignedLoadNFn, AlignedOrUnalignedLoad1Fn, AlignedOrUnalignedLoad2Fn,
@@ -37,6 +39,16 @@ private:
                  CondUnalignedLoadNFn, CondUnalignedLoad1Fn, CondUnalignedLoad2Fn, CondUnalignedLoad4Fn, CondUnalignedLoad8Fn, CondUnalignedLoad16Fn,
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
+                 // Check and Set
+                 AlignedLoadStoreNFn, AlignedLoadStore1Fn, AlignedLoadStore2Fn, AlignedLoadStore4Fn, AlignedLoadStore8Fn, AlignedLoadStore16Fn,
+                 UnalignedLoadStoreNFn, UnalignedLoadStore1Fn, UnalignedLoadStore2Fn, UnalignedLoadStore4Fn, UnalignedLoadStore8Fn, UnalignedLoadStore16Fn,
+                 AlignedOrUnalignedLoadStoreNFn, AlignedOrUnalignedLoadStore1Fn, AlignedOrUnalignedLoadStore2Fn,
+                 AlignedOrUnalignedLoadStore4Fn, AlignedOrUnalignedLoadStore8Fn, AlignedOrUnalignedLoadStore16Fn,
+                 CondAlignedLoadStoreNFn, CondAlignedLoadStore1Fn, CondAlignedLoadStore2Fn, CondAlignedLoadStore4Fn, CondAlignedLoadStore8Fn, CondAlignedLoadStore16Fn,
+                 CondUnalignedLoadStoreNFn, CondUnalignedLoadStore1Fn, CondUnalignedLoadStore2Fn, CondUnalignedLoadStore4Fn, CondUnalignedLoadStore8Fn, CondUnalignedLoadStore16Fn,
+                 CondAlignedOrUnalignedLoadStoreNFn, CondAlignedOrUnalignedLoadStore1Fn, CondAlignedOrUnalignedLoadStore2Fn,
+                 CondAlignedOrUnalignedLoadStore4Fn, CondAlignedOrUnalignedLoadStore8Fn, CondAlignedOrUnalignedLoadStore16Fn,
+                 // Others
                  CheckUnsafeAccessFn, InvalidSafeAccessReportFn, InvalidUseReportFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
   SVF::ProtectInfo *ProtInfo = nullptr;
@@ -175,6 +187,10 @@ private:
   /// Create a function call to DfiLoadFn.
   void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
   void createDfiLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+
+  /// Create a function call to atomic_check_set.
+  void createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+  void createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
   /// Return true if the target is unsafe
   inline bool isUnsafeAccessTarget(Value *Target);

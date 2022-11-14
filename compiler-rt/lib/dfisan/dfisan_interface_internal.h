@@ -137,6 +137,50 @@ extern "C" {
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_ids_8 (uptr LoadAddr, u16 Argc, ...);
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_ids_16(uptr LoadAddr, u16 Argc, ...);
 
+  // Check and Set
+  // aligned
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_check_set_ids_n (uptr Addr, u16 DefID, u64 Size, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_check_set_ids_1 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_check_set_ids_2 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_check_set_ids_4 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_check_set_ids_8 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_check_set_ids_16(uptr Addr, u16 DefID, u16 Argc, ...);
+  // unaligned
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unaligned_check_set_ids_n (uptr Addr, u16 DefID, u64 Size, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unaligned_check_set_ids_1 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unaligned_check_set_ids_2 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unaligned_check_set_ids_4 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unaligned_check_set_ids_8 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_unaligned_check_set_ids_16(uptr Addr, u16 DefID, u16 Argc, ...);
+  // aligned or unaligned
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_or_unaligned_check_set_ids_n (uptr Addr, u16 DefID, u64 Size, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_or_unaligned_check_set_ids_1 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_or_unaligned_check_set_ids_2 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_or_unaligned_check_set_ids_4 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_or_unaligned_check_set_ids_8 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_aligned_or_unaligned_check_set_ids_16(uptr Addr, u16 DefID, u16 Argc, ...);
+  // conditional aligned (for aligned or no-target def)
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_check_set_ids_n (uptr Addr, u16 DefID, u64 Size, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_check_set_ids_1 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_check_set_ids_2 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_check_set_ids_4 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_check_set_ids_8 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_check_set_ids_16(uptr Addr, u16 DefID, u16 Argc, ...);
+  // conditional unaligned (for unaligned or no-target def)
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_unaligned_check_set_ids_n (uptr Addr, u16 DefID, u64 Size, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_unaligned_check_set_ids_1 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_unaligned_check_set_ids_2 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_unaligned_check_set_ids_4 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_unaligned_check_set_ids_8 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_unaligned_check_set_ids_16(uptr Addr, u16 DefID, u16 Argc, ...);
+  // conditional aligned or unaligned (for aligned or unaligned or no-target def)
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_set_ids_n (uptr Addr, u16 DefID, u64 Size, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_set_ids_1 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_set_ids_2 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_set_ids_4 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_set_ids_8 (uptr Addr, u16 DefID, u16 Argc, ...);
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_cond_aligned_or_unaligned_check_set_ids_16(uptr Addr, u16 DefID, u16 Argc, ...);
+
   // Unsafe access check function which guarantees the access is in unsafe region
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_check_unsafe_access(uptr Addr);
 

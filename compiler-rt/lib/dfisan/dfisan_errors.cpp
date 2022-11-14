@@ -106,18 +106,17 @@ void PrintDefIDs(u16 Argc, va_list IDList) {
 }
 
 
-void ReportInvalidUseError(uptr LoadAddr, u16 Argc, va_list IDList, uptr pc, uptr bp) {
-  u16 *shadow_memory = 0;
+void ReportInvalidUseError(uptr LoadAddr, u16 ErrID, u16 Argc, va_list IDList, uptr pc, uptr bp) {
+  u16 *shadow_memory = NULL;
   if (AddrIsInSafeAlignedRegion(LoadAddr))
     shadow_memory = (u16 *)AlignedMemToShadow(LoadAddr);
   else if (AddrIsInSafeUnalignedRegion(LoadAddr))
     shadow_memory = (u16 *)UnalignedMemToShadow(LoadAddr);
   else
     assert(false && "Invalid LoadAddr");
-  u16 InvalidID = *shadow_memory;
   Decorator d;
   Printf("\n%s", d.Error());
-  Printf("ERROR: Invalid access at %p { ID(%d) at %p }\n", (void *)LoadAddr, InvalidID, (void *)shadow_memory);
+  Printf("ERROR: Invalid access at %p { ID(%d) at %p }\n", (void *)LoadAddr, ErrID, (void *)shadow_memory);
   Printf("%s", d.Default());
 
   sqlite3 *DB = OpenSqlite3File();
@@ -125,7 +124,7 @@ void ReportInvalidUseError(uptr LoadAddr, u16 Argc, va_list IDList, uptr pc, upt
     Printf("\n%s", d.Error());
     Printf("Invalid DefID:\n");
     Printf("%s", d.Default());
-    PrintDefInfo(DB, InvalidID);
+    PrintDefInfo(DB, ErrID);
 
     Printf("\n%s", d.DefInfo());
     Printf("Expected DefIDs:\n");

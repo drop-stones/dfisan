@@ -265,7 +265,6 @@ void DefUseSolver::registerDefUse(std::vector<EquivalentDefSet> &EquivalentDefs)
     for (NodeID UseID : EquivDefs.Uses) {
       Value *Use = getValue(UseID);
       if (isTargetStore(UseID)) { // write-write race detection
-        llvm::errs() << "TODO: add write-write race detection\n";
         llvm::errs() << "MayRace Inst: " << *Use << "\n";
         ProtInfo->addWriteWriteRaceCheck(Use, ID);
         continue;

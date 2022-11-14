@@ -123,6 +123,50 @@ constexpr char DfisanCondAlignedOrUnalignedLoad4FnName[]  = "__dfisan_cond_align
 constexpr char DfisanCondAlignedOrUnalignedLoad8FnName[]  = "__dfisan_cond_aligned_or_unaligned_check_ids_8";
 constexpr char DfisanCondAlignedOrUnalignedLoad16FnName[] = "__dfisan_cond_aligned_or_unaligned_check_ids_16";
 
+// Check and set function names
+// aligned
+constexpr char DfisanAlignedLoadStoreNFnName[]                 = "__dfisan_aligned_check_set_ids_n";
+constexpr char DfisanAlignedLoadStore1FnName[]                 = "__dfisan_aligned_check_set_ids_1";
+constexpr char DfisanAlignedLoadStore2FnName[]                 = "__dfisan_aligned_check_set_ids_2";
+constexpr char DfisanAlignedLoadStore4FnName[]                 = "__dfisan_aligned_check_set_ids_4";
+constexpr char DfisanAlignedLoadStore8FnName[]                 = "__dfisan_aligned_check_set_ids_8";
+constexpr char DfisanAlignedLoadStore16FnName[]                = "__dfisan_aligned_check_set_ids_16";
+// unaligned
+constexpr char DfisanUnalignedLoadStoreNFnName[]               = "__dfisan_unaligned_check_set_ids_n";
+constexpr char DfisanUnalignedLoadStore1FnName[]               = "__dfisan_unaligned_check_set_ids_1";
+constexpr char DfisanUnalignedLoadStore2FnName[]               = "__dfisan_unaligned_check_set_ids_2";
+constexpr char DfisanUnalignedLoadStore4FnName[]               = "__dfisan_unaligned_check_set_ids_4";
+constexpr char DfisanUnalignedLoadStore8FnName[]               = "__dfisan_unaligned_check_set_ids_8";
+constexpr char DfisanUnalignedLoadStore16FnName[]              = "__dfisan_unaligned_check_set_ids_16";
+// aligned or unaligned
+constexpr char DfisanAlignedOrUnalignedLoadStoreNFnName[]      = "__dfisan_aligned_or_unaligned_check_set_ids_n";
+constexpr char DfisanAlignedOrUnalignedLoadStore1FnName[]      = "__dfisan_aligned_or_unaligned_check_set_ids_1";
+constexpr char DfisanAlignedOrUnalignedLoadStore2FnName[]      = "__dfisan_aligned_or_unaligned_check_set_ids_2";
+constexpr char DfisanAlignedOrUnalignedLoadStore4FnName[]      = "__dfisan_aligned_or_unaligned_check_set_ids_4";
+constexpr char DfisanAlignedOrUnalignedLoadStore8FnName[]      = "__dfisan_aligned_or_unaligned_check_set_ids_8";
+constexpr char DfisanAlignedOrUnalignedLoadStore16FnName[]     = "__dfisan_aligned_or_unaligned_check_set_ids_16";
+// conditional aligned (for aligned or no-target def)
+constexpr char DfisanCondAlignedLoadStoreNFnName[]             = "__dfisan_cond_aligned_check_set_ids_n";
+constexpr char DfisanCondAlignedLoadStore1FnName[]             = "__dfisan_cond_aligned_check_set_ids_1";
+constexpr char DfisanCondAlignedLoadStore2FnName[]             = "__dfisan_cond_aligned_check_set_ids_2";
+constexpr char DfisanCondAlignedLoadStore4FnName[]             = "__dfisan_cond_aligned_check_set_ids_4";
+constexpr char DfisanCondAlignedLoadStore8FnName[]             = "__dfisan_cond_aligned_check_set_ids_8";
+constexpr char DfisanCondAlignedLoadStore16FnName[]            = "__dfisan_cond_aligned_check_set_ids_16";
+// conditional unaligned (for unaligned or no-target def)
+constexpr char DfisanCondUnalignedLoadStoreNFnName[]           = "__dfisan_cond_unaligned_check_set_ids_n";
+constexpr char DfisanCondUnalignedLoadStore1FnName[]           = "__dfisan_cond_unaligned_check_set_ids_1";
+constexpr char DfisanCondUnalignedLoadStore2FnName[]           = "__dfisan_cond_unaligned_check_set_ids_2";
+constexpr char DfisanCondUnalignedLoadStore4FnName[]           = "__dfisan_cond_unaligned_check_set_ids_4";
+constexpr char DfisanCondUnalignedLoadStore8FnName[]           = "__dfisan_cond_unaligned_check_set_ids_8";
+constexpr char DfisanCondUnalignedLoadStore16FnName[]          = "__dfisan_cond_unaligned_check_set_ids_16";
+// conditional aligned or unaligned (for aligned or unaligned or no-target def)
+constexpr char DfisanCondAlignedOrUnalignedLoadStoreNFnName[]  = "__dfisan_cond_aligned_or_unaligned_check_set_ids_n";
+constexpr char DfisanCondAlignedOrUnalignedLoadStore1FnName[]  = "__dfisan_cond_aligned_or_unaligned_check_set_ids_1";
+constexpr char DfisanCondAlignedOrUnalignedLoadStore2FnName[]  = "__dfisan_cond_aligned_or_unaligned_check_set_ids_2";
+constexpr char DfisanCondAlignedOrUnalignedLoadStore4FnName[]  = "__dfisan_cond_aligned_or_unaligned_check_set_ids_4";
+constexpr char DfisanCondAlignedOrUnalignedLoadStore8FnName[]  = "__dfisan_cond_aligned_or_unaligned_check_set_ids_8";
+constexpr char DfisanCondAlignedOrUnalignedLoadStore16FnName[] = "__dfisan_cond_aligned_or_unaligned_check_set_ids_16";
+
 /// Unsafe access check
 constexpr char DfisanCheckUnsafeAccessFnName[] = "__dfisan_check_unsafe_access";
 
@@ -580,6 +624,18 @@ static Value *getNextDefID(IRBuilder<> *IRB, Value *ShadowAddr, unsigned Num) {
   return getDefID(IRB, NextShadowAddr);
 }
 
+/// Atomic exchange of DefID
+static Value *exchangeDefID(IRBuilder<> *IRB, Value *ShadowAddr, Value *DefID) {
+  // Type *DefIDTy = IRB->getInt16Ty();
+  Type *PtrTy = PointerType::getInt16PtrTy(IRB->getContext());
+  Value *ShadowPtr = IRB->CreateIntToPtr(ShadowAddr, PtrTy);
+  return IRB->CreateAtomicRMW(AtomicRMWInst::BinOp::Xchg, ShadowPtr, DefID, MaybeAlign(2), AtomicOrdering(AtomicOrdering::Monotonic) /* same as C++'s relaxed */);
+}
+static Value *exchangeNextDefID(IRBuilder<> *IRB, Value *ShadowAddr, Value *DefID, unsigned Num) {
+  Value *NextShadowAddr = getNextShadowAddr(IRB, ShadowAddr, Num);
+  return exchangeDefID(IRB, NextShadowAddr, DefID);
+}
+
 /// Compare two DefIDs.
 static Value *compareDefIDs(IRBuilder<> *IRB, Value *Lhs, Value *Rhs) {
   assert(Lhs->getType() == Rhs->getType());
@@ -982,16 +1038,26 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   PtrTy   = Type::getIntNTy(Ctx, LongSize);
   Int8PtrTy = Type::getInt8PtrTy(Ctx);
 
+  // Store Fn Type
   SmallVector<Type *, 8> StoreArgTypes{PtrTy, Int16Ty};
   FunctionType *StoreFnTy = FunctionType::get(VoidTy, StoreArgTypes, false);
   SmallVector<Type *, 8> StoreNArgTypes{PtrTy, Int64Ty, Int16Ty};
   FunctionType *StoreNFnTy = FunctionType::get(VoidTy, StoreNArgTypes, false);
+  // Load Fn Type
   // SmallVector<Type *, 8> LoadArgTypes{PtrTy, Int32Ty};
   SmallVector<Type *, 8> LoadArgTypes{PtrTy, Int16Ty};
   FunctionType *LoadFnTy = FunctionType::get(VoidTy, LoadArgTypes, true);
   // SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int32Ty};
   SmallVector<Type *, 8> LoadNArgTypes{PtrTy, Int64Ty, Int16Ty};
   FunctionType *LoadNFnTy = FunctionType::get(VoidTy, LoadNArgTypes, true);
+
+  // Check and Set Fn Type
+  SmallVector<Type *, 8> LoadStoreArgTypes{PtrTy, Int16Ty, Int16Ty};
+  FunctionType *LoadStoreFnTy = FunctionType::get(VoidTy, LoadStoreArgTypes, true);
+  SmallVector<Type *, 8> LoadStoreNArgTypes{PtrTy, Int16Ty, Int64Ty, Int16Ty};
+  FunctionType *LoadStoreNFnTy = FunctionType::get(VoidTy, LoadStoreNArgTypes, true);
+
+  // Other Fn Type
   FunctionType *CheckUnsafeAcessFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
   FunctionType *InvalidSafeAccessReportFnTy = FunctionType::get(VoidTy, {Int64Ty}, false);
   FunctionType *InvalidUseReportFnTy = FunctionType::get(VoidTy, {PtrTy, Int16Ty}, true);
@@ -1100,6 +1166,50 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   CondAlignedOrUnalignedLoad8Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad8FnName, LoadFnTy);
   CondAlignedOrUnalignedLoad16Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoad16FnName, LoadFnTy);
 
+  // Load and Store functions
+  // aligned
+  AlignedLoadStoreNFn = M->getOrInsertFunction(DfisanAlignedLoadStoreNFnName, LoadStoreNFnTy);
+  AlignedLoadStore1Fn = M->getOrInsertFunction(DfisanAlignedLoadStore1FnName, LoadStoreFnTy);
+  AlignedLoadStore2Fn = M->getOrInsertFunction(DfisanAlignedLoadStore2FnName, LoadStoreFnTy);
+  AlignedLoadStore4Fn = M->getOrInsertFunction(DfisanAlignedLoadStore4FnName, LoadStoreFnTy);
+  AlignedLoadStore8Fn = M->getOrInsertFunction(DfisanAlignedLoadStore8FnName, LoadStoreFnTy);
+  AlignedLoadStore16Fn = M->getOrInsertFunction(DfisanAlignedLoadStore16FnName, LoadStoreFnTy);
+  // unaligned
+  UnalignedLoadStoreNFn = M->getOrInsertFunction(DfisanUnalignedLoadStoreNFnName, LoadStoreNFnTy);
+  UnalignedLoadStore1Fn = M->getOrInsertFunction(DfisanUnalignedLoadStore1FnName, LoadStoreFnTy);
+  UnalignedLoadStore2Fn = M->getOrInsertFunction(DfisanUnalignedLoadStore2FnName, LoadStoreFnTy);
+  UnalignedLoadStore4Fn = M->getOrInsertFunction(DfisanUnalignedLoadStore4FnName, LoadStoreFnTy);
+  UnalignedLoadStore8Fn = M->getOrInsertFunction(DfisanUnalignedLoadStore8FnName, LoadStoreFnTy);
+  UnalignedLoadStore16Fn = M->getOrInsertFunction(DfisanUnalignedLoadStore16FnName, LoadStoreFnTy);
+  // aligned or unaligned
+  AlignedOrUnalignedLoadStoreNFn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadStoreNFnName, LoadStoreNFnTy);
+  AlignedOrUnalignedLoadStore1Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadStore1FnName, LoadStoreFnTy);
+  AlignedOrUnalignedLoadStore2Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadStore2FnName, LoadStoreFnTy);
+  AlignedOrUnalignedLoadStore4Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadStore4FnName, LoadStoreFnTy);
+  AlignedOrUnalignedLoadStore8Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadStore8FnName, LoadStoreFnTy);
+  AlignedOrUnalignedLoadStore16Fn = M->getOrInsertFunction(DfisanAlignedOrUnalignedLoadStore16FnName, LoadStoreFnTy);
+  // conditional aligned
+  CondAlignedLoadStoreNFn = M->getOrInsertFunction(DfisanCondAlignedLoadStoreNFnName, LoadStoreNFnTy);
+  CondAlignedLoadStore1Fn = M->getOrInsertFunction(DfisanCondAlignedLoadStore1FnName, LoadStoreFnTy);
+  CondAlignedLoadStore2Fn = M->getOrInsertFunction(DfisanCondAlignedLoadStore2FnName, LoadStoreFnTy);
+  CondAlignedLoadStore4Fn = M->getOrInsertFunction(DfisanCondAlignedLoadStore4FnName, LoadStoreFnTy);
+  CondAlignedLoadStore8Fn = M->getOrInsertFunction(DfisanCondAlignedLoadStore8FnName, LoadStoreFnTy);
+  CondAlignedLoadStore16Fn = M->getOrInsertFunction(DfisanCondAlignedLoadStore16FnName, LoadStoreFnTy);
+  // conditional unaligned
+  CondUnalignedLoadStoreNFn = M->getOrInsertFunction(DfisanCondUnalignedLoadStoreNFnName, LoadStoreNFnTy);
+  CondUnalignedLoadStore1Fn = M->getOrInsertFunction(DfisanCondUnalignedLoadStore1FnName, LoadStoreFnTy);
+  CondUnalignedLoadStore2Fn = M->getOrInsertFunction(DfisanCondUnalignedLoadStore2FnName, LoadStoreFnTy);
+  CondUnalignedLoadStore4Fn = M->getOrInsertFunction(DfisanCondUnalignedLoadStore4FnName, LoadStoreFnTy);
+  CondUnalignedLoadStore8Fn = M->getOrInsertFunction(DfisanCondUnalignedLoadStore8FnName, LoadStoreFnTy);
+  CondUnalignedLoadStore16Fn = M->getOrInsertFunction(DfisanCondUnalignedLoadStore16FnName, LoadStoreFnTy);
+  // conditional aligned or unaligned
+  CondAlignedOrUnalignedLoadStoreNFn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadStoreNFnName, LoadStoreNFnTy);
+  CondAlignedOrUnalignedLoadStore1Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadStore1FnName, LoadStoreFnTy);
+  CondAlignedOrUnalignedLoadStore2Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadStore2FnName, LoadStoreFnTy);
+  CondAlignedOrUnalignedLoadStore4Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadStore4FnName, LoadStoreFnTy);
+  CondAlignedOrUnalignedLoadStore8Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadStore8FnName, LoadStoreFnTy);
+  CondAlignedOrUnalignedLoadStore16Fn = M->getOrInsertFunction(DfisanCondAlignedOrUnalignedLoadStore16FnName, LoadStoreFnTy);
+
   // Unsafe access check
   CheckUnsafeAccessFn = M->getOrInsertFunction(DfisanCheckUnsafeAccessFnName, CheckUnsafeAcessFnTy);
 
@@ -1184,12 +1294,14 @@ void DataFlowIntegritySanitizerPass::instrumentMayWriteWriteRaceStore(Value *Def
       }
       if (Ope.hasSizeVal()) {
         LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", SizeVal: " << *Ope.SizeVal << "\n");
-        createDfiLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, DefInst);
-        createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst);
+        // createDfiLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, DefInst);
+        // createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst);
+        createDfiLoadStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, DefIDs, Kind, DefInst);
       } else {
         LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", Size: " << Ope.Size << "\n");
-        createDfiLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, DefInst);
-        createDfiStoreFn(Info.ID, Ope.Operand, Ope.Size, Kind, DefInst);
+        // createDfiLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, DefInst);
+        // createDfiStoreFn(Info.ID, Ope.Operand, Ope.Size, Kind, DefInst);
+        createDfiLoadStoreFn(Info.ID, Ope.Operand, Ope.Size, DefIDs, Kind, DefInst);
       }
     }
   } else {
@@ -1400,7 +1512,6 @@ void DataFlowIntegritySanitizerPass::createDfiStoreFn(DefID DefID, Value *StoreT
   }
 }
 
-
 /// Create a function call to DfiLoadFn.
 void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint) {
   Value *SizeVal = ConstantInt::get(Int64Ty, Size, false);
@@ -1578,6 +1689,173 @@ void DataFlowIntegritySanitizerPass::createDfiLoadFn(Value *LoadTarget, Value *S
       break;
     }
     // default: llvm_unreachable("Invalid UseDefKind");
+    }
+  }
+}
+
+void DataFlowIntegritySanitizerPass::createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint) {
+  Value *SizeVal = ConstantInt::get(Int64Ty, Size, false);
+  createDfiLoadStoreFn(DefID, Target, SizeVal, DefIDs, Kind, InsertPoint);
+}
+
+void DataFlowIntegritySanitizerPass::createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint) {
+  if (InsertPoint != nullptr)
+    Builder->SetInsertPoint(InsertPoint);
+  unsigned Size = llvm::isa<ConstantInt>(SizeVal) ? llvm::cast<ConstantInt>(SizeVal)->getZExtValue() : 0;
+  Value *SizeArg = SizeVal;
+  if (SizeVal->getType() != Int64Ty) {
+    if (llvm::isa<ConstantInt>(SizeVal))
+      SizeArg = ConstantInt::get(Int64Ty, Size);
+    else
+      SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
+  }
+  Value *TargetAddr = Builder->CreatePtrToInt(Target, PtrTy);
+  Value *DefIDVal = ConstantInt::get(Int16Ty, DefID);
+  Value *Argc = ConstantInt::get(Int16Ty, DefIDs.size(), false);
+
+  ValueVector Args{TargetAddr, DefIDVal, Argc};
+  Args.append(DefIDs);
+  ValueVector NArgs{TargetAddr, DefIDVal, SizeArg, Argc};
+  NArgs.append(DefIDs);
+
+  if (ClCheckWithCall) {
+    switch(Kind) {
+    case UseDefKind::Aligned:
+      switch(Size) {
+      case 1:  Builder->CreateCall(AlignedLoadStore1Fn, Args);  break;
+      case 2:  Builder->CreateCall(AlignedLoadStore2Fn, Args);  break;
+      case 4:  Builder->CreateCall(AlignedLoadStore4Fn, Args);  break;
+      case 8:  Builder->CreateCall(AlignedLoadStore8Fn, Args);  break;
+      case 16: Builder->CreateCall(AlignedLoadStore16Fn, Args); break;
+      default: Builder->CreateCall(AlignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedStores++;
+      break;
+    case UseDefKind::Unaligned:
+      switch(Size) {
+      case 1:  Builder->CreateCall(UnalignedLoadStore1Fn, Args);  break;
+      case 2:  Builder->CreateCall(UnalignedLoadStore2Fn, Args);  break;
+      case 4:  Builder->CreateCall(UnalignedLoadStore4Fn, Args);  break;
+      case 8:  Builder->CreateCall(UnalignedLoadStore8Fn, Args);  break;
+      case 16: Builder->CreateCall(UnalignedLoadStore16Fn, Args); break;
+      default: Builder->CreateCall(UnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedUnalignedStores++;
+      break;
+    case UseDefKind::AlignedOrUnaligned:
+      switch(Size) {
+      case 1:  Builder->CreateCall(AlignedOrUnalignedLoadStore1Fn, Args);  break;
+      case 2:  Builder->CreateCall(AlignedOrUnalignedLoadStore2Fn, Args);  break;
+      case 4:  Builder->CreateCall(AlignedOrUnalignedLoadStore4Fn, Args);  break;
+      case 8:  Builder->CreateCall(AlignedOrUnalignedLoadStore8Fn, Args);  break;
+      case 16: Builder->CreateCall(AlignedOrUnalignedLoadStore16Fn, Args); break;
+      default: Builder->CreateCall(AlignedOrUnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedOrUnalignedStores++;
+      break;
+    case UseDefKind::CondAligned:
+      switch(Size) {
+      case 1:  Builder->CreateCall(CondAlignedLoadStore1Fn, Args);  break;
+      case 2:  Builder->CreateCall(CondAlignedLoadStore2Fn, Args);  break;
+      case 4:  Builder->CreateCall(CondAlignedLoadStore4Fn, Args);  break;
+      case 8:  Builder->CreateCall(CondAlignedLoadStore8Fn, Args);  break;
+      case 16: Builder->CreateCall(CondAlignedLoadStore16Fn, Args); break;
+      default: Builder->CreateCall(CondAlignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedStores++;
+      break;
+    case UseDefKind::CondUnaligned:
+      switch(Size) {
+      case 1:  Builder->CreateCall(CondUnalignedLoadStore1Fn, Args);  break;
+      case 2:  Builder->CreateCall(CondUnalignedLoadStore2Fn, Args);  break;
+      case 4:  Builder->CreateCall(CondUnalignedLoadStore4Fn, Args);  break;
+      case 8:  Builder->CreateCall(CondUnalignedLoadStore8Fn, Args);  break;
+      case 16: Builder->CreateCall(CondUnalignedLoadStore16Fn, Args); break;
+      default: Builder->CreateCall(CondUnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondUnalignedStores++;
+      break;
+    case UseDefKind::CondAlignedOrUnaligned:
+      switch(Size) {
+      case 1:  Builder->CreateCall(CondAlignedOrUnalignedLoadStore1Fn, Args);  break;
+      case 2:  Builder->CreateCall(CondAlignedOrUnalignedLoadStore2Fn, Args);  break;
+      case 4:  Builder->CreateCall(CondAlignedOrUnalignedLoadStore4Fn, Args);  break;
+      case 8:  Builder->CreateCall(CondAlignedOrUnalignedLoadStore8Fn, Args);  break;
+      case 16: Builder->CreateCall(CondAlignedOrUnalignedLoadStore16Fn, Args); break;
+      default: Builder->CreateCall(CondAlignedOrUnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedOrUnalignedStores++;
+      break;
+    }
+  } else {
+    // TODO
+    switch(Kind) {
+    case UseDefKind::Aligned:
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      case 16:
+      default: Builder->CreateCall(AlignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedStores++;
+      break;
+    case UseDefKind::Unaligned:
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      case 16:
+      default: Builder->CreateCall(UnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedUnalignedStores++;
+      break;
+    case UseDefKind::AlignedOrUnaligned:
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      case 16:
+      default: Builder->CreateCall(AlignedOrUnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedAlignedOrUnalignedStores++;
+      break;
+    case UseDefKind::CondAligned:
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      case 16:
+      default: Builder->CreateCall(CondAlignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedStores++;
+      break;
+    case UseDefKind::CondUnaligned:
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      case 16:
+      default: Builder->CreateCall(CondUnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondUnalignedStores++;
+      break;
+    case UseDefKind::CondAlignedOrUnaligned:
+      switch(Size) {
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      case 16:
+      default: Builder->CreateCall(CondAlignedOrUnalignedLoadStoreNFn, NArgs); break;
+      }
+      NumInstrumentedCondAlignedOrUnalignedStores++;
+      break;
     }
   }
 }
