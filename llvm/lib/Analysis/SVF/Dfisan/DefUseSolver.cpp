@@ -35,8 +35,17 @@ void DefUseSolver::solve() {
     DefIDVec Facts = NodeToDefs[ID];
 
     // Generate def data-facts.
-    if (isTargetStore(ID))
-      Facts.set(ID);
+    if (isTargetStore(ID)) {
+      Value *DefOpe = getStoreOperand(ID).Operand;
+      DefIDVec ResetVec;
+      for (auto Fact : Facts) {
+        Value *FactOpe = getStoreOperand(Fact).Operand;
+        if (!Pta->alias(DefOpe, FactOpe))
+          ResetVec.set(Fact);
+      }
+      Facts.intersectWithComplement(ResetVec);  // Kill
+      Facts.set(ID);                            // Gen
+    }
     
     // Propagate data-facts to successor nodes
     for (const auto &OutEdge : Node->getOutEdges()) {
@@ -51,12 +60,17 @@ void DefUseSolver::solve() {
   DefUseIDInfo DefUse;
   for (const auto &It : NodeToDefs) {
     NodeID ID = It.first;
-    if (isTargetLoad(ID)) {
-      for (NodeID DefID : It.second) {
+    auto &Defs = It.second;
+    if (isTargetLoad(ID)) {   // Create DefUse or WriteReadRace maps
+      for (NodeID DefID : Defs) {
         addDefUse(DefUse, DefID, ID);
 
         addDefOperand(DefID);
         addUseOperand(ID);
+      }
+    } else if (isTargetWriteWriteRace(ID, Defs)) {  // Create NoWriteWriteRace or WriteWriteRace maps
+      for (auto DefID : Defs) {
+        addWriteWriteRace(DefUse, ID, DefID);
       }
     }
   }
@@ -66,6 +80,15 @@ void DefUseSolver::solve() {
       addUnusedDef(DefUse, ID);
 
       addDefOperand(ID);
+    }
+  }
+
+  /// Print for debug
+  for (auto &It : DefUse.RaceDefToCheckID) {
+    NodeID MayRace = It.first;
+    llvm::errs() << "MayRace(" << MayRace << "): " << *getValue(MayRace) << "\n";
+    for (auto NoRace : It.second) {
+      llvm::errs() << " - Checked(" << NoRace << "): " << *getValue(NoRace) << "\n";
     }
   }
 
@@ -138,6 +161,13 @@ bool DefUseSolver::isDataRace(Value *V1, Value *V2) {
   }
   return false;
 }
+bool DefUseSolver::isDataRace(NodeID ID1, NodeID ID2) {
+  Value *V1 = getValue(ID1);
+  Value *V2 = getValue(ID2);
+  if (V1 == nullptr || V2 == nullptr)
+    return false;
+  return isDataRace(V1, V2);
+}
 
 /// Add DefUse to DefUseIDInfo.
 /// Conditions:
@@ -158,12 +188,27 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
   Value *DefVal = getValue(Def);
   NodeID UniqueID = getUniqueID(DefVal, Def);
   if (isDataRace(UseVal, DefVal)) {
-    llvm::errs() << "DataRace:\n";
+    llvm::errs() << "Write-Read Race:\n";
     llvm::errs() << " - Use: " << *UseVal << "\n";
     llvm::errs() << " - Def: " << *DefVal << "\n";
     DefUse.insertDataRaceDefUseID(UniqueID, Use);
   } else {
     DefUse.insertDefUseID(UniqueID, Use);
+  }
+}
+
+void DefUseSolver::addWriteWriteRace(DefUseIDInfo &DefUse, NodeID Def1, NodeID Def2) {
+  if (!isTargetStore(Def1) || !isTargetStore(Def2))
+    return;
+  NodeID UniqueID1 = getUniqueID(getValue(Def1), Def1);
+  NodeID UniqueID2 = getUniqueID(getValue(Def2), Def2);
+  if (isDataRace(Def1, Def2)) {
+    llvm::errs() << "Write-Write Race:\n";
+    llvm::errs() << " - Def1: " << *getValue(Def1) << "\n";
+    llvm::errs() << " - Def2: " << *getValue(Def2) << "\n";
+    DefUse.insertWriteWriteRaceID(UniqueID1, UniqueID2);
+  } else {
+    DefUse.insertNoWriteWriteRaceID(UniqueID1, UniqueID2);
   }
 }
 
@@ -219,6 +264,12 @@ void DefUseSolver::registerDefUse(std::vector<EquivalentDefSet> &EquivalentDefs)
     }
     for (NodeID UseID : EquivDefs.Uses) {
       Value *Use = getValue(UseID);
+      if (isTargetStore(UseID)) { // write-write race detection
+        llvm::errs() << "TODO: add write-write race detection\n";
+        llvm::errs() << "MayRace Inst: " << *Use << "\n";
+        ProtInfo->addWriteWriteRaceCheck(Use, ID);
+        continue;
+      }
       ProtInfo->addUseDef(Use, ID);
       DefUseKind Kind = analyzeUseKind(UseID);
       if (Kind.isAlignedOnlyUse())
@@ -250,9 +301,8 @@ void DefUseSolver::registerDefUse(DefUseIDInfo &DefUse) {
 }
 
 void DefUseSolver::calcEquivalentDefSet(DefUseIDInfo &DefUse, std::vector<EquivalentDefSet> &EquivalentDefs) {
-  for (auto &Iter : DefUse.DefUseID) {
-    NodeID DefID = Iter.first;
-    UseIDVec &UseIDs = Iter.second;
+  for (auto DefID : DefUse.AllDefIDs) {
+    UseIDVec UseIDs = DefUse.getCheckedIDs(DefID);
     std::vector<EquivalentDefSet>::iterator Iter2;
     for (Iter2 = EquivalentDefs.begin(); Iter2 != EquivalentDefs.end(); ++Iter2) {
       if (Iter2->Uses == UseIDs) {
@@ -319,6 +369,20 @@ bool DefUseSolver::isTargetLoad(NodeID ID) {
     return false;
   const PointsTo &PtsSet = collectLoadTarget(ID);
   return containTarget(PtsSet);
+}
+
+bool DefUseSolver::isTargetWriteWriteRace(NodeID ID, const llvm::SparseBitVector<> &Defs) {
+  if (!isTargetStore(ID))
+    return false;
+  bool IsRace = false;
+  Value *Write1 = getValue(ID);
+  for (auto Def : Defs) {
+    if (!isTargetStore(Def))
+      continue;
+    Value *Write2 = getValue(Def);
+    IsRace |= isDataRace(Write1, Write2);
+  }
+  return IsRace;
 }
 
 /// Access operand analysis

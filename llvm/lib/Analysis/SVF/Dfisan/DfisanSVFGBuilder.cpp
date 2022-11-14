@@ -62,7 +62,7 @@ void DfisanSVFGBuilder::buildSVFG() {
     svfg->dump("full_svfg");
   
   BVDataPTAImpl *Pta = svfg->getMSSA()->getPTA();
-  rmIncomingEdgeForSUStore(Pta);
+  // rmIncomingEdgeForSUStore(Pta);   // disable because of write-write race detection
   rmByvalEdge(Pta);
   rmAllDirSVFGEdge();
 }

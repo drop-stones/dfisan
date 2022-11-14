@@ -9,7 +9,7 @@ int Global __attribute__((annotate("dfi_protection")));
 
 void *Thread1(void *x) {
   barrier_wait(&barrier);
-  Global = 42;
+  Global;
   return NULL;
 }
 

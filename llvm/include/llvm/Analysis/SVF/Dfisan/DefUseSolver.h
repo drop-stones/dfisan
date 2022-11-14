@@ -21,6 +21,7 @@ public:
   using NodeToUseIDMap = std::unordered_map<NodeID, UseIDVec>; 
   using UseDefIDMap = NodeToDefIDMap;
   using DefUseIDMap = NodeToUseIDMap;
+  using DefDefIDMap = NodeToDefIDMap;
   using ValueToNodeIDMap = std::unordered_map<llvm::Value *, NodeID>;
 
   /// Class to allocate unique NodeID to llvm::Value *.
@@ -53,26 +54,51 @@ public:
 
   /// Class for def-use map of NodeID.
   struct DefUseIDInfo {
+    // No-race ID maps
     DefUseIDMap DefUseID;
     UseDefIDMap UseDefID;
+    DefDefIDMap RaceCheckToDefID;   // Map from checked IDs(=Def) to may-race ID(=Use)
+    DefDefIDMap RaceDefToCheckID;   // Map from may-race ID(=Use) to checked IDs(=Def)
     DefIDVec UnusedDefIDs;
+    DefIDVec AllDefIDs;
+    // Race ID maps
     DefUseIDMap DataRaceDefUseID;
     UseDefIDMap DataRaceUseDefID;
+    DefDefIDMap WriteWriteRaceID;
 
     DefUseIDInfo() {}
     void insertDefUseID(NodeID Def, NodeID Use) {
       DefUseID[Def].set(Use);
       UseDefID[Use].set(Def);
+      AllDefIDs.set(Def);
     }
     void insertDataRaceDefUseID(NodeID Def, NodeID Use) {
       DataRaceDefUseID[Def].set(Use);
       DataRaceUseDefID[Use].set(Def);
     }
+    void insertWriteWriteRaceID(NodeID Def1, NodeID Def2) {
+      WriteWriteRaceID[Def1].set(Def2);   AllDefIDs.set(Def1);
+      WriteWriteRaceID[Def2].set(Def1);   AllDefIDs.set(Def2);
+    }
+    void insertNoWriteWriteRaceID(NodeID MayRaceDef, NodeID NoRaceDef) {
+      RaceDefToCheckID[MayRaceDef].set(NoRaceDef);  AllDefIDs.set(MayRaceDef);
+      RaceCheckToDefID[NoRaceDef].set(MayRaceDef);  AllDefIDs.set(NoRaceDef);
+    }
     void insertUnusedDefID(NodeID Def) {
       UnusedDefIDs.set(Def);
     }
+
     bool hasDef(NodeID Def) {
-      return DefUseID.count(Def) != 0 || UnusedDefIDs.test(Def);
+      return DefUseID.count(Def) != 0 || UnusedDefIDs.test(Def) || RaceCheckToDefID.count(Def) != 0;
+    }
+    bool isRaceDef(NodeID Def) {
+      return DataRaceDefUseID.count(Def) != 0 || WriteWriteRaceID.count(Def) != 0;
+    }
+
+    // Get IDs which use the Def (Use or write-write race) 
+    UseIDVec getCheckedIDs(NodeID Def) {
+      return (RaceCheckToDefID.count(Def) != 0) ? DefUseID[Def] | RaceCheckToDefID[Def]
+                                                : DefUseID[Def];
     }
   };
 
@@ -131,9 +157,11 @@ private:
 
   /// Return true if two Values are data race
   bool isDataRace(Value *V1, Value *V2);
+  bool isDataRace(NodeID ID1, NodeID ID2);
 
   /// Add DefUse to DefUseIDInfo.
   void addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use);
+  void addWriteWriteRace(DefUseIDInfo &DefUse, NodeID Def1, NodeID Def2);
   void addUnusedDef(DefUseIDInfo &DefUse, NodeID Def);
 
   /// Add Def and Use operands
@@ -168,6 +196,7 @@ private:
   /// Access target analysis: find or check objects allocated by allocs or mallocs
   bool isTargetStore(NodeID ID);
   bool isTargetLoad(NodeID ID);
+  bool isTargetWriteWriteRace(NodeID ID, const llvm::SparseBitVector<> &Defs);
   bool containTarget(const PointsTo &PtsSet);
   void getValueSetFromPointsTo(ValueSet &Values, const PointsTo &PtsSet);
   const PointsTo &collectStoreTarget(NodeID ID);

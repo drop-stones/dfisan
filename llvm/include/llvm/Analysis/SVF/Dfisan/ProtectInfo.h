@@ -39,11 +39,15 @@ class ProtectInfo {
     DefID ID;
     AccessOperandSet Operands;
     bool IsInstrumented;
+    // Members for write-write race detection
+    bool IsWriteWriteRace;
+    DefIDSet DefIDs;
 
-    DefInfo(DefID ID, AccessOperand Operand) : ID(ID), IsInstrumented(false) { addOperand(Operand); }
-    DefInfo() : ID(0), IsInstrumented(false) {}
+    DefInfo(DefID ID, AccessOperand Operand) : ID(ID), IsInstrumented(false), IsWriteWriteRace(false) { addOperand(Operand); }
+    DefInfo() : ID(0), IsInstrumented(false), IsWriteWriteRace(false) {}
     void addOperand(AccessOperand &Operand) { Operands.insert(Operand); }
     void setDefID(DefID ID) { this->ID = ID; }
+    void addWriteWriteRaceCheckDefID(DefID ID) { IsWriteWriteRace = true; DefIDs.insert(ID); }
   };
   using DefInfoMap = std::unordered_map<llvm::Value *, DefInfo>;
   struct UseInfo {
@@ -103,6 +107,10 @@ public:
 
   void addUseDef(llvm::Value *Use, DefID ID) {
     UseToInfo[Use].addDefID(ID);
+  }
+
+  void addWriteWriteRaceCheck(llvm::Value *Def, DefID ID) {
+    DefToInfo[Def].addWriteWriteRaceCheckDefID(ID);
   }
 
   void addUnsafeOperand(llvm::Instruction *UnsafeInst, AccessOperand &Operand) {
@@ -208,9 +216,20 @@ public:
     for (const auto &Iter : UseToInfo) {
       OS << " - Use: " << *Iter.first << "\n";
       OS << "   - DefIDs: { ";
-      for (auto DefID : Iter.second.DefIDs)
+      for (const auto DefID : Iter.second.DefIDs)
         OS << DefID << ", ";
       OS << "}\n";
+    }
+    OS << "Write-Write Race Checks:\n";
+    for (const auto &Iter : DefToInfo) {
+      const DefInfo &Info = Iter.second;
+      if (Info.IsWriteWriteRace) {
+        OS << " - Race Def(" << Info.ID << "): " << *Iter.first << "\n";
+        OS << "   - Checked DefIDs: { ";
+        for (const auto DefID : Info.DefIDs)
+          OS << DefID << ", ";
+        OS << "}\n";
+      }
     }
   }
 

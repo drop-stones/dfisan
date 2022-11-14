@@ -162,6 +162,9 @@ private:
   /// Insert DfiStoreFn after each store instruction.
   void insertDfiStoreFn(Value *Def, UseDefKind Kind);
 
+  /// Insert DfiLoadFn and DfiStoreFn before each may-write-write-race store instruction.
+  void instrumentMayWriteWriteRaceStore(Value *Def, UseDefKind Kind);
+
   /// Insert DfiLoadFn before each load instruction.
   void insertDfiLoadFn(Value *Use, UseDefKind Kind);
 

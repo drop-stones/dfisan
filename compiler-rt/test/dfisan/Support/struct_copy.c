@@ -24,18 +24,6 @@ struct ListNode *createNode(int id) {
   return NewNode;
 }
 
-/*
-struct ListNode *createList(int size) {
-  struct ListNode *Head = NULL;
-  for (int i = 0; i < size; i++) {
-    struct ListNode *NewNode = createNode(i);
-    NewNode->Next = Head;
-    Head = NewNode;
-  }
-  return Head;
-}
-*/
-
 void copyStruct() {
   struct ListNode N1 __attribute__((annotate("dfi_protection"))) = { NULL, 100, "Alice" };
   struct ListNode N2 __attribute__((annotate("dfi_protection"))) = { &N1, 200, "Bob" };

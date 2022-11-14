@@ -1137,6 +1137,9 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
   LLVM_DEBUG(llvm::dbgs() << "InsertDfiStoreFn: " << *Def << "\n");
 
   const auto &Info = ProtInfo->getDefInfo(Def);
+  if (Info.IsWriteWriteRace)
+    return instrumentMayWriteWriteRaceStore(Def, Kind);
+
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
     for (const auto &Ope : Info.Operands) {
       if (Ope.hasSizeVal()) {
@@ -1165,6 +1168,32 @@ void DataFlowIntegritySanitizerPass::insertDfiStoreFn(Value *Def, UseDefKind Kin
   } else {
     llvm::errs() << "No support Def: " << *Def << "\n";
     // llvm_unreachable("No support Def");
+  }
+}
+
+/// Insert CHECK and SET functions before each may-write-write-race store statement.
+void DataFlowIntegritySanitizerPass::instrumentMayWriteWriteRaceStore(Value *Def, UseDefKind Kind) {
+  const auto &Info = ProtInfo->getDefInfo(Def);
+  assert(Info.IsWriteWriteRace);
+  if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
+    for (const auto &Ope : Info.Operands) {
+      ValueVector DefIDs;
+      for (const auto DefID : Info.DefIDs) {
+        Value *IDVal = ConstantInt::get(Int16Ty, DefID, false);
+        DefIDs.push_back(IDVal);
+      }
+      if (Ope.hasSizeVal()) {
+        LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", SizeVal: " << *Ope.SizeVal << "\n");
+        createDfiLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, DefInst);
+        createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst);
+      } else {
+        LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", Size: " << Ope.Size << "\n");
+        createDfiLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, DefInst);
+        createDfiStoreFn(Info.ID, Ope.Operand, Ope.Size, Kind, DefInst);
+      }
+    }
+  } else {
+    llvm_unreachable("No race Def");
   }
 }
 
