@@ -64,60 +64,62 @@ private:
   ///
   //  Runtime check functions
   ///
-  // Value *createAddrIsInSafeRegion(Value *Addr);
   Instruction *generateCrashCode(Instruction *InsertBefore, Value *Addr, ValueVector &DefIDs, bool IsUnsafe = false);
   void insertIfThenAndErrorReport(Value *Cond, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs);
 
   /// Instrument an unsafe access
   void instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr);
 
-  /// Instrument safe aligned store
-  void instrumentAlignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
-  void instrumentAlignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, Value *SizeVal = nullptr, unsigned Size = 0);
-
+  /// Instrument safe store
+  void instrumentAlignedStore (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
+  void instrumentAlignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID, Value *SizeVal = nullptr, unsigned Size = 0);
   /// Instrument safe unaligned store
-  void instrumentUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
-  void instrumentUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-
+  void instrumentUnalignedStore (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
+  void instrumentUnalignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
   /// Instrument safe aligned or unaligned store
-  void instrumentAlignedOrUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
-  void instrumentAlignedOrUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-
+  void instrumentAlignedOrUnalignedStore (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
+  void instrumentAlignedOrUnalignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
   /// Instrument conditional aligned store
-  void instrumentCondAlignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
-  void instrumentCondAlignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-
+  void instrumentCondAlignedStore (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
+  void instrumentCondAlignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
   /// Instrument conditional unaligned store
-  void instrumentCondUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
-  void instrumentCondUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-
+  void instrumentCondUnalignedStore (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
+  void instrumentCondUnalignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
   /// Instrument conditional aligned or unaligned store
-  void instrumentCondAlignedOrUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
-  void instrumentCondAlignedOrUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentCondAlignedOrUnalignedStore (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
+  void instrumentCondAlignedOrUnalignedStoreN(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument safe aligned load
   void instrumentAlignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
   void instrumentAlignedLoadN(Instruction *Load, Value *LoadAddr, unsigned Size, ValueVector &DefIDs);
-
   /// Instrument safe unaligned load
   void instrumentUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
   void instrumentUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-
   /// Instrument safe aligned or unaligned load
   void instrumentAlignedOrUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
   void instrumentAlignedOrUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-
   /// Instrument conditional aligned load
   void instrumentCondAlignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
   void instrumentCondAlignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-
   /// Instrument conditional unaligned load
   void instrumentCondUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
   void instrumentCondUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-
   /// Instrument conditional aligned or unaligned load
-  void instrumentCondAlignedOrUnalignedLoad  (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
-  void instrumentCondAlignedOrUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  void instrumentCondAlignedOrUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+
+  /// Instrument write-write race aligned store
+  void instrumentAlignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-write race unaligned store
+  void instrumentUnalignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-write race aligned or unaligned store
+  void instrumentAlignedOrUnalignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-write race conditional aligned store
+  void instrumentCondAlignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-write race conditional unaligned store
+  void instrumentCondUnalignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-write race conditional aligned or unaligned store
+  void instrumentCondAlignedOrUnalignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
 
   ///
   //  Instrumentation functions
