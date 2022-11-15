@@ -121,6 +121,19 @@ private:
   /// Instrument write-write race conditional aligned or unaligned store
   void instrumentCondAlignedOrUnalignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size);
 
+  /// Instrument write-read race aligned load
+  void instrumentAlignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-read race unaligned load
+  void instrumentUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-read race aligned or unaligned load
+  void instrumentAlignedOrUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-read race conditional aligned load
+  void instrumentCondAlignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-read race conditional unaligned load
+  void instrumentCondUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  /// Instrument write-read race conditional aligned or unaligned load
+  void instrumentCondAlignedOrUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+
   ///
   //  Instrumentation functions
   ///
@@ -134,8 +147,12 @@ private:
   /// Insert DfiStoreFn after each store instruction.
   void insertDfiStoreFn(Value *Def, UseDefKind Kind);
 
-  /// Insert DfiLoadFn and DfiStoreFn before each may-write-write-race store instruction.
+  /// Insert Check and Set functions before each may-write-write-race store instruction.
   void instrumentMayWriteWriteRaceStore(Value *Def, UseDefKind Kind);
+
+  /// Insert GetShadow before may-write-read load instructions
+  /// and check after them.
+  void instrumentMayWriteReadRaceLoad(Value *Use, UseDefKind Kind, ValueVector &DefIDs);
 
   /// Insert DfiLoadFn before each load instruction.
   void insertDfiLoadFn(Value *Use, UseDefKind Kind);
@@ -148,9 +165,13 @@ private:
   void createDfiLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
   void createDfiLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
-  /// Create a function call to atomic_check_set.
+  /// Create a function call to check write-write race.
   void createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
   void createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+
+  /// Create a function call to check write-read race.
+  void createDfiRaceLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+  void createDfiRaceLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
   /// Return true if the target is unsafe
   inline bool isUnsafeAccessTarget(Value *Target);

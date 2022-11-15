@@ -54,11 +54,13 @@ class ProtectInfo {
     DefIDSet DefIDs;
     AccessOperandSet Operands;
     bool IsInstrumented;
+    bool IsWriteReadRace;
 
-    UseInfo(DefID ID, AccessOperand Operand) : IsInstrumented(false) { addDefID(ID); addOperand(Operand); }
-    UseInfo() : IsInstrumented(false) {}
+    UseInfo(DefID ID, AccessOperand Operand) : IsInstrumented(false), IsWriteReadRace(false) { addDefID(ID); addOperand(Operand); }
+    UseInfo() : IsInstrumented(false), IsWriteReadRace(false) {}
     void addOperand(AccessOperand &Operand) { Operands.insert(Operand); }
     void addDefID(DefID ID) { DefIDs.insert(ID); }
+    void setWriteReadRace() { IsWriteReadRace = true; }
   };
   using UseInfoMap = std::unordered_map<llvm::Value *, UseInfo>;
   struct UnsafeInstInfo {
@@ -111,6 +113,10 @@ public:
 
   void addWriteWriteRaceCheck(llvm::Value *Def, DefID ID) {
     DefToInfo[Def].addWriteWriteRaceCheckDefID(ID);
+  }
+
+  void setWriteReadRace(llvm::Value *Use) {
+    UseToInfo[Use].setWriteReadRace();
   }
 
   void addUnsafeOperand(llvm::Instruction *UnsafeInst, AccessOperand &Operand) {

@@ -507,10 +507,32 @@ static void exchangeCurrDefIDs(IRBuilder<> *IRB, Value *ShadowAddr, Value *DefID
     CurrDefIDs.push_back(exchangeDefID(IRB, ShadowAddr, DefID, Offset));
 }
 
+static Value *summarizeCheckResults(IRBuilder<> *IRB, ValueVector &Results) {
+  ValueVector CurrResults, NextResults;
+  CurrResults = Results;
+  while (CurrResults.size() != 1) {
+    for (unsigned Idx = 0; Idx < CurrResults.size(); Idx += 2) {
+      Value *Result0 = CurrResults[Idx];
+      if (CurrResults.size() <= Idx + 1) {
+        NextResults.push_back(Result0);
+      } else {
+        Value *Result1 = CurrResults[Idx + 1];
+        Value *Result = IRB->CreateLogicalOr(Result0, Result1);
+        NextResults.push_back(Result);
+      }
+    }
+    CurrResults = NextResults;
+    NextResults.clear();
+  }
+  assert(CurrResults.size() == 1);
+  return CurrResults[0];
+}
+
 static Value *insertCheck(IRBuilder<> *IRB, Instruction *InsertPoint, Value *ShadowAddr, ValueVector &DefIDs, ValueVector &CurrDefIDs) {
   ValueVector AttackResults;
   for (auto *CurrDefID : CurrDefIDs)
     AttackResults.push_back(checkDefIDs(IRB, CurrDefID, DefIDs));
+/*
   SmallVector<ValueVector, 8> ResultMap(CurrDefIDs.size());
   ResultMap[0] = AttackResults;
   unsigned Idx = 0;
@@ -530,6 +552,8 @@ static Value *insertCheck(IRBuilder<> *IRB, Instruction *InsertPoint, Value *Sha
   }
   assert(ResultMap[Idx].size() == 1);
   return ResultMap[Idx][0];
+*/
+  return summarizeCheckResults(IRB, AttackResults);
 }
 
 static Value *insertAlignedCheck(IRBuilder<> *IRB, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
@@ -663,6 +687,71 @@ void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedRaceStore(I
   insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), Addr, InsertPoint, &Then1, &Then2, &Else);
   instrumentAlignedRaceStore(Then1, Addr, DefID, DefIDs, Size);
   instrumentUnalignedRaceStore(Then2, Addr, DefID, DefIDs, Size);
+}
+
+static Value *insertSameCheck(IRBuilder<> *IRB, ValueVector &Lhs, ValueVector &Rhs) {
+  assert(Lhs.size() == Rhs.size());
+  ValueVector SameResults;
+  for (unsigned Idx = 0; Idx < Lhs.size(); Idx++) {
+    Value *SameResult = IRB->CreateICmpNE(Lhs[Idx], Rhs[Idx]);    // True if two DefIDs are not same (= race detection)
+    SameResults.push_back(SameResult);
+  }
+  return summarizeCheckResults(IRB, SameResults);
+}
+
+static Value *insertRaceCheck(IRBuilder<> *IRB, Instruction *InsertPoint, Value *ShadowAddr, ValueVector &DefIDs, unsigned IDNum) {
+  IRB->SetInsertPoint(InsertPoint);
+  ValueVector BeforeDefIDs, AfterDefIDs;
+  getCurrDefIDs(IRB, ShadowAddr, IDNum, BeforeDefIDs);
+
+  IRB->SetInsertPoint(InsertPoint->getNextNonDebugInstruction());
+  getCurrDefIDs(IRB, ShadowAddr, IDNum, AfterDefIDs);
+  Value *IsRace = insertSameCheck(IRB, BeforeDefIDs, AfterDefIDs);
+  Value *IsAttack = insertCheck(IRB, InsertPoint, ShadowAddr, DefIDs, AfterDefIDs);
+  return IRB->CreateLogicalOr(IsRace, IsAttack);
+}
+
+static Value *insertAlignedRaceCheck(IRBuilder<> *IRB, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  IRB->SetInsertPoint(InsertPoint);
+  Value *ShadowAddr = AlignedMemToShadow(IRB, LoadAddr);
+  unsigned IDNum = ceil((double)Size / (double)4);
+  return insertRaceCheck(IRB, InsertPoint, ShadowAddr, DefIDs, IDNum);
+}
+static Value *insertUnalignedRaceCheck(IRBuilder<> *IRB, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  IRB->SetInsertPoint(InsertPoint);
+  Value *ShadowAddr = UnalignedMemToShadow(IRB, LoadAddr);
+  return insertRaceCheck(IRB, InsertPoint, ShadowAddr, DefIDs, Size);
+}
+
+void DataFlowIntegritySanitizerPass::instrumentAlignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  if (Size < 4)
+    LoadAddr = AlignAddr(Builder.get(), LoadAddr);
+  Instruction *NextInst = InsertPoint->getNextNonDebugInstruction();
+  Value *IsAttack = insertAlignedRaceCheck(Builder.get(), InsertPoint, LoadAddr, DefIDs, Size);
+  insertIfThenAndErrorReport(IsAttack, NextInst, LoadAddr, DefIDs);
+}
+
+void DataFlowIntegritySanitizerPass::instrumentUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  Instruction *NextInst = InsertPoint->getNextNonDebugInstruction();
+  Value *IsAttack = insertUnalignedRaceCheck(Builder.get(), InsertPoint, LoadAddr, DefIDs, Size);
+  insertIfThenAndErrorReport(IsAttack, NextInst, LoadAddr, DefIDs);
+}
+
+// TODO: we need to copy "InsertPoint" into if-block and else-block and insert the phi instruction.
+void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  // TODO
+}
+
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  // TODO
+}
+
+void DataFlowIntegritySanitizerPass::instrumentCondUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  // TODO
+}
+
+void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  // TODO
 }
 
 /// Aligned check
@@ -1001,21 +1090,17 @@ void DataFlowIntegritySanitizerPass::instrumentMayWriteWriteRaceStore(Value *Def
   const auto &Info = ProtInfo->getDefInfo(Def);
   assert(Info.IsWriteWriteRace);
   if (Instruction *DefInst = dyn_cast<Instruction>(Def)) {
+    ValueVector DefIDs;
+    for (const auto DefID : Info.DefIDs) {
+      Value *IDVal = ConstantInt::get(Int16Ty, DefID, false);
+      DefIDs.push_back(IDVal);
+    }
     for (const auto &Ope : Info.Operands) {
-      ValueVector DefIDs;
-      for (const auto DefID : Info.DefIDs) {
-        Value *IDVal = ConstantInt::get(Int16Ty, DefID, false);
-        DefIDs.push_back(IDVal);
-      }
       if (Ope.hasSizeVal()) {
         LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", SizeVal: " << *Ope.SizeVal << "\n");
-        // createDfiLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, DefInst);
-        // createDfiStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, Kind, DefInst);
         createDfiLoadStoreFn(Info.ID, Ope.Operand, Ope.SizeVal, DefIDs, Kind, DefInst);
       } else {
         LLVM_DEBUG(dbgs() << " - ID(" << Info.ID << "), Operand: " << *Ope.Operand << ", Size: " << Ope.Size << "\n");
-        // createDfiLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, DefInst);
-        // createDfiStoreFn(Info.ID, Ope.Operand, Ope.Size, Kind, DefInst);
         createDfiLoadStoreFn(Info.ID, Ope.Operand, Ope.Size, DefIDs, Kind, DefInst);
       }
     }
@@ -1035,12 +1120,37 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, UseDefKind Kind
     DefIDs.push_back(IDVal);
   }
 
+  if (Info.IsWriteReadRace)
+    return instrumentMayWriteReadRaceLoad(Use, Kind, DefIDs);
+
   if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
     for (auto &Ope : Info.Operands) {
       if (Ope.hasSizeVal())
         createDfiLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, UseInst);
       else
         createDfiLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, UseInst);
+    }
+  } else {
+    llvm::errs() << "No support Use: " << *Use << "\n";
+    llvm_unreachable("No support Use");
+  }
+}
+
+/// Insert GetShadow before each may-write-read instruction
+/// and CHECK function after it
+void DataFlowIntegritySanitizerPass::instrumentMayWriteReadRaceLoad(Value *Use, UseDefKind Kind, ValueVector &DefIDs) {
+  llvm::errs() << "Race Load: " << *Use << "\n";
+  const auto &Info = ProtInfo->getUseInfo(Use);
+  assert(Info.IsWriteReadRace);
+  if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
+    for (const auto &Ope : Info.Operands) {
+      if (Ope.hasSizeVal()) {
+        LLVM_DEBUG(dbgs() << " - Load" << ", Operand: " << *Ope.Operand << ", SizeVal: " << *Ope.SizeVal << "\n");
+        createDfiRaceLoadFn(Ope.Operand, Ope.SizeVal, DefIDs, Kind, UseInst);
+      } else {
+        LLVM_DEBUG(dbgs() << " - Load" << ", Operand: " << *Ope.Operand << ", Size: " << Ope.Size << "\n");
+        createDfiRaceLoadFn(Ope.Operand, Ope.Size, DefIDs, Kind, UseInst);
+      }
     }
   } else {
     llvm::errs() << "No support Use: " << *Use << "\n";
@@ -1512,6 +1622,91 @@ void DataFlowIntegritySanitizerPass::createDfiLoadStoreFn(SVF::DefID DefID, Valu
     case UseDefKind::CondAlignedOrUnaligned:
       Builder->CreateCall(CondAlignedOrUnalignedLoadStoreNFn, NArgs);
       NumInstrumentedCondAlignedOrUnalignedStores++;
+      break;
+    }
+  }
+}
+
+void DataFlowIntegritySanitizerPass::createDfiRaceLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint) {
+  Value *SizeVal = ConstantInt::get(Int64Ty, Size, false);
+  createDfiRaceLoadFn(LoadTarget, SizeVal, DefIDs, Kind, InsertPoint);
+}
+
+void DataFlowIntegritySanitizerPass::createDfiRaceLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint) {
+  if (InsertPoint != nullptr)
+    Builder->SetInsertPoint(InsertPoint);
+  unsigned Size = llvm::isa<ConstantInt>(SizeVal) ? llvm::cast<ConstantInt>(SizeVal)->getZExtValue() : 0;
+  Value *SizeArg = SizeVal;
+  if (SizeVal->getType() != Int64Ty) {
+    if (llvm::isa<ConstantInt>(SizeVal))
+      SizeArg = ConstantInt::get(Int64Ty, Size);
+    else
+      SizeArg = Builder->CreateBitCast(SizeVal, Int64Ty);
+  }
+  Value *TargetAddr = Builder->CreatePtrToInt(LoadTarget, PtrTy);
+  Value *Argc = ConstantInt::get(Int16Ty, DefIDs.size(), false);
+
+  ValueVector Args{TargetAddr, Argc};
+  Args.append(DefIDs);
+  ValueVector NArgs{TargetAddr, SizeArg, Argc};
+  NArgs.append(DefIDs);
+
+  if (ClCheckWithCall) {
+    // TODO: implement in compiler-rt
+    createDfiLoadFn(LoadTarget, SizeVal, DefIDs, Kind, InsertPoint);
+  } else if (inlineCheckCode(Size)) {
+    switch(Kind) {
+    case UseDefKind::Aligned:
+      instrumentAlignedRaceLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      NumInstrumentedAlignedLoads++;
+      break;
+    case UseDefKind::Unaligned:
+      instrumentUnalignedRaceLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      NumInstrumentedUnalignedLoads++;
+      break;
+    case UseDefKind::AlignedOrUnaligned:
+      instrumentAlignedOrUnalignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      NumInstrumentedAlignedOrUnalignedLoads++;
+      break;
+    case UseDefKind::CondAligned:
+      instrumentCondAlignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      NumInstrumentedCondAlignedLoads++;
+      break;
+    case UseDefKind::CondUnaligned:
+      instrumentCondUnalignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      NumInstrumentedCondUnalignedLoads++;
+      break;
+    case UseDefKind::CondAlignedOrUnaligned:
+      instrumentCondAlignedOrUnalignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      NumInstrumentedCondAlignedOrUnalignedLoads++;
+      break;
+    }
+  } else {
+    // Same as normal loads
+    switch(Kind) {
+    case UseDefKind::Aligned:
+      Builder->CreateCall(AlignedLoadNFn, NArgs);
+      NumInstrumentedAlignedLoads++;
+      break;
+    case UseDefKind::Unaligned:
+      Builder->CreateCall(UnalignedLoadNFn, NArgs);
+      NumInstrumentedUnalignedLoads++;
+      break;
+    case UseDefKind::AlignedOrUnaligned:
+      Builder->CreateCall(AlignedOrUnalignedLoadNFn, NArgs);
+      NumInstrumentedAlignedOrUnalignedLoads++;
+      break;
+    case UseDefKind::CondAligned:
+      Builder->CreateCall(CondAlignedLoadNFn, NArgs);
+      NumInstrumentedCondAlignedLoads++;
+      break;
+    case UseDefKind::CondUnaligned:
+      Builder->CreateCall(CondUnalignedLoadNFn, NArgs);
+      NumInstrumentedCondUnalignedLoads++;
+      break;
+    case UseDefKind::CondAlignedOrUnaligned:
+      Builder->CreateCall(CondAlignedOrUnalignedLoadNFn, NArgs);
+      NumInstrumentedCondAlignedOrUnalignedLoads++;
       break;
     }
   }

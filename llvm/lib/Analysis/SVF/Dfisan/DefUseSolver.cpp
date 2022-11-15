@@ -192,6 +192,7 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
     llvm::errs() << " - Use: " << *UseVal << "\n";
     llvm::errs() << " - Def: " << *DefVal << "\n";
     DefUse.insertDataRaceDefUseID(UniqueID, Use);
+    ProtInfo->setWriteReadRace(UseVal);
   } else {
     DefUse.insertDefUseID(UniqueID, Use);
   }
