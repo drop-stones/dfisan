@@ -118,47 +118,27 @@ private:
   void instrumentCondAlignedOrUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument safe aligned load
-  void instrumentAlignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedLoadN (Instruction *Load, Value *LoadAddr, unsigned Size, ValueVector &DefIDs);
+  void instrumentAlignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  void instrumentAlignedLoadN(Instruction *Load, Value *LoadAddr, unsigned Size, ValueVector &DefIDs);
 
   /// Instrument safe unaligned load
-  void instrumentUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  void instrumentUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
 
   /// Instrument safe aligned or unaligned load
-  void instrumentAlignedOrUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedOrUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedOrUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedOrUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedOrUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentAlignedOrUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentAlignedOrUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  void instrumentAlignedOrUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
 
   /// Instrument conditional aligned load
-  void instrumentCondAlignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  void instrumentCondAlignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
 
   /// Instrument conditional unaligned load
-  void instrumentCondUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondUnalignedLoad (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
+  void instrumentCondUnalignedLoadN(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
 
   /// Instrument conditional aligned or unaligned load
-  void instrumentCondAlignedOrUnalignedLoad1 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedOrUnalignedLoad2 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedOrUnalignedLoad4 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedOrUnalignedLoad8 (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
-  void instrumentCondAlignedOrUnalignedLoad16(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
+  void instrumentCondAlignedOrUnalignedLoad  (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size);
   void instrumentCondAlignedOrUnalignedLoadN (Instruction *Load, Value *LoadAddr, ValueVector &DefIDs);
 
   ///
