@@ -72,49 +72,27 @@ private:
   void instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr);
 
   /// Instrument safe aligned store
-  void instrumentAlignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentAlignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
   void instrumentAlignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, Value *SizeVal = nullptr, unsigned Size = 0);
 
   /// Instrument safe unaligned store
-  void instrumentUnalignedStore1 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentUnalignedStore2 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentUnalignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentUnalignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
   void instrumentUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument safe aligned or unaligned store
-  void instrumentAlignedOrUnalignedStore1 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedOrUnalignedStore2 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedOrUnalignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedOrUnalignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentAlignedOrUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentAlignedOrUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
   void instrumentAlignedOrUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument conditional aligned store
-  void instrumentCondAlignedStore1 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedStore2 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentCondAlignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
   void instrumentCondAlignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument conditional unaligned store
-  void instrumentCondUnalignedStore1 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondUnalignedStore2 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondUnalignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondUnalignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentCondUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
   void instrumentCondUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument conditional aligned or unaligned store
-  void instrumentCondAlignedOrUnalignedStore1 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedOrUnalignedStore2 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedOrUnalignedStore4 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedOrUnalignedStore8 (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
-  void instrumentCondAlignedOrUnalignedStore16(Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
+  void instrumentCondAlignedOrUnalignedStore  (Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size);
   void instrumentCondAlignedOrUnalignedStoreN (Instruction *InsertPoint, Value *StoreAddr, Value *DefID);
 
   /// Instrument safe aligned load
