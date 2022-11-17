@@ -19,7 +19,7 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
-  FunctionCallee DfiInitFn, DfiStoreNFn, DfiLoadNFn,
+  FunctionCallee DfiInitFn, DfiFiniFn, DfiStoreNFn, DfiLoadNFn,
                  DfiStore1Fn, DfiStore2Fn, DfiStore4Fn, DfiStore8Fn, DfiStore16Fn,
                  DfiLoad1Fn, DfiLoad2Fn, DfiLoad4Fn, DfiLoad8Fn, DfiLoad16Fn,
                  // Store
@@ -56,7 +56,7 @@ private:
   Module *M = nullptr;
   std::unique_ptr<IRBuilder<>> Builder{nullptr};
   std::unique_ptr<MDBuilder> MdBuilder{nullptr};
-  Function *Ctor = nullptr;
+  Function *Ctor = nullptr, *Dtor = nullptr;
 
   enum class UseDefKind {
     Aligned, Unaligned, AlignedOrUnaligned,
@@ -145,6 +145,9 @@ private:
 
   /// Create Ctor functions which call DfiInitFn and Insert it to global ctors.
   void insertDfiInitFn();
+
+  /// Create Dtor functions which call DfiFiniFn
+  void insertDfiFiniFn();
 
   /// Insert DfiStoreFn after each store instruction.
   void insertDfiStoreFn(Value *Def, UseDefKind Kind);

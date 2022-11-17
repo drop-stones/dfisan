@@ -3,6 +3,7 @@ include_directories(..)
 # Runtime library sources and build flags.
 set(DFISAN_RTL_SOURCES
   dfisan_rtl.cpp
+  dfisan_check.cpp
   dfisan_interceptors.cpp
   dfisan_shadow_setup.cpp
   dfisan_errors.cpp

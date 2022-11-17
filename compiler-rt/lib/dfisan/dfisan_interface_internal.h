@@ -26,6 +26,9 @@ extern "C" {
   // before any instrumented code is executed and before any call to malloc.
   SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_init();
 
+  // Called after execution
+  SANITIZER_INTERFACE_ATTRIBUTE void __dfisan_fini();
+
   // Memory allocators for safe and unsafe data
   SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_unsafe_malloc(size_t n);
   SANITIZER_INTERFACE_ATTRIBUTE void *__dfisan_safe_aligned_malloc(size_t n);

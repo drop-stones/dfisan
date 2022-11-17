@@ -19,7 +19,9 @@ using namespace llvm;
 using namespace SVF;
 
 constexpr char DfisanModuleCtorName[] = "dfisan.module_ctor";
+constexpr char DfisanModuleDtorName[] = "dfisan.module_dtor";
 constexpr char DfisanInitFnName[]     = "__dfisan_init";
+constexpr char DfisanFiniFnName[]     = "__dfisan_fini";
 
 /// Set function names
 constexpr char CommonDfisanStoreFnName[] = "__dfisan_store_id";
@@ -301,13 +303,17 @@ Instruction *DataFlowIntegritySanitizerPass::generateCrashCode(Instruction *Inse
 /* --- Unsafe Access --- */
 void DataFlowIntegritySanitizerPass::instrumentUnsafeAccess(Instruction *OrigInst, Value *Addr) {
   Builder->SetInsertPoint(OrigInst);
-  Value *Cmp = createAddrIsInSafeRegion(Builder.get(), Addr);
-  MDNode *BrWeight = MdBuilder->createBranchWeights(/* TrueWeight */ 1, /* FalseWeight */ 99);   // True(error): 1%, False(no-error): 99%
-  Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cmp, OrigInst, /* unreachable */ true, BrWeight);
-  ValueVector Empty{};
-  Instruction *Crash = generateCrashCode(CrashTerm, Addr, Empty, /* IsUnsafe */ true);
-  Crash->setDebugLoc(OrigInst->getDebugLoc());
-
+  if (ClCheckWithCall) {
+    Value *AddrLong = (Addr->getType()->isPointerTy()) ? Builder->CreatePtrToInt(Addr, Int64Ty) : Addr;
+    Builder->CreateCall(CheckUnsafeAccessFn, AddrLong);
+  } else {
+    Value *Cmp = createAddrIsInSafeRegion(Builder.get(), Addr);
+    MDNode *BrWeight = MdBuilder->createBranchWeights(/* TrueWeight */ 1, /* FalseWeight */ 99);   // True(error): 1%, False(no-error): 99%
+    Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cmp, OrigInst, /* unreachable */ true, BrWeight);
+    ValueVector Empty{};
+    Instruction *Crash = generateCrashCode(CrashTerm, Addr, Empty, /* IsUnsafe */ true);
+    Crash->setDebugLoc(OrigInst->getDebugLoc());
+  }
   NumInstrumentedUnsafeAccesses++;
 }
 
@@ -851,6 +857,7 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   initializeSanitizerFuncs();
   insertDfiInitFn();
+  insertDfiFiniFn();
 
   auto &Result = MAM.getResult<SVFDefUseAnalysisPass>(M);
   ProtInfo = Result.getProtectInfo();
@@ -949,6 +956,7 @@ void DataFlowIntegritySanitizerPass::initializeSanitizerFuncs() {
   FunctionType *InvalidUseReportFnTy = FunctionType::get(VoidTy, {PtrTy, Int16Ty}, true);
 
   DfiInitFn  = M->getOrInsertFunction(DfisanInitFnName, VoidTy);
+  DfiFiniFn  = M->getOrInsertFunction(DfisanFiniFnName, VoidTy);
   DfiStoreNFn = M->getOrInsertFunction(DfisanStoreNFnName, StoreNFnTy);
   DfiLoadNFn  = M->getOrInsertFunction(DfisanLoadNFnName, LoadNFnTy); // VarArg Function
 
@@ -1126,6 +1134,27 @@ void DataFlowIntegritySanitizerPass::insertDfiInitFn() {
   appendToGlobalCtors(*M, Ctor, 1);
 
   return;
+}
+
+void DataFlowIntegritySanitizerPass::insertDfiFiniFn() {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
+
+  // Create Sanitizer Dtor
+  Dtor = Function::createWithDefaultAttr(
+    FunctionType::get(VoidTy, false),
+    GlobalValue::InternalLinkage, 0, DfisanModuleDtorName, M);
+  Dtor->addFnAttr(Attribute::NoUnwind);
+  BasicBlock *DtorBB = BasicBlock::Create(M->getContext(), "", Dtor);
+  ReturnInst::Create(M->getContext(), DtorBB);
+
+  // Insert Fini Function
+  Builder->SetInsertPoint(Dtor->getEntryBlock().getTerminator());
+  Builder->CreateCall(DfiFiniFn, {});
+
+  // Ensure Dtor cannot be discarded, even if in a comdat.
+  appendToUsed(*M, {Dtor});
+  // Put the destructor in GlobalDtors
+  appendToGlobalDtors(*M, Dtor, 1);
 }
 
 /// Insert a DEF function after each store statement using pointer.

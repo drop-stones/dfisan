@@ -13,6 +13,14 @@ namespace __dfisan {
 // dfisan_shadow_setup.cpp
 void InitializeShadowMemory();
 
+/// Statistics
+void CountUnsafeAccess();
+void CountAlignedStore();
+void CountUnalignedStore();
+void CountAlignedLoad();
+void CountUnalignedLoad();
+void PrintStatistics();
+
 }  // namespace __dfisan
 
 #endif
