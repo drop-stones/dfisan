@@ -53,6 +53,12 @@
     - [x] ~~FSMPTAのalias見逃し &rarr; Andersenで置き換え~~
     - [x] ~~fork,join前後のEdgeが貼られていない~~
       - pthread_create()で渡された関数がread(DfiExtAPI関数)だったせいで，その後の解析もおかしくなっていただけ
+  - [x] 単純なwrite-writeデータレース
+    - [x] RaceStoreの前に`xchg` + チェック関数の計装
+    - [x] compiler-rtの実装
+  - [x] 見逃しのないwrite-readの検知
+    - [x] readの前後への計装
+    - [x] アクセス領域(Aligned, Unaligned, Unsafe)に対する条件分岐の追加
 
 ### バグ修正
 

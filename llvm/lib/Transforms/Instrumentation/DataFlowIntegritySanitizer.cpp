@@ -689,6 +689,20 @@ void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedRaceStore(I
   instrumentUnalignedRaceStore(Then2, Addr, DefID, DefIDs, Size);
 }
 
+static Instruction *cloneLoadInst(IRBuilder<> *IRB, Instruction *InsertPoint, Instruction *Inst) {
+  // Instruction *Clone = new llvm::Instruction(Inst->getType(), Inst->getOpcode(), Inst->getOperandList(), Inst->getNumOperands(), nullptr);
+  IRB->SetInsertPoint(InsertPoint);
+  if (auto *Load = llvm::dyn_cast<LoadInst>(Inst))
+    return IRB->CreateLoad(Load->getType(), Load->getPointerOperand(), Load->getName());
+  if (auto *Call = llvm::dyn_cast<CallInst>(Inst)) {
+    ValueVector Args;
+    for (unsigned Idx = 0; Idx < Call->arg_size(); Idx++)
+      Args.push_back(Call->getArgOperand(Idx));
+    return IRB->CreateCall(Call->getFunctionType(), Call->getCalledOperand(), Args);
+  }
+  llvm_unreachable("No support load");
+}
+
 static Value *insertSameCheck(IRBuilder<> *IRB, ValueVector &Lhs, ValueVector &Rhs) {
   assert(Lhs.size() == Rhs.size());
   ValueVector SameResults;
@@ -739,19 +753,94 @@ void DataFlowIntegritySanitizerPass::instrumentUnalignedRaceLoad(Instruction *In
 
 // TODO: we need to copy "InsertPoint" into if-block and else-block and insert the phi instruction.
 void DataFlowIntegritySanitizerPass::instrumentAlignedOrUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
-  // TODO
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, InsertPoint, &Then, &Else);
+
+  // Aligned
+  Instruction *AlignedLoad = cloneLoadInst(Builder.get(), Then, InsertPoint);
+  instrumentAlignedRaceLoad(AlignedLoad, LoadAddr, DefIDs, Size);
+
+  // Unaligned
+  Instruction *UnalignedLoad = cloneLoadInst(Builder.get(), Else, InsertPoint);
+  instrumentUnalignedRaceLoad(UnalignedLoad, LoadAddr, DefIDs, Size);
+
+  // Phi
+  Builder->SetInsertPoint(InsertPoint);
+  PHINode *Phi = Builder->CreatePHI(AlignedLoad->getType(), 2);
+  Phi->addIncoming(AlignedLoad, AlignedLoad->getParent()->getNextNode()->getNextNode());
+  Phi->addIncoming(UnalignedLoad, UnalignedLoad->getParent()->getNextNode()->getNextNode());
+  InsertPoint->replaceAllUsesWith(Phi);
+  InsertPoint->eraseFromParent();
 }
 
 void DataFlowIntegritySanitizerPass::instrumentCondAlignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
-  // TODO
+  Instruction *Then, *Else;
+  insertIfAddrIsInAlignedRegion(Builder.get(), LoadAddr, InsertPoint, &Then, &Else);
+
+  // Aligned
+  Instruction *AlignedLoad = cloneLoadInst(Builder.get(), Then, InsertPoint);
+  instrumentAlignedRaceLoad(AlignedLoad, LoadAddr, DefIDs, Size);
+
+  // No check
+  Instruction *UnsafeLoad = cloneLoadInst(Builder.get(), Else, InsertPoint);
+
+  // Phi
+  Builder->SetInsertPoint(InsertPoint);
+  PHINode *Phi = Builder->CreatePHI(AlignedLoad->getType(), 2);
+  Phi->addIncoming(AlignedLoad, AlignedLoad->getParent()->getNextNode()->getNextNode());
+  Phi->addIncoming(UnsafeLoad, UnsafeLoad->getParent());
+  InsertPoint->replaceAllUsesWith(Phi);
+  InsertPoint->eraseFromParent();
 }
 
 void DataFlowIntegritySanitizerPass::instrumentCondUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
-  // TODO
+  Instruction *Then, *Else;
+  insertIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, InsertPoint, &Then, &Else);
+
+  // Unaligned
+  Instruction *UnalignedLoad = cloneLoadInst(Builder.get(), Then, InsertPoint);
+  instrumentUnalignedRaceLoad(UnalignedLoad, LoadAddr, DefIDs, Size);
+
+  // Unsafe
+  Instruction *UnsafeLoad = cloneLoadInst(Builder.get(), Else, InsertPoint);
+
+  // Phi
+  Builder->SetInsertPoint(InsertPoint);
+  PHINode *Phi = Builder->CreatePHI(UnalignedLoad->getType(), 2);
+  Phi->addIncoming(UnalignedLoad, UnalignedLoad->getParent()->getNextNode()->getNextNode());
+  Phi->addIncoming(UnsafeLoad, UnsafeLoad->getParent());
+  InsertPoint->replaceAllUsesWith(Phi);
+  InsertPoint->eraseFromParent();
 }
 
 void DataFlowIntegritySanitizerPass::instrumentCondAlignedOrUnalignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
-  // TODO
+  Instruction *Then1, *Then2, *Else;
+  insertIfAddrIsInAlignedRegionElseIfAddrIsInUnalignedRegion(Builder.get(), LoadAddr, InsertPoint, &Then1, &Then2, &Else);
+
+  // Aligned
+  Instruction *AlignedLoad = cloneLoadInst(Builder.get(), Then1, InsertPoint);
+  instrumentAlignedRaceLoad(AlignedLoad, LoadAddr, DefIDs, Size);
+
+  // Unaligned
+  Instruction *UnalignedLoad = cloneLoadInst(Builder.get(), Then2, InsertPoint);
+  instrumentUnalignedRaceLoad(UnalignedLoad, LoadAddr, DefIDs, Size);
+
+  // Unsafe
+  Instruction *UnsafeLoad = cloneLoadInst(Builder.get(), Else, InsertPoint);
+
+  // Phi: Unaligned + Unsafe
+  Builder->SetInsertPoint(UnsafeLoad->getParent()->getNextNode()->getFirstNonPHI());
+  PHINode *Phi0 = Builder->CreatePHI(UnalignedLoad->getType(), 2);
+  Phi0->addIncoming(UnalignedLoad, UnalignedLoad->getParent()->getNextNode()->getNextNode());
+  Phi0->addIncoming(UnsafeLoad, UnsafeLoad->getParent());
+
+  // Phi: Aligned + Phi0
+  Builder->SetInsertPoint(InsertPoint);
+  PHINode *Phi = Builder->CreatePHI(AlignedLoad->getType(), 2);
+  Phi->addIncoming(AlignedLoad, AlignedLoad->getParent()->getNextNode()->getNextNode());
+  Phi->addIncoming(Phi0, Phi0->getParent());
+  InsertPoint->replaceAllUsesWith(Phi);
+  InsertPoint->eraseFromParent();
 }
 
 /// Aligned check
@@ -1665,19 +1754,19 @@ void DataFlowIntegritySanitizerPass::createDfiRaceLoadFn(Value *LoadTarget, Valu
       NumInstrumentedUnalignedLoads++;
       break;
     case UseDefKind::AlignedOrUnaligned:
-      instrumentAlignedOrUnalignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      instrumentAlignedOrUnalignedRaceLoad(InsertPoint, TargetAddr, DefIDs, Size);
       NumInstrumentedAlignedOrUnalignedLoads++;
       break;
     case UseDefKind::CondAligned:
-      instrumentCondAlignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      instrumentCondAlignedRaceLoad(InsertPoint, TargetAddr, DefIDs, Size);
       NumInstrumentedCondAlignedLoads++;
       break;
     case UseDefKind::CondUnaligned:
-      instrumentCondUnalignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      instrumentCondUnalignedRaceLoad(InsertPoint, TargetAddr, DefIDs, Size);
       NumInstrumentedCondUnalignedLoads++;
       break;
     case UseDefKind::CondAlignedOrUnaligned:
-      instrumentCondAlignedOrUnalignedLoad(InsertPoint, TargetAddr, DefIDs, Size);
+      instrumentCondAlignedOrUnalignedRaceLoad(InsertPoint, TargetAddr, DefIDs, Size);
       NumInstrumentedCondAlignedOrUnalignedLoads++;
       break;
     }
