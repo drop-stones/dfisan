@@ -3,6 +3,7 @@
 
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/MDBuilder.h"
 
 namespace SVF {
 class ProtectInfo;
@@ -40,20 +41,21 @@ private:
                  CondAlignedOrUnalignedLoadNFn, CondAlignedOrUnalignedLoad1Fn, CondAlignedOrUnalignedLoad2Fn,
                  CondAlignedOrUnalignedLoad4Fn, CondAlignedOrUnalignedLoad8Fn, CondAlignedOrUnalignedLoad16Fn,
                  // Check and Set
-                 AlignedLoadStoreNFn, AlignedLoadStore1Fn, AlignedLoadStore2Fn, AlignedLoadStore4Fn, AlignedLoadStore8Fn, AlignedLoadStore16Fn,
-                 UnalignedLoadStoreNFn, UnalignedLoadStore1Fn, UnalignedLoadStore2Fn, UnalignedLoadStore4Fn, UnalignedLoadStore8Fn, UnalignedLoadStore16Fn,
-                 AlignedOrUnalignedLoadStoreNFn, AlignedOrUnalignedLoadStore1Fn, AlignedOrUnalignedLoadStore2Fn,
-                 AlignedOrUnalignedLoadStore4Fn, AlignedOrUnalignedLoadStore8Fn, AlignedOrUnalignedLoadStore16Fn,
-                 CondAlignedLoadStoreNFn, CondAlignedLoadStore1Fn, CondAlignedLoadStore2Fn, CondAlignedLoadStore4Fn, CondAlignedLoadStore8Fn, CondAlignedLoadStore16Fn,
-                 CondUnalignedLoadStoreNFn, CondUnalignedLoadStore1Fn, CondUnalignedLoadStore2Fn, CondUnalignedLoadStore4Fn, CondUnalignedLoadStore8Fn, CondUnalignedLoadStore16Fn,
-                 CondAlignedOrUnalignedLoadStoreNFn, CondAlignedOrUnalignedLoadStore1Fn, CondAlignedOrUnalignedLoadStore2Fn,
-                 CondAlignedOrUnalignedLoadStore4Fn, CondAlignedOrUnalignedLoadStore8Fn, CondAlignedOrUnalignedLoadStore16Fn,
+                 AlignedRaceStoreNFn, AlignedRaceStore1Fn, AlignedRaceStore2Fn, AlignedRaceStore4Fn, AlignedRaceStore8Fn, AlignedRaceStore16Fn,
+                 UnalignedRaceStoreNFn, UnalignedRaceStore1Fn, UnalignedRaceStore2Fn, UnalignedRaceStore4Fn, UnalignedRaceStore8Fn, UnalignedRaceStore16Fn,
+                 AlignedOrUnalignedRaceStoreNFn, AlignedOrUnalignedRaceStore1Fn, AlignedOrUnalignedRaceStore2Fn,
+                 AlignedOrUnalignedRaceStore4Fn, AlignedOrUnalignedRaceStore8Fn, AlignedOrUnalignedRaceStore16Fn,
+                 CondAlignedRaceStoreNFn, CondAlignedRaceStore1Fn, CondAlignedRaceStore2Fn, CondAlignedRaceStore4Fn, CondAlignedRaceStore8Fn, CondAlignedRaceStore16Fn,
+                 CondUnalignedRaceStoreNFn, CondUnalignedRaceStore1Fn, CondUnalignedRaceStore2Fn, CondUnalignedRaceStore4Fn, CondUnalignedRaceStore8Fn, CondUnalignedRaceStore16Fn,
+                 CondAlignedOrUnalignedRaceStoreNFn, CondAlignedOrUnalignedRaceStore1Fn, CondAlignedOrUnalignedRaceStore2Fn,
+                 CondAlignedOrUnalignedRaceStore4Fn, CondAlignedOrUnalignedRaceStore8Fn, CondAlignedOrUnalignedRaceStore16Fn,
                  // Others
                  CheckUnsafeAccessFn, InvalidSafeAccessReportFn, InvalidUseReportFn;
   Type *VoidTy, *PtrTy, *Int8Ty, *Int16Ty, *Int32Ty, *Int64Ty, *Int8PtrTy;
   SVF::ProtectInfo *ProtInfo = nullptr;
   Module *M = nullptr;
   std::unique_ptr<IRBuilder<>> Builder{nullptr};
+  std::unique_ptr<MDBuilder> MdBuilder{nullptr};
   Function *Ctor = nullptr;
 
   enum class UseDefKind {
@@ -166,8 +168,8 @@ private:
   void createDfiLoadFn(Value *LoadTarget, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
   /// Create a function call to check write-write race.
-  void createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
-  void createDfiLoadStoreFn(SVF::DefID DefID, Value *Target, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+  void createDfiRaceStoreFn(SVF::DefID DefID, Value *Target, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
+  void createDfiRaceStoreFn(SVF::DefID DefID, Value *Target, Value *SizeVal, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
 
   /// Create a function call to check write-read race.
   void createDfiRaceLoadFn(Value *LoadTarget, unsigned Size, ValueVector &DefIDs, UseDefKind Kind, Instruction *InsertPoint = nullptr);
