@@ -6,25 +6,24 @@
 // Test to check whether data race of local variables can be detected by dfisan.
 
 #include <stdio.h>
-#include <pthread.h>
-
-#define CNT 10000000
+#include "test.h"
 
 void *write_shared(void *arg) {
   int *shared_ptr = (int *)arg;
-  for (int i = 0; i < CNT; i++)
-    *shared_ptr = 100;  // DEF(2)
+  *shared_ptr = 100;  // DEF(2)
+  barrier_wait(&barrier);
   return NULL;
 }  
 
 void *read_shared(void *arg) {
+  barrier_wait(&barrier);
   int *shared_ptr = (int *)arg;
-  for (int i = 0; i < CNT; i++)
-    *shared_ptr;    // USE: { 1 }, Error occured because DEF(2) is data-race.
+  *shared_ptr;    // USE: { 1 }, Error occured because DEF(2) is data-race.
   return NULL;
 }
 
 int main(void) {
+  barrier_init(&barrier, 2);
   pthread_t tid1, tid2;
   int shared __attribute__((annotate("dfi_protection"))) = 0; // DEF(1)
   printf("Before thread\n"); 

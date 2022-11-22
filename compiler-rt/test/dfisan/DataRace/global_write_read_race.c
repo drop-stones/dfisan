@@ -6,25 +6,24 @@
 // Test to check whether data race of global variables can be detected by dfisan.
 
 #include <stdio.h>
-#include <pthread.h>
-
-#define CNT 10000000
+#include "test.h"
 
 int shared __attribute__((annotate("dfi_protection")));   // DEF(1)
 
 void *write_shared() {
-  for (int i = 0; i < CNT; i++)
-    shared = 100;   // DEF(2)
+  shared = 100;   // DEF(2)
+  barrier_wait(&barrier);
   return NULL;
 }  
 
 void *read_shared() {
-  for (int i = 0; i < CNT; i++)
-    shared;         // USE: { 1 }, Error occured because DEF(2) is data race.
+  barrier_wait(&barrier);
+  shared;         // USE: { 1 }, Error occured because DEF(2) is data race.
   return NULL;
 }
 
 int main(void) {
+  barrier_init(&barrier, 2);
   pthread_t tid1, tid2;
   printf("Before thread\n"); 
 

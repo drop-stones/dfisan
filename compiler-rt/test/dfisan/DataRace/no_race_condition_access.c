@@ -3,8 +3,7 @@
 //
 // REQUIRES: x86_64-target-arch
 
-#include <pthread.h>
-#include "tsan/test.h"
+#include "test.h"
 
 char cond = 0;
 int Global __attribute__((annotate("dfi_protection")));

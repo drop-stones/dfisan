@@ -3,9 +3,7 @@
 //
 // REQUIRES: x86_64-target-arch
 
-#include <pthread.h>
-
-#define CNT 100000
+#include "test.h"
 
 struct Vec2D {
   int x, y;
@@ -14,22 +12,21 @@ struct Vec2D {
 struct Vec2D v __attribute__((annotate("dfi_protection"))) = { 100, 200 };
 
 void *access_x() {
-  for (int i = 0; i < CNT; i++) {
-    v.x;
-    v.x = 100;
-  }
+  barrier_wait(&barrier);
+  v.x;
+  v.x = 100;
   return NULL;
 }
 
 void *access_y() {
-  for (int i = 0; i < CNT; i++) {
-    v.y;
-    v.y = 200;
-  }
+  v.y;
+  v.y = 200;
+  barrier_wait(&barrier);
   return NULL;
 }
 
 int main(void) {
+  barrier_init(&barrier, 2);
   pthread_t tid[2];
 
   pthread_create(&tid[0], NULL, access_x, NULL);
