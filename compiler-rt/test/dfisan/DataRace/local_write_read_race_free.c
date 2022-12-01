@@ -18,7 +18,7 @@ void *write_shared(void *arg) {
 
   barrier_wait(&barrier);
   return NULL;
-}  
+}
 
 void *read_shared(void *arg) {
   barrier_wait(&barrier);
