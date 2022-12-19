@@ -17,6 +17,7 @@
   - [x] calloc
   - [x] read
   - [x] sscanf
+  - [x] strcpy
 - [x] Global変数の初期化
   - [x] Array
 - [x] byval pointerへの対応
@@ -48,7 +49,7 @@
   - [ ] 464.h264ref
   - [ ] 400.perlbench
   - [ ] 433.gcc
-- [ ] 並行バグ検知の実装
+- [x] 並行バグ検知の実装
   - [x] 単純なwrite-readデータレース
     - [x] ~~FSMPTAのalias見逃し &rarr; Andersenで置き換え~~
     - [x] ~~fork,join前後のEdgeが貼られていない~~
@@ -61,6 +62,9 @@
     - [x] アクセス領域(Aligned, Unaligned, Unsafe)に対する条件分岐の追加
 
 ### バグ修正
+
+- ReplaceWithSafeAlloc
+  - [ ] `char`型の変数を保護対象に指定しても解析・保護されない
 
 - DefUse解析
   - [x] sscanf()による定義IDがずれる
