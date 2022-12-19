@@ -406,18 +406,39 @@ AccessOperand DefUseSolver::getStoreOperand(NodeID ID) {
     if (ExtAPI->isExtDefFun(FnName)) {
       auto &ExtFun = ExtAPI->getExtFun(FnName);
       LLVM_DEBUG(llvm::dbgs() << "ExtFun: " << FnName << "\n");
-      if (ExtFun.hasSizePos()) {
-        Value *SizeVal = Call->getArgOperand(ExtFun.SizePos);
+      if (ExtFun.isStrCpy()) {
+        // size = strcpy(src_str)
+        if (ExtDefCallToSizeVal.count(Call) != 0)
+          return AccessOperand(Dst, ExtDefCallToSizeVal[Call]);
+        llvm::Module *M = Call->getModule();
+        Type *Int64Ty = Type::getInt64Ty(M->getContext());
+        Type *Int8PtrTy = Type::getInt8PtrTy(M->getContext());
+        llvm::SmallVector<Type *, 8> Args{Int8PtrTy};
+        FunctionType *StrLenFnTy = FunctionType::get(Int64Ty, Args, false);
+        FunctionCallee StrLenFn = M->getOrInsertFunction("strlen", StrLenFnTy);
+        llvm::IRBuilder<> Builder(Call);
+        Value *SizeVal = Builder.CreateCall(StrLenFn, Call->getArgOperand(ExtFun.SizePos));
+        LLVM_DEBUG(llvm::dbgs() << "strcpy: " << *Call << "\n");
+        LLVM_DEBUG(llvm::dbgs() << " - SizeVal: " << *SizeVal << "\n");
+        LLVM_DEBUG(llvm::dbgs() << " - Dst: " << *Dst << "\n");
+        ExtDefCallToSizeVal[Call] = SizeVal;
         return AccessOperand(Dst, SizeVal);
       }
       if (ExtFun.Ty == DfisanExtAPI::ExtFunType::EXT_CALLOC) {
         // size = nmem * size_t
+        if (ExtDefCallToSizeVal.count(Call) != 0)
+          return AccessOperand(Dst, ExtDefCallToSizeVal[Call]);
         llvm::IRBuilder<> Builder(Call);
         Builder.SetInsertPoint(Call);
         Value *SizeVal = Builder.CreateNUWMul(Call->getOperand(0), Call->getOperand(1));
         LLVM_DEBUG(llvm::dbgs() << "calloc: " << *Call << "\n");
         LLVM_DEBUG(llvm::dbgs() << " - SizeVal: " << *SizeVal << "\n");
         LLVM_DEBUG(llvm::dbgs() << " - Dst: " << *Dst << "\n");
+        ExtDefCallToSizeVal[Call] = SizeVal;
+        return AccessOperand(Dst, SizeVal);
+      }
+      if (ExtFun.hasSizePos()) {
+        Value *SizeVal = Call->getArgOperand(ExtFun.SizePos);
         return AccessOperand(Dst, SizeVal);
       }
     }

@@ -148,6 +148,7 @@ private:
   SVFIR *Pag;
   ProtectInfo *ProtInfo;
   WorkList Worklist;
+  std::unordered_map<Value *, Value *> ExtDefCallToSizeVal;   // Cache for ExtDefCall(e.g., calloc, strcpy) to size value
 
   /// Get Value * from NodeID
   Value *getValue(NodeID ID);
