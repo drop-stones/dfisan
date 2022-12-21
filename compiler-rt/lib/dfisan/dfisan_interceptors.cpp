@@ -48,7 +48,8 @@ INTERCEPTOR(void *, realloc, void *ptr, SIZE_T size) {
 }
 
 INTERCEPTOR(void *, mmap, void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
-  void *ptr = __dfisan_unsafe_mmap(addr, length, prot, flags, fd, offset);
+  // void *ptr = __dfisan_unsafe_mmap(addr, length, prot, flags, fd, offset);
+  void *ptr = REAL(mmap(addr, length, prot, flags, fd, offset));
   return ptr;
 }
 
