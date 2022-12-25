@@ -11,7 +11,7 @@ SVFG *DfisanSVFGBuilder::buildFullSVFG(BVDataPTAImpl *pta) {
 }
 
 SVFG *DfisanSVFGBuilder::build(BVDataPTAImpl *pta, VFG::VFGK kind) {
-  assert(kind == VFG::VFGK::FULLSVFG && "DfsanSVFG must be full-svfg");
+  assert(kind == VFG::VFGK::FULLSVFG && "DfisanSVFG must be full-svfg");
   MemSSA *mssa = buildMSSA(pta, false);
   svfg = new DfisanSVFG(mssa, kind);
   buildSVFG();

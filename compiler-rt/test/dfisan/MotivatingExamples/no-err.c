@@ -25,23 +25,21 @@ void *Nullify(void *arg) {
 }
 
 void InputName(char *str) {
-  for (int i = 0; i < 16; i++)
-    str[i] = 'a';
+  memcpy((void *)str, "aaaaaaa", 7);
 }
 
 int main(void) {
   int x = 100;
   struct Ptr p __attribute__((annotate("dfi_protection")));
   p.ptr = &x;
-  // InputName(&p.name[0]);  // buffer overflow!!
-  memcpy((void *)p.name, "no err", 7);
+  InputName(p.name);  // No overflow
 
   barrier_init(&barrier, 2);
   pthread_t tid;
   pthread_create(&tid, NULL, Nullify, &p);
 
   barrier_wait(&barrier);
-  *p.ptr; // Detect write-read race!!
+  *p.ptr; // No race
 
   pthread_join(tid, NULL);
 
