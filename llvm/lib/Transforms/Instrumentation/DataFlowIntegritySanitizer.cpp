@@ -216,6 +216,10 @@ static cl::opt<bool> ClCheckAllUnsafeAccess(
   "check-all-unsafe-access", cl::desc("Instrument all unsafe accesses to protect targets"),
   cl::Hidden, cl::init(false));
 
+static cl::opt<bool> ClNoCheckUnsafeAccess(
+  "no-check-unsafe-access", cl::desc("Not instrument unsafe accesses"),
+  cl::Hidden, cl::init(false));
+
 static cl::opt<bool> ClCheckWithCall(
   "check-with-call", cl::desc("Instrument function calls to check data-flow integrity before load and after store"),
   cl::Hidden, cl::init(false));
@@ -862,14 +866,16 @@ DataFlowIntegritySanitizerPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &Result = MAM.getResult<SVFDefUseAnalysisPass>(M);
   ProtInfo = Result.getProtectInfo();
 
-  // Instrument unsafe access
-  for (auto &Iter : ProtInfo->getUnsafeToInfo()) {
-    Instruction *UnsafeInst = Iter.first;
-    for (auto &Ope : Iter.second.Operands) {
-      //   ** InsertPoint **
-      //   UnsafeInst: store %0 to <Operand>
-      Value *OpeVal = Ope.Operand;
-      instrumentUnsafeAccess(UnsafeInst, OpeVal);
+  if (!ClNoCheckUnsafeAccess) {
+    // Instrument unsafe access
+    for (auto &Iter : ProtInfo->getUnsafeToInfo()) {
+      Instruction *UnsafeInst = Iter.first;
+      for (auto &Ope : Iter.second.Operands) {
+        //   ** InsertPoint **
+        //   UnsafeInst: store %0 to <Operand>
+        Value *OpeVal = Ope.Operand;
+        instrumentUnsafeAccess(UnsafeInst, OpeVal);
+      }
     }
   }
 

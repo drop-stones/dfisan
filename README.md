@@ -41,6 +41,11 @@ Instrument all unsafe accesses (default: instrument only variable-offset accesse
 $ bin/clang -fsanitize=dfi -mllvm -check-all-unsafe-access foo.c
 ```
 
+No instrument unsafe accesses
+```
+$ bin/clang -fsanitize=dfi -mllvm -no-check-unsafe-access foo.c
+```
+
 Instrument checks + sets with function call (default: instrument with LLVM IR)  
 And it prints dynamic statistics on the number of checks + sets.
 ```
