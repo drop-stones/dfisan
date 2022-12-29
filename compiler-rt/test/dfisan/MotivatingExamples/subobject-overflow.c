@@ -38,7 +38,9 @@ int main(void) {
   pthread_t tid;
   pthread_create(&tid, NULL, Nullify, &p);
 
-  *p.ptr; // Detect sub-object overflow
+  if (p.ptr != NULL) {
+    *p.ptr; // Detect sub-object overflow
+  }
   barrier_wait(&barrier);
 
   pthread_join(tid, NULL);

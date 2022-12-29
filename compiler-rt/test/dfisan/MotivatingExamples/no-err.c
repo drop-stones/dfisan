@@ -39,7 +39,9 @@ int main(void) {
   pthread_create(&tid, NULL, Nullify, &p);
 
   barrier_wait(&barrier);
-  *p.ptr; // No race
+  if (p.ptr != NULL) {
+    *p.ptr; // No race
+  }
 
   pthread_join(tid, NULL);
 
