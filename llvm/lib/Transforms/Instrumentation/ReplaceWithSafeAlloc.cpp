@@ -156,12 +156,16 @@ void replaceHeapAllocsWithSafeAllocs(ValueSet &HeapTargets) {
     if (NextUser == nullptr)  // Skip the unused target
       continue;
     Type *TargetType = nullptr;
-    if (BitCastInst *Bitcast = dyn_cast<BitCastInst>(NextUser)) {
-      TargetType = Bitcast->getDestTy()->getPointerElementType();
-    } else if (StoreInst *Store = dyn_cast<StoreInst>(NextUser)) {
-      TargetType = Store->getPointerOperandType()->getPointerElementType();
-    } else {
-      llvm_unreachable("No support code pattern");
+    for (auto *User : Call->users()) {
+      if (BitCastInst *Bitcast = dyn_cast<BitCastInst>(User)) {
+        TargetType = Bitcast->getDestTy()->getPointerElementType();
+      } else if (StoreInst *Store = dyn_cast<StoreInst>(User)) {
+        TargetType = Store->getPointerOperandType()->getPointerElementType();
+      } else {
+        continue;
+      }
+      if (TargetType != nullptr)
+        break;
     }
     LLVM_DEBUG(dbgs() << "Callee: " << Callee->getName() << ", Type: " << *TargetType << "\n");
     Value *SafeAlloc = createSafeAllocAndFree(Call, TargetType);
