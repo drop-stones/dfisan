@@ -153,6 +153,9 @@ private:
   /// Get Value * from NodeID
   Value *getValue(NodeID ID);
 
+  /// Expand Field-insensitive objects
+  void getExpandPointsTo(Value *V, PointsTo &ExpandedPts);
+
   /// Return true if two Values are alias
   AliasResult isAlias(Value *V1, Value *V2);
 

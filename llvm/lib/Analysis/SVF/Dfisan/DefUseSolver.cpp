@@ -37,6 +37,7 @@ void DefUseSolver::solve() {
     // Generate def data-facts.
     if (isTargetStore(ID)) {
       Value *DefOpe = getStoreOperand(ID).Operand;
+/*
       DefIDVec ResetVec;
       for (auto Fact : Facts) {
         Value *FactOpe = getStoreOperand(Fact).Operand;
@@ -44,6 +45,7 @@ void DefUseSolver::solve() {
           ResetVec.set(Fact);
       }
       Facts.intersectWithComplement(ResetVec);  // Kill
+*/
       Facts.set(ID);                            // Gen
     }
     
@@ -137,18 +139,27 @@ Value *DefUseSolver::getValue(NodeID ID) {
   return Val;
 }
 
+/// Get PointsTo set
+void DefUseSolver::getExpandPointsTo(Value *V, PointsTo &Pts) {
+  Pts = Pta->getPts(Pag->getValueNode(V));
+  for (auto Ptr : Pts) {
+    if (Pta->isFieldInsensitive(Ptr) ||
+        (Pag->getBaseObjVar(Ptr) == Ptr && !llvm::isa<GetElementPtrInst>(V))) {
+      Pts |= Pag->getAllFieldsObjVars(Ptr);
+    }
+  }
+}
+
 /// Return true if two Values are alias
 /// If two Values are GetElementPtrInst,
 /// we distinguish the head of struct and the entire struct.
 AliasResult DefUseSolver::isAlias(Value *V1, Value *V2) {
-  if (llvm::isa<GetElementPtrInst>(V1) && llvm::isa<GetElementPtrInst>(V2)) {
-    PointsTo Pts1 = Pta->getPts(Pag->getValueNode(V1));
-    PointsTo Pts2 = Pta->getPts(Pag->getValueNode(V2));
-    if (Pta->containBlackHoleNode(Pts1) || Pta->containBlackHoleNode(Pts2) || Pts1.intersects(Pts2))
-      return AliasResult::MayAlias;
-    return AliasResult::NoAlias;
-  }
-  return Pta->alias(V1, V2);
+  PointsTo Pts1, Pts2;
+  getExpandPointsTo(V1, Pts1);
+  getExpandPointsTo(V2, Pts2);
+  if (Pta->containBlackHoleNode(Pts1) || Pta->containBlackHoleNode(Pts2) || Pts1.intersects(Pts2))
+    return AliasResult::MayAlias;
+  return AliasResult::NoAlias;
 }
 
 /// Return true if two Values are data race
