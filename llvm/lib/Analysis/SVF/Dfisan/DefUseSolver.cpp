@@ -86,13 +86,6 @@ void DefUseSolver::solve() {
   }
 
   /// Print for debug
-  for (auto &It : DefUse.RaceDefToCheckID) {
-    NodeID MayRace = It.first;
-    llvm::errs() << "MayRace(" << MayRace << "): " << *getValue(MayRace) << "\n";
-    for (auto NoRace : It.second) {
-      llvm::errs() << " - Checked(" << NoRace << "): " << *getValue(NoRace) << "\n";
-    }
-  }
 
   if (RenamingOptimization) {
     // Renaming optimization: Calculate equivalent sets of Def
@@ -277,7 +270,7 @@ void DefUseSolver::registerDefUse(std::vector<EquivalentDefSet> &EquivalentDefs)
     for (NodeID UseID : EquivDefs.Uses) {
       Value *Use = getValue(UseID);
       if (isTargetStore(UseID)) { // write-write race detection
-        llvm::errs() << "MayRace Inst: " << *Use << "\n";
+        // llvm::errs() << "MayRace Inst: " << *Use << "\n";
         ProtInfo->addWriteWriteRaceCheck(Use, ID);
         continue;
       }

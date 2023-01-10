@@ -78,6 +78,11 @@ DefUseLogger::logProtectInfo(ProtectInfo *ProtectInfo) {
         Line = DebugLoc->getLine();
         Column = DebugLoc->getColumn();
         Filename = DebugLoc->getScope()->getFilename();
+      } else {
+        // std::string ValStr;
+        // llvm::raw_string_ostream StrStream{ValStr};
+        // Def->print(StrStream);
+        // Filename = ValStr;
       }
       logSingleDefInfo(ID, Filename, Line, Column);
     } else {

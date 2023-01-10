@@ -827,11 +827,11 @@ void ForkJoinAnalysis::handleJoin(const CxtStmt& cts, NodeID rootTid)
         const Instruction* forkSite = tct->getTCTNode(rootTid)->getCxtThread().getThread();
         const Instruction* joinSite = cts.getStmt();
 
-        llvm::errs() << "forkSite: " << *forkSite << "\n";
-        llvm::errs() << "joinSite: " << *joinSite << "\n";
-        llvm::errs() << "isAliasedForkJoin: " << isAliasedForkJoin(forkSite, joinSite) << "\n";
-        llvm::errs() << "alias: " << tct->getPTA()->alias(getForkedThread(forkSite), getJoinedThread(joinSite)) << "\n";
-        llvm::errs() << "isSameSCEV: " << isSameSCEV(forkSite, joinSite) << "\n";
+        // llvm::errs() << "forkSite: " << *forkSite << "\n";
+        // llvm::errs() << "joinSite: " << *joinSite << "\n";
+        // llvm::errs() << "isAliasedForkJoin: " << isAliasedForkJoin(forkSite, joinSite) << "\n";
+        // llvm::errs() << "alias: " << tct->getPTA()->alias(getForkedThread(forkSite), getJoinedThread(joinSite)) << "\n";
+        // llvm::errs() << "isSameSCEV: " << isSameSCEV(forkSite, joinSite) << "\n";
 
         if(isAliasedForkJoin(forkSite, joinSite))
         {
@@ -846,13 +846,13 @@ void ForkJoinAnalysis::handleJoin(const CxtStmt& cts, NodeID rootTid)
                     addDirectlyJoinTID(cts,rootTid);
                     if(isSameSCEV(forkSite,joinSite))
                     {
-                        llvm::errs() << "isSameSCEV: fork(" << *forkSite << "), join(" << *joinSite << ")\n";
+                        // llvm::errs() << "isSameSCEV: fork(" << *forkSite << "), join(" << *joinSite << ")\n";
                         markCxtStmtFlag(newCts,TDDead);
                         addSymmetricLoopJoin(cts,joinLoop);
                     }
                     else
                     {
-                        llvm::errs() << "isNotSameSCEV: fork(" << *forkSite << "), join(" << *joinSite << ")\n";
+                        // llvm::errs() << "isNotSameSCEV: fork(" << *forkSite << "), join(" << *joinSite << ")\n";
                         markCxtStmtFlag(cts,TDAlive);
                     }
                 }
@@ -1059,7 +1059,7 @@ bool ForkJoinAnalysis::isSameSCEV(const Instruction* forkSite, const Instruction
     //if(sameLoopTripCount(forkSite,joinSite) == false)
     //  return false;
 
-    llvm::errs() << "forkse.inloop = " << forkse.inloop << ", joinse.loop = " << joinse.inloop << "\n";
+    // llvm::errs() << "forkse.inloop = " << forkse.inloop << ", joinse.loop = " << joinse.inloop << "\n";
     return true;    // it may introduce invalid results...
 
     if(forkse.inloop && joinse.inloop)

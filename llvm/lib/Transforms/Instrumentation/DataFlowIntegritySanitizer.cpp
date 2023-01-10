@@ -1256,7 +1256,7 @@ void DataFlowIntegritySanitizerPass::insertDfiLoadFn(Value *Use, UseDefKind Kind
 /// Insert GetShadow before each may-write-read instruction
 /// and CHECK function after it
 void DataFlowIntegritySanitizerPass::instrumentMayWriteReadRaceLoad(Value *Use, UseDefKind Kind, ValueVector &DefIDs) {
-  llvm::errs() << "Race Load: " << *Use << "\n";
+  // llvm::errs() << "Race Load: " << *Use << "\n";
   const auto &Info = ProtInfo->getUseInfo(Use);
   assert(Info.IsWriteReadRace);
   if (Instruction *UseInst = dyn_cast<Instruction>(Use)) {
