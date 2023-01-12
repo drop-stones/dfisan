@@ -157,7 +157,7 @@ private:
   void getExpandPointsTo(Value *V, PointsTo &ExpandedPts);
 
   /// Return true if two Values are alias
-  AliasResult isAlias(Value *V1, Value *V2);
+  AliasResult isAlias(Value *V1, Value *V2, bool IsFieldInsensitive);
 
   /// Return true if two Values are data race
   bool isDataRace(Value *V1, Value *V2);

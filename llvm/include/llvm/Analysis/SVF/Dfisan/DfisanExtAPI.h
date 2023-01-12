@@ -38,6 +38,10 @@ public:
 
     bool hasSizePos() const { return SizePos != DefaultPos; }
     bool isStrCpy() const { return IsStrCpy; }
+    bool isFieldInsensitive() const {
+      // TODO: set more functions
+      return FnName == "llvm.memset.p0i8.i64";
+    }
   };
 
   std::unordered_map<std::string, ExtFun> ExtFunMap;

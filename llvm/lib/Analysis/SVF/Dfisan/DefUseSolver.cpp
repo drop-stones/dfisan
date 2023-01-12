@@ -146,7 +146,9 @@ void DefUseSolver::getExpandPointsTo(Value *V, PointsTo &Pts) {
 /// Return true if two Values are alias
 /// If two Values are GetElementPtrInst,
 /// we distinguish the head of struct and the entire struct.
-AliasResult DefUseSolver::isAlias(Value *V1, Value *V2) {
+AliasResult DefUseSolver::isAlias(Value *V1, Value *V2, bool IsFieldInsensitive = false) {
+  if (IsFieldInsensitive)
+    return Pta->alias(V1, V2);
   PointsTo Pts1, Pts2;
   getExpandPointsTo(V1, Pts1);
   getExpandPointsTo(V2, Pts2);
@@ -180,12 +182,24 @@ bool DefUseSolver::isDataRace(NodeID ID1, NodeID ID2) {
 void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
   if (!isTargetLoad(Use) || !isTargetStore(Def))
     return;
+  bool IsFieldSensitive = false;
+  if (const auto *Call = llvm::dyn_cast<CallInst>(getValue(Def))) {
+    auto *Fun = Call->getCalledFunction();
+    DfisanExtAPI *ExtAPI = DfisanExtAPI::getDfisanExtAPI();
+    auto &ExtFun = ExtAPI->getExtFun(Fun->getName().str());
+    IsFieldSensitive = ExtFun.isFieldInsensitive();
+  }
   Value *DefOpe = getStoreOperand(Def).Operand;
   Value *UseOpe = getLoadOperand(Use).Operand;
-  if (!isAlias(DefOpe, UseOpe)) {
+  if (!isAlias(DefOpe, UseOpe, IsFieldSensitive)) {
     LLVM_DEBUG(llvm::dbgs() << "No Alias:" << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Def: " << *DefOpe << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Use: " << *UseOpe << "\n");
+    llvm::dbgs() << "No Alias:" << "\n";
+    llvm::dbgs() << " - Def: " << *DefOpe << "\n";
+    llvm::dbgs() << " - Use: " << *UseOpe << "\n";
+    llvm::dbgs() << " - DefVal: " << *getValue(Def) << "\n";
+    llvm::dbgs() << " - UseVal: " << *getValue(Use) << "\n";
     return;
   }
   Value *UseVal = getValue(Use);
