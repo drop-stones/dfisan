@@ -391,6 +391,7 @@ static void insertUnalignedSet(IRBuilder<> *IRB, Instruction *InsertPoint, Value
 
 /// Aligned store
 void DataFlowIntegritySanitizerPass::instrumentAlignedStore(Instruction *InsertPoint, Value *StoreAddr, Value *DefID, unsigned Size) {
+  Builder->SetInsertPoint(InsertPoint);
   if (Size < 4)
     StoreAddr = AlignAddr(Builder.get(), StoreAddr);
   insertAlignedSet(Builder.get(), InsertPoint, StoreAddr, DefID, Size);
@@ -586,6 +587,7 @@ void DataFlowIntegritySanitizerPass::insertIfThenAndErrorReport(Value *Cond, Ins
 
 /// Aligned check
 void DataFlowIntegritySanitizerPass::instrumentAlignedLoad(Instruction *Load, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  Builder->SetInsertPoint(Load);
   if (Size < 4)
     LoadAddr = AlignAddr(Builder.get(), LoadAddr);
   Value *IsAttack = insertAlignedCheck(Builder.get(), Load, LoadAddr, DefIDs, Size);
@@ -654,6 +656,7 @@ static Value *insertUnalignedCheckSet(IRBuilder<> *IRB, Instruction *InsertPoint
 }
 
 void DataFlowIntegritySanitizerPass::instrumentAlignedRaceStore(Instruction *InsertPoint, Value *Addr, Value *DefID, ValueVector &DefIDs, unsigned Size) {
+  Builder->SetInsertPoint(InsertPoint);
   if (Size < 4)
     Addr = AlignAddr(Builder.get(), Addr);
   Value *IsAttack = insertAlignedCheckSet(Builder.get(), InsertPoint, Addr, DefID, DefIDs, Size);
@@ -740,6 +743,7 @@ static Value *insertUnalignedRaceCheck(IRBuilder<> *IRB, Instruction *InsertPoin
 }
 
 void DataFlowIntegritySanitizerPass::instrumentAlignedRaceLoad(Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs, unsigned Size) {
+  Builder->SetInsertPoint(InsertPoint);
   if (Size < 4)
     LoadAddr = AlignAddr(Builder.get(), LoadAddr);
   Instruction *NextInst = InsertPoint->getNextNonDebugInstruction();

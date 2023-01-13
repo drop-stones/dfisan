@@ -157,10 +157,40 @@ AliasResult DefUseSolver::isAlias(Value *V1, Value *V2, bool IsFieldInsensitive 
   return AliasResult::NoAlias;
 }
 
+bool DefUseSolver::mayExecutedByTheSameThread(Instruction *I1, Instruction *I2) {
+  if(!Mhp->hasThreadStmtSet(I1) || !Mhp->hasThreadStmtSet(I2))
+      return true;
+
+  const MHP::CxtThreadStmtSet& tsSet1 = Mhp->getThreadStmtSet(I1);
+  const MHP::CxtThreadStmtSet& tsSet2 = Mhp->getThreadStmtSet(I2);
+  for (const auto &ts1 : tsSet1) {
+    for (const auto &ts2 : tsSet2) {
+      if (ts1.getTid() == ts2.getTid())
+        return true;
+    }
+  }
+  return false;
+}
+// TODO: check whether Before -> After order
+bool DefUseSolver::isOrderedInstructions(Instruction *Before, Instruction *After) {
+  auto *Icfg = Pag->getICFG();
+  if (Before == After && Icfg->isInLoop(Before))
+    return true;
+  // if (Before->getFunction() == After->getFunction()) {
+  //   auto *BeforeNode = Icfg->getICFGNode(Before);
+  //   auto *AfterNode  = Icfg->getICFGNode(After);
+  //   return BeforeNode->getId() < AfterNode->getId();
+  // }
+  // return false;
+  return true;
+}
+
 /// Return true if two Values are data race
 bool DefUseSolver::isDataRace(Value *V1, Value *V2) {
   if (Instruction *I1 = SVFUtil::dyn_cast<Instruction>(V1)) {
     if (Instruction *I2 = SVFUtil::dyn_cast<Instruction>(V2)) {
+      if (mayExecutedByTheSameThread(I1, I2) && isOrderedInstructions(I1, I2))
+        return false;
       return Mhp->mayHappenInParallel(I1, I2)
              && !LockAna->isProtectedByCommonLock(I1, I2);
     }

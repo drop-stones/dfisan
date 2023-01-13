@@ -1,5 +1,5 @@
 // RUN: %clang_dfisan %s -o %t
-// RUN: !%run %t
+// RUN: %run %t
 //
 // REQUIRES: x86_64-target-arch
 
@@ -8,7 +8,7 @@
 
 #include <pthread.h>
 #include "test.h"
-#include "../safe_alloc.h"
+#include "../../safe_alloc.h"
 
 typedef int apr_file_t;
 typedef int apr_size_t;

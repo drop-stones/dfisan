@@ -162,6 +162,8 @@ private:
   /// Return true if two Values are data race
   bool isDataRace(Value *V1, Value *V2);
   bool isDataRace(NodeID ID1, NodeID ID2);
+  bool mayExecutedByTheSameThread(Instruction *I1, Instruction *I2);
+  bool isOrderedInstructions(Instruction *Before, Instruction *After);
 
   /// Add DefUse to DefUseIDInfo.
   void addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use);
