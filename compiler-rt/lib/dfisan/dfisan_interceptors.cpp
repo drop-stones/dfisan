@@ -14,16 +14,25 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 #include <assert.h>
+#include <pthread.h>
 
 using namespace __sanitizer;
+pthread_mutex_t malloc_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t free_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t calloc_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t realloc_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mmap_lock = PTHREAD_MUTEX_INITIALIZER;
 
 INTERCEPTOR(void *, malloc, SIZE_T size) {
+  pthread_mutex_lock(&malloc_lock);
   // Report("%s: Intercept malloc(%lu), address(%p)\n", __func__, (unsigned long)size, ptr);
   void *ptr = __dfisan_unsafe_malloc(size);
+  pthread_mutex_unlock(&malloc_lock);
   return ptr;
 }
 
 INTERCEPTOR(void, free, void *ptr) {
+  pthread_mutex_lock(&free_lock);
   // Report("%s: Intercept free(%p)\n", __func__, ptr);
   if (__dfisan::AddrIsInUnsafeHeap((uptr)ptr)) {
     __dfisan_unsafe_free(ptr);
@@ -34,22 +43,29 @@ INTERCEPTOR(void, free, void *ptr) {
   } else {
     dlfree(ptr);
   }
+  pthread_mutex_unlock(&free_lock);
   return;
 }
 
 INTERCEPTOR(void *, calloc, SIZE_T size, SIZE_T elem_size) {
+  pthread_mutex_lock(&calloc_lock);
   void *ptr = __dfisan_unsafe_calloc(size, elem_size);
+  pthread_mutex_unlock(&calloc_lock);
   return ptr;
 }
 
 INTERCEPTOR(void *, realloc, void *ptr, SIZE_T size) {
+  pthread_mutex_lock(&realloc_lock);
   void *new_ptr = __dfisan_unsafe_realloc(ptr, size);
+  pthread_mutex_unlock(&realloc_lock);
   return new_ptr;
 }
 
 INTERCEPTOR(void *, mmap, void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+  pthread_mutex_lock(&mmap_lock);
   // void *ptr = __dfisan_unsafe_mmap(addr, length, prot, flags, fd, offset);
   void *ptr = REAL(mmap(addr, length, prot, flags, fd, offset));
+  pthread_mutex_unlock(&mmap_lock);
   return ptr;
 }
 
@@ -66,6 +82,12 @@ void InitializeDfisanInterceptors() {
   INTERCEPT_FUNCTION(calloc);
   INTERCEPT_FUNCTION(realloc);
   INTERCEPT_FUNCTION(mmap);
+
+  pthread_mutex_init(&malloc_lock, NULL);
+  pthread_mutex_init(&free_lock, NULL);
+  pthread_mutex_init(&calloc_lock, NULL);
+  pthread_mutex_init(&realloc_lock, NULL);
+  pthread_mutex_init(&mmap_lock, NULL);
 
   interceptors_initialized = true;
 }
