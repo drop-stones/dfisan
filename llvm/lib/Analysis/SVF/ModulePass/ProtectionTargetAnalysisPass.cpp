@@ -11,12 +11,20 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 #include "ModulePass/ProtectionTargetAnalysisPass.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "protection-target"
+
+static llvm::cl::opt<bool> ProtectAll(
+  "protect-all",
+  llvm::cl::init(false),
+  llvm::cl::desc("<protect all data>"),
+  llvm::cl::Optional
+);
 
 namespace {
 static inline bool isReplacementFnName(StringRef FnName) {
@@ -95,10 +103,56 @@ void collectHeapTargetsAllocatedByReplacementFn(Module &M, ValueSet &HeapTargets
   }
 }
 
+void collectAllGlobals(Module &M, ValueSet &Globals) {
+  // collect globals
+  for (auto &Global : M.getGlobalList()) {
+    if (GlobalVariable *GlobVar = dyn_cast<GlobalVariable>(&Global)) {
+      if (GlobVar->isConstant())
+        continue;
+      LLVM_DEBUG(dbgs() << "Global: " << *GlobVar << "\n");
+      // llvm::errs() << "Global: " << *GlobVar << "\n";
+      Globals.insert(GlobVar);
+    }
+  }
+}
+
+// Collect all targets
+void collectAllTargets(Module &M, ValueSet &Globals, ValueSet &Locals, ValueSet &Heaps) {
+  static Function *SafeMalloc = nullptr;
+
+  collectAllGlobals(M, Globals);
+
+  for (Function &Func : M.getFunctionList()) {
+    for (Instruction &Inst : instructions(&Func)) {
+      if (AllocaInst *Alloca = dyn_cast<AllocaInst>(&Inst)) {
+        LLVM_DEBUG(dbgs() << "Local: " << *Alloca << "\n");
+        Locals.insert(Alloca);
+      } else if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
+        // Value *Callee = Call->getCalledOperand()->stripPointerCasts();
+        Function *Fn = Call->getCalledFunction();
+        if (Fn->getName() == "malloc") {
+          if (SafeMalloc == nullptr) {
+            ValueToValueMapTy Map;
+            SafeMalloc = CloneFunction(Fn, Map, nullptr);
+            SafeMalloc->setName("safe_malloc");
+          }
+          Call->setCalledFunction(SafeMalloc);
+          LLVM_DEBUG(dbgs() << "Heap: " << *Call << "\n");
+          llvm::errs() << "Heap: " << *Call << "\n";
+          Heaps.insert(Call);
+        }
+      }
+    }
+  }
+}
+
 // Divide global targets into aligned and unaligned by their sections.
 void collectGlobalTargetsBySection(Module &M, ValueSet &AlignedTargets, ValueSet &UnalignedTargets) {
   ValueSet GlobalTargets;
-  collectGlobalTargetsWithAnnotation(M, GlobalTargets);
+  if (ProtectAll)
+    collectAllGlobals(M, GlobalTargets);
+  else
+    collectGlobalTargetsWithAnnotation(M, GlobalTargets);
 
   for (auto *Target : GlobalTargets) {
     assert(isa<GlobalVariable>(Target) && "Global target is not global variable");
@@ -146,14 +200,16 @@ ProtectionTargetAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
 void
 ProtectionTargetAnalysisPass::findProtectionTargetAnnotations(Module &M, Result &Res) {
-  // Collect annotated global variables
-  collectGlobalTargetsWithAnnotation(M, Res.getGlobalTargets());
-
-  // Collect annotated local variables
-  collectLocalTargetsWithAnnotation(M, Res.getLocalTargets());
-
-  // Collect safe heap variables
-  collectHeapTargetsAllocatedByReplacementFn(M, Res.getHeapTargets());
+  if (ProtectAll) {
+    collectAllTargets(M, Res.getGlobalTargets(), Res.getLocalTargets(), Res.getHeapTargets());
+  } else {
+    // Collect annotated global variables
+    collectGlobalTargetsWithAnnotation(M, Res.getGlobalTargets());
+    // Collect annotated local variables
+    collectLocalTargetsWithAnnotation(M, Res.getLocalTargets());
+    // Collect safe heap variables
+    collectHeapTargetsAllocatedByReplacementFn(M, Res.getHeapTargets());
+  }
 }
 
 /* --- CollectProtectionTargetPass --- */

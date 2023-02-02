@@ -121,6 +121,7 @@ Value *createSafeAllocAndFree(Instruction *OrigInst, Type *OrigTy) {
       NewVal = isInAlignedRegion(OrigTy) ? Builder.CreateCall(ReallocTy, SafeAlignedRealloc.getCallee(), {PtrVal, SizeVal})
                                          : Builder.CreateCall(ReallocTy, SafeUnalignedRealloc.getCallee(), {PtrVal, SizeVal});
     } else {
+      llvm::errs() << "Callee: " << *Callee << "\n";
       llvm_unreachable("No support function call");
     }
   } else {
