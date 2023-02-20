@@ -17,6 +17,13 @@ static llvm::cl::opt<bool> RenamingOptimization(
   llvm::cl::Optional
 );
 
+static llvm::cl::opt<bool> DataRaceDetection(
+  "data-race-detection",
+  llvm::cl::init(true),
+  llvm::cl::desc("<data race detection>"),
+  llvm::cl::Optional
+);
+
 void DefUseSolver::solve() {
   // initialize worklist
   for (auto It = Svfg->begin(), Eit = Svfg->end(); It != Eit; ++It) {
@@ -70,7 +77,7 @@ void DefUseSolver::solve() {
         addDefOperand(DefID);
         addUseOperand(ID);
       }
-    } else if (isTargetWriteWriteRace(ID, Defs)) {  // Create NoWriteWriteRace or WriteWriteRace maps
+    } else if (DataRaceDetection && isTargetWriteWriteRace(ID, Defs)) {  // Create NoWriteWriteRace or WriteWriteRace maps
       for (auto DefID : Defs) {
         addWriteWriteRace(DefUse, ID, DefID);
       }
@@ -173,9 +180,9 @@ bool DefUseSolver::mayExecutedByTheSameThread(Instruction *I1, Instruction *I2) 
 }
 // TODO: check whether Before -> After order
 bool DefUseSolver::isOrderedInstructions(Instruction *Before, Instruction *After) {
-  auto *Icfg = Pag->getICFG();
-  if (Before == After && Icfg->isInLoop(Before))
-    return true;
+  // auto *Icfg = Pag->getICFG();
+  // if (Before == After && Icfg->isInLoop(Before))
+  //   return true;
   // if (Before->getFunction() == After->getFunction()) {
   //   auto *BeforeNode = Icfg->getICFGNode(Before);
   //   auto *AfterNode  = Icfg->getICFGNode(After);
@@ -229,17 +236,12 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
     LLVM_DEBUG(llvm::dbgs() << "No Alias:" << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Def: " << *DefOpe << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Use: " << *UseOpe << "\n");
-    // llvm::dbgs() << "No Alias:" << "\n";
-    // llvm::dbgs() << " - Def: " << *DefOpe << "\n";
-    // llvm::dbgs() << " - Use: " << *UseOpe << "\n";
-    // llvm::dbgs() << " - DefVal: " << *getValue(Def) << "\n";
-    // llvm::dbgs() << " - UseVal: " << *getValue(Use) << "\n";
     return;
   }
   Value *UseVal = getValue(Use);
   Value *DefVal = getValue(Def);
   NodeID UniqueID = getUniqueID(DefVal, Def);
-  if (isDataRace(UseVal, DefVal)) {
+  if (DataRaceDetection && isDataRace(UseVal, DefVal)) {
     llvm::errs() << "Write-Read Race:\n";
     llvm::errs() << " - Use: " << *UseVal << "\n";
     llvm::errs() << " - Def: " << *DefVal << "\n";

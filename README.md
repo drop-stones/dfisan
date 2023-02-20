@@ -46,6 +46,11 @@ No instrument unsafe accesses
 $ bin/clang -fsanitize=dfi -mllvm -no-check-unsafe-access foo.c
 ```
 
+Protect all data and detect memory errors only
+```
+$ bin/clang -fsanitize=dfi -mllvm -protect-all -mllvm -no-check-unsafe-access -mllvm -no-error-report -mllvm data-race-detection=false
+```
+
 Instrument checks + sets with function call (default: instrument with LLVM IR)  
 And it prints dynamic statistics on the number of checks + sets.
 ```
