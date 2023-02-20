@@ -75,6 +75,7 @@ private:
     addExtFun("read",   ExtFunType::EXT_DEF, AccessPosition::ARG, 1, 2);
     addExtFun("fgets",  ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 1);
     addExtFun("__isoc99_sscanf", ExtFunType::EXT_DEF, AccessPosition::VARARG, 2);
+    addExtFun("strncpy", ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 2);
     addExtFun("strcpy", ExtFunType::EXT_DEF, AccessPosition::ARG, 0, 1, true);
   }
 

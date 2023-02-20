@@ -224,6 +224,10 @@ static cl::opt<bool> ClCheckWithCall(
   "check-with-call", cl::desc("Instrument function calls to check data-flow integrity before load and after store"),
   cl::Hidden, cl::init(false));
 
+static cl::opt<bool> ClNoErrorReport(
+  "no-error-report", cl::desc("Don't report error"),
+  cl::Hidden, cl::init(false));
+
 ///
 //  Statistics
 ///
@@ -580,9 +584,13 @@ static Value *insertUnalignedCheck(IRBuilder<> *IRB, Instruction *InsertPoint, V
 
 /// Insert if-then to report error
 void DataFlowIntegritySanitizerPass::insertIfThenAndErrorReport(Value *Cond, Instruction *InsertPoint, Value *LoadAddr, ValueVector &DefIDs) {
-  Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cond, InsertPoint, /* unreachable */ true);
-  Instruction *Crash = generateCrashCode(CrashTerm, LoadAddr, DefIDs);
-  Crash->setDebugLoc(InsertPoint->getDebugLoc());
+  if (!ClNoErrorReport) { // Insert crash codes
+    Instruction *CrashTerm = SplitBlockAndInsertIfThen(Cond, InsertPoint, /* unreachable */ true);
+    Instruction *Crash = generateCrashCode(CrashTerm, LoadAddr, DefIDs);
+    Crash->setDebugLoc(InsertPoint->getDebugLoc());
+  } else {
+    Instruction *NoCrashTerm = SplitBlockAndInsertIfThen(Cond, InsertPoint, /* unreachable */ false);
+  }
 }
 
 /// Aligned check

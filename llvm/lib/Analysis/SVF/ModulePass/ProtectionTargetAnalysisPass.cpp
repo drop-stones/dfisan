@@ -119,6 +119,8 @@ void collectAllGlobals(Module &M, ValueSet &Globals) {
 // Collect all targets
 void collectAllTargets(Module &M, ValueSet &Globals, ValueSet &Locals, ValueSet &Heaps) {
   static Function *SafeMalloc = nullptr;
+  static Function *SafeCalloc = nullptr;
+  static Function *SafeRealloc = nullptr;
 
   collectAllGlobals(M, Globals);
 
@@ -130,7 +132,10 @@ void collectAllTargets(Module &M, ValueSet &Globals, ValueSet &Locals, ValueSet 
       } else if (CallInst *Call = dyn_cast<CallInst>(&Inst)) {
         // Value *Callee = Call->getCalledOperand()->stripPointerCasts();
         Function *Fn = Call->getCalledFunction();
+        if (Fn == nullptr)  // indirect call
+          continue;
         if (Fn->getName() == "malloc") {
+          SafeMalloc = M.getFunction("safe_malloc");
           if (SafeMalloc == nullptr) {
             ValueToValueMapTy Map;
             SafeMalloc = CloneFunction(Fn, Map, nullptr);
@@ -138,7 +143,26 @@ void collectAllTargets(Module &M, ValueSet &Globals, ValueSet &Locals, ValueSet 
           }
           Call->setCalledFunction(SafeMalloc);
           LLVM_DEBUG(dbgs() << "Heap: " << *Call << "\n");
-          llvm::errs() << "Heap: " << *Call << "\n";
+          Heaps.insert(Call);
+        } else if (Fn->getName() == "calloc") {
+          SafeCalloc = M.getFunction("safe_calloc");
+          if (SafeCalloc == nullptr) {
+            ValueToValueMapTy Map;
+            SafeCalloc = CloneFunction(Fn, Map, nullptr);
+            SafeCalloc->setName("safe_calloc");
+          }
+          Call->setCalledFunction(SafeCalloc);
+          LLVM_DEBUG(dbgs() << "Heap: " << *Call << "\n");
+          Heaps.insert(Call);
+        } else if (Fn->getName() == "realloc") {
+          SafeRealloc = M.getFunction("safe_realloc");
+          if (SafeRealloc == nullptr) {
+            ValueToValueMapTy Map;
+            SafeRealloc = CloneFunction(Fn, Map, nullptr);
+            SafeRealloc->setName("safe_realloc");
+          }
+          Call->setCalledFunction(SafeRealloc);
+          LLVM_DEBUG(dbgs() << "Heap: " << *Call << "\n");
           Heaps.insert(Call);
         }
       }

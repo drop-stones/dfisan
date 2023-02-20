@@ -50,6 +50,8 @@ const DfisanExtAPI::ExtFun &DfisanExtAPI::getExtFun(const SVFFunction *F) {
   return getExtFun(FnName);
 }
 const DfisanExtAPI::ExtFun &DfisanExtAPI::getExtFun(std::string FnName) {
+  if (!isExtFun(FnName))
+    llvm::errs() << "Invalid ExtFun: " << FnName << "\n";
   assert(isExtFun(FnName));
   return ExtFunMap[FnName];
 }

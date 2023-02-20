@@ -37,7 +37,7 @@ void DefUseSolver::solve() {
     // Generate def data-facts.
     if (isTargetStore(ID)) {
       Value *DefOpe = getStoreOperand(ID).Operand;
-/*
+///*
       DefIDVec ResetVec;
       for (auto Fact : Facts) {
         Value *FactOpe = getStoreOperand(Fact).Operand;
@@ -45,7 +45,7 @@ void DefUseSolver::solve() {
           ResetVec.set(Fact);
       }
       Facts.intersectWithComplement(ResetVec);  // Kill
-*/
+//*/
       Facts.set(ID);                            // Gen
     }
     
@@ -216,8 +216,12 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
   if (const auto *Call = llvm::dyn_cast<CallInst>(getValue(Def))) {
     auto *Fun = Call->getCalledFunction();
     DfisanExtAPI *ExtAPI = DfisanExtAPI::getDfisanExtAPI();
-    auto &ExtFun = ExtAPI->getExtFun(Fun->getName().str());
-    IsFieldSensitive = ExtFun.isFieldInsensitive();
+    if (ExtAPI->isExtFun(Fun->getName().str())) {
+      auto &ExtFun = ExtAPI->getExtFun(Fun->getName().str());
+      IsFieldSensitive = ExtFun.isFieldInsensitive();
+    } else {
+      return;
+    }
   }
   Value *DefOpe = getStoreOperand(Def).Operand;
   Value *UseOpe = getLoadOperand(Use).Operand;
@@ -225,11 +229,11 @@ void DefUseSolver::addDefUse(DefUseIDInfo &DefUse, NodeID Def, NodeID Use) {
     LLVM_DEBUG(llvm::dbgs() << "No Alias:" << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Def: " << *DefOpe << "\n");
     LLVM_DEBUG(llvm::dbgs() << " - Use: " << *UseOpe << "\n");
-    llvm::dbgs() << "No Alias:" << "\n";
-    llvm::dbgs() << " - Def: " << *DefOpe << "\n";
-    llvm::dbgs() << " - Use: " << *UseOpe << "\n";
-    llvm::dbgs() << " - DefVal: " << *getValue(Def) << "\n";
-    llvm::dbgs() << " - UseVal: " << *getValue(Use) << "\n";
+    // llvm::dbgs() << "No Alias:" << "\n";
+    // llvm::dbgs() << " - Def: " << *DefOpe << "\n";
+    // llvm::dbgs() << " - Use: " << *UseOpe << "\n";
+    // llvm::dbgs() << " - DefVal: " << *getValue(Def) << "\n";
+    // llvm::dbgs() << " - UseVal: " << *getValue(Use) << "\n";
     return;
   }
   Value *UseVal = getValue(Use);
